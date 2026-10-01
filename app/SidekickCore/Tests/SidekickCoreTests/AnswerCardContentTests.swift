@@ -28,6 +28,10 @@ final class AnswerCardContentTests: XCTestCase {
         XCTAssertEqual(card.chips.map(\.label), ["FAKE-DOC-2JZ · page 999"])
         XCTAssertEqual(card.chips.map(\.docID.rawValue), ["FAKE-DOC-2JZ"])
         XCTAssertEqual(card.chips.map(\.page.rawValue), [999])
+        XCTAssertEqual(
+            card.chips.map(\.citation.snippet),
+            ["FAKE-SNIPPET: no real spec. Value FAKE-SPEC."]
+        )
         XCTAssertFalse(card.showsHighlightSlot)
         XCTAssertNil(card.highlight)
     }
@@ -83,7 +87,32 @@ final class AnswerCardContentTests: XCTestCase {
             "FAKE-DOC-A · page 999",
             "FAKE-DOC-B · page 999",
         ])
+        XCTAssertEqual(card.chips.map(\.citation), [
+            try citation(docID: "FAKE-DOC-A", snippet: "FAKE-SNIPPET-A"),
+            try citation(docID: "FAKE-DOC-B", snippet: "FAKE-SNIPPET-B"),
+        ])
         XCTAssertFalse(card.showsHighlightSlot)
+    }
+
+    func testSamePageChipsKeepTheirOwnSnippets() throws {
+        let answer = Answer.found(
+            try XCTUnwrap(
+                FoundAnswer(
+                    text: "Two fake citations on one page.",
+                    citations: [
+                        try citation(docID: "FAKE-DOC", snippet: "FAKE-SNIPPET-A"),
+                        try citation(docID: "FAKE-DOC", snippet: "FAKE-SNIPPET-B"),
+                    ]
+                )
+            )
+        )
+        let card = AnswerCardContent(answer: answer)
+
+        XCTAssertEqual(card.chips.map(\.docID.rawValue), ["FAKE-DOC", "FAKE-DOC"])
+        XCTAssertEqual(card.chips.map(\.page.rawValue), [999, 999])
+        XCTAssertEqual(card.chips.map(\.citation.snippet), ["FAKE-SNIPPET-A", "FAKE-SNIPPET-B"])
+        XCTAssertEqual(card.chips[0].citation, try citation(docID: "FAKE-DOC", snippet: "FAKE-SNIPPET-A"))
+        XCTAssertEqual(card.chips[1].citation, try citation(docID: "FAKE-DOC", snippet: "FAKE-SNIPPET-B"))
     }
 
     func testCitationChipLabelIsDocumentAndPage() throws {

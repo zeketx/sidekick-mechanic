@@ -9,11 +9,14 @@ public struct AnswerCardContent: Hashable, Sendable {
     }
 
     /// One citation chip. The label is the document id and page.
+    /// `citation` is the page a tap opens, including the snippet.
     public struct Chip: Hashable, Sendable, Identifiable {
         public let id: Int
         public let label: String
-        public let docID: DocumentID
-        public let page: PageNumber
+        public let citation: Citation
+
+        public var docID: DocumentID { citation.docID }
+        public var page: PageNumber { citation.page }
     }
 
     /// Stable heading for the refusal card. The body text stays the model's reply.
@@ -58,8 +61,7 @@ public struct AnswerCardContent: Hashable, Sendable {
                 Chip(
                     id: index,
                     label: citation.chipLabel,
-                    docID: citation.docID,
-                    page: citation.page
+                    citation: citation
                 )
             }
             highlight = found.highlight
@@ -74,7 +76,7 @@ public struct AnswerCardContent: Hashable, Sendable {
 }
 
 extension Citation {
-    /// Document id and page only. The snippet is for a later citation viewer.
+    /// Document id and page on the chip. The snippet stays on `citation` for the page viewer.
     public var chipLabel: String {
         "\(docID.rawValue) · page \(page.rawValue)"
     }

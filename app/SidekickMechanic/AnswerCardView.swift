@@ -41,17 +41,23 @@ struct AnswerCardView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 ForEach(content.chips) { chip in
-                    Text(chip.label)
-                        .font(.subheadline)
-                        .foregroundStyle(.primary)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(.background, in: Capsule())
-                        .overlay {
-                            Capsule().strokeBorder(Color.secondary.opacity(0.35))
-                        }
-                        .accessibilityLabel(chip.label)
-                        .accessibilityIdentifier("answerCard.chip.\(chip.id)")
+                    NavigationLink {
+                        CitationPageView(citation: chip.citation)
+                    } label: {
+                        Text(chip.label)
+                            .font(.subheadline)
+                            .foregroundStyle(.primary)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(.background, in: Capsule())
+                            .overlay {
+                                Capsule().strokeBorder(Color.secondary.opacity(0.35))
+                            }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(chip.label)
+                    .accessibilityHint("Opens the manual page")
+                    .accessibilityIdentifier("answerCard.chip.\(chip.id)")
                 }
             }
         }
@@ -91,11 +97,13 @@ private struct AnswerCardPreview: View {
     let answer: Answer
 
     var body: some View {
-        ScrollView {
-            AnswerCardView(content: AnswerCardContent(answer: answer))
-                .padding(16)
+        NavigationStack {
+            ScrollView {
+                AnswerCardView(content: AnswerCardContent(answer: answer))
+                    .padding(16)
+            }
+            .background(.background)
         }
-        .background(.background)
     }
 }
 
