@@ -10,8 +10,10 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app import create_app
-from chat_models import Conversation
+from chat_models import Conversation, Message
 from contract import validate_answer
+from llm import FakeLLMClient
+from producer import LlmAnswerProducer
 from safety import SAFETY_NOTE, is_procedure_answer
 
 FIXTURE_PATH = Path(__file__).resolve().parent / "fixtures" / "safety_preamble.json"
@@ -85,6 +87,30 @@ def test_chat_applies_safety_preamble_from_eval_fixture(case: dict[str, Any]) ->
     else:
         assert SAFETY_NOTE not in body["text"]
     assert body == expected
+
+
+def test_llm_procedure_gets_note_only_at_http_boundary() -> None:
+    steps = "1. Let the fixture engine cool.\n2) Support the fixture vehicle on stands."
+    conversation = Conversation(
+        messages=[Message(role="user", text="How do I do the fixture job?")]
+    )
+    raw = LlmAnswerProducer(FakeLLMClient(text=steps)).produce(conversation)
+
+    assert raw == {"kind": "answer", "text": steps, "citations": []}
+    assert SAFETY_NOTE not in raw["text"]
+
+    response = TestClient(
+        create_app(producer=LlmAnswerProducer(FakeLLMClient(text=steps)))
+    ).post("/chat", json=CHAT_BODY)
+
+    assert response.status_code == 200
+    body = response.json()
+    validate_answer(body)
+    assert body == {
+        "kind": "answer",
+        "text": f"{SAFETY_NOTE}\n\n{steps}",
+        "citations": [],
+    }
 
 
 def test_chat_does_not_repeat_safety_note() -> None:
