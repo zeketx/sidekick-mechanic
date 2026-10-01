@@ -1,9 +1,13 @@
 # Sidekick Mechanic
 
-Sidekick Mechanic is a chat-first AI mechanic sidekick for the owner's 2JZ-GE-swapped 1990 Toyota Land Cruiser LJ78. Describe a problem and it answers from the real manuals with page citations, then shows a photo of his own engine bay with the part to check highlighted.
+Chat-first AI mechanic on iPhone for one truck: a 1990 Land Cruiser LJ78 with a 2JZ-GE swap. Describe a problem. It answers from the real manuals with page citations, and shows an engine-bay photo with the relevant part highlighted.
+
+Phase 1 is the chat sidekick. The truck is not delivered yet; unknowns stay TBD.
 
 - [VISION.md](VISION.md) — why this exists
 - [ROADMAP.md](ROADMAP.md) — phases and milestones
-- [BACKLOG.md](BACKLOG.md) — issues by milestone
+- [Backlog](https://github.com/zeketx/sidekick-mechanic/issues) — GitHub Issues and [milestones](https://github.com/zeketx/sidekick-mechanic/milestones)
 - [AGENTS.md](AGENTS.md) — how agents should work in this repo
 - [docs/](docs/) — kanban, poteto plan, and the build log
+
+Layout: `app/` (Xcode, owner-built), `backend/` (RAG), `ml/`, `docs/` (`docs/vehicle/`, `docs/build-log/`), `scripts/`, `backlog/`. Manual PDFs stay in gitignored `manuals/`.
