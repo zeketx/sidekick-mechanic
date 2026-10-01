@@ -1,7 +1,4 @@
-"""Scaffold tests so backend CI is a real pytest run before RAG code exists.
-
-New tests under backend/tests/ are collected automatically.
-"""
+"""Scaffold tests that stay collected alongside tests/ and root-level test_*.py."""
 
 import sys
 from pathlib import Path
