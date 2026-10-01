@@ -17,7 +17,10 @@ let package = Package(
     ],
     targets: [
         .target(
-            name: "SidekickCore"
+            name: "SidekickCore",
+            resources: [
+                .copy("Resources/Scenarios")
+            ]
         ),
         .testTarget(
             name: "SidekickCoreTests",

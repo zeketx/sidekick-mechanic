@@ -1,0 +1,30 @@
+{
+  "feature_id": "chat-highlight",
+  "entry_point": "POST /chat",
+  "request": {
+    "messages": [
+      {
+        "role": "user",
+        "text": "Why is it hard to start?"
+      }
+    ]
+  },
+  "status": 200,
+  "response": {
+    "kind": "answer",
+    "text": "Look at the fake intake area on the fixture bay photo.",
+    "citations": [
+      {
+        "doc_id": "FAKE-DOC-2JZ",
+        "page": 999,
+        "snippet": "FAKE-SNIPPET: check the mapped fixture part."
+      }
+    ],
+    "highlight": {
+      "bay_photo_id": "fake-bay-photo-front",
+      "part_id": "fake-part-intake"
+    }
+  },
+  "schema_valid": true,
+  "schema_error": null
+}

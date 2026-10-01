@@ -10,11 +10,12 @@ from chat_models import Conversation, Message
 from contract import load_answer_fixture, validate_answer
 from llm import DEFAULT_FAKE_TEXT, FakeLLMClient, LLMError
 from producer import (
+    UNAVAILABLE_ANSWER,
     AnswerProducer,
     FixtureAnswerProducer,
     LlmAnswerProducer,
-    UNAVAILABLE_ANSWER,
 )
+from safety import SAFETY_NOTE
 
 HAPPY_BODY = {
     "messages": [
@@ -116,3 +117,110 @@ def test_chat_rejects_producer_payload_that_fails_contract() -> None:
 
     assert response.status_code == 500
     assert response.json() == {"detail": "answer failed contract validation"}
+
+
+def test_chat_refuses_uncited_spec_even_when_snippet_contains_it() -> None:
+    class SnippetOnlyProducer:
+        def produce(self, conversation: Conversation) -> dict[str, Any]:
+            del conversation
+            return {
+                "kind": "answer",
+                "text": "Torque is 999 Nm.",
+                "citations": [
+                    {
+                        "doc_id": "FAKE-DOC",
+                        "page": 999,
+                        "snippet": "Torque is 999 Nm.",
+                    }
+                ],
+            }
+
+    response = TestClient(create_app(producer=SnippetOnlyProducer())).post(
+        "/chat", json=HAPPY_BODY
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    validate_answer(payload)
+    assert payload == {
+        "kind": "refusal",
+        "text": "Not found in the cited manual text: 999 Nm.",
+        "reason": "not_found_in_manual",
+    }
+
+
+def test_chat_allows_spec_when_producer_supplies_the_chunk() -> None:
+    answer = {
+        "kind": "answer",
+        "text": "Torque is 999 Nm.",
+        "citations": [
+            {
+                "doc_id": "FAKE-DOC",
+                "page": 999,
+                "snippet": "FAKE-SNIPPET",
+            }
+        ],
+    }
+
+    class ChunkProducer:
+        def produce(self, conversation: Conversation) -> dict[str, Any]:
+            del conversation
+            return answer
+
+        def cited_chunk_texts(self, conversation: Conversation) -> tuple[str, ...]:
+            del conversation
+            return ("FAKE-CHUNK: torque is 999 N·m.",)
+
+    response = TestClient(create_app(producer=ChunkProducer())).post(
+        "/chat", json=HAPPY_BODY
+    )
+
+    assert response.status_code == 200
+    assert response.json() == answer
+
+
+def test_chat_refuses_uncited_spec_before_safety_note() -> None:
+    class ProcedureWithSpec:
+        def produce(self, conversation: Conversation) -> dict[str, Any]:
+            del conversation
+            return {
+                "kind": "answer",
+                "text": "1. Tighten the FAKE bolt to 999 Nm.",
+                "citations": [],
+            }
+
+    response = TestClient(create_app(producer=ProcedureWithSpec())).post(
+        "/chat", json=HAPPY_BODY
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    validate_answer(payload)
+    assert payload["kind"] == "refusal"
+    assert payload["text"] == "Not found in the cited manual text: 999 Nm."
+    assert SAFETY_NOTE not in payload["text"]
+
+
+def test_chat_does_not_scan_the_safety_note(monkeypatch: pytest.MonkeyPatch) -> None:
+    patched = SAFETY_NOTE + " Fixture note voltage 999 V."
+    monkeypatch.setattr("safety.SAFETY_NOTE", patched)
+
+    class Procedure:
+        def produce(self, conversation: Conversation) -> dict[str, Any]:
+            del conversation
+            return {
+                "kind": "answer",
+                "text": "1. Leave the FAKE bay.",
+                "citations": [],
+            }
+
+    response = TestClient(create_app(producer=Procedure())).post(
+        "/chat", json=HAPPY_BODY
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    validate_answer(payload)
+    assert payload["kind"] == "answer"
+    assert payload["text"] == f"{patched}\n\n1. Leave the FAKE bay."
+    assert "999 V" in payload["text"]

@@ -93,9 +93,44 @@ CI runs that subset and writes the table to the Actions job summary. The
 workflow token stays `contents: read`, so the check does not post a PR comment.
 
 Recall@5 stays null until a runner supplies retrieval hits. The default runner
-does not, and cited pages are not treated as hits. The uncited-number total
-uses `LocalUncitedNumberCounter`. `run_harness(..., uncited_counter=...)`
-accepts another `UncitedNumberCounter` for the spec guard.
+does not, and cited pages are not treated as hits. `python -m eval` passes
+`SpecGuardUncitedCounter` to `run_harness(..., uncited_counter=...)`, so the
+uncited-number total uses the spec guard. `run_harness` without a counter
+still uses `LocalUncitedNumberCounter`.
+
+## Wiring-diagram spike
+
+Separate from ingestion and from the eval harness. It needs the system
+packages `tesseract-ocr`, `poppler-utils`, and `fonts-dejavu-core`. From this
+directory:
+
+```bash
+python3 spikes/wiring_spike.py --output eval/results/wiring-spike.json
+```
+
+The written result is [docs/design/wiring-diagram-spike.md](../docs/design/wiring-diagram-spike.md).
+`eval/results/wiring-spike.json` has no `generated_at`, so `make metrics` keeps
+the dated harness file. The script is not part of ingestion.
+
+## Prototype bay photos
+
+Public stand-ins for the highlight engine, before the truck arrives. They are
+not the owner's truck and they are replaced in M5. The manifest is
+[`data/prototype_bay_photos.json`](data/prototype_bay_photos.json). It records
+the source URL, author, license, and attribution for each file, and groups
+files by the five angle ids in [`docs/vehicle/DAY_ONE.md`](../docs/vehicle/DAY_ONE.md).
+
+The image files are not in git. From this directory:
+
+```bash
+python3 prototype_photos.py validate
+python3 prototype_photos.py fetch
+```
+
+`fetch` writes `bay-photos/prototype/` at the repo root (gitignored) and checks
+each file's SHA-256. A photo is accepted only when its license is CC0, CC BY,
+or CC BY-SA and the source's own words name a 2JZ-GE. The committed set is
+short of 10 photos. The `gaps` object says what is missing and what was left out.
 
 ## Stack
 
@@ -129,13 +164,34 @@ The response is an answer or a refusal as defined by the shared contract. The
 app must not invent vehicle facts; fixture citations use `page: 999` and
 `FAKE-*` values.
 
+## Spec guard
+
+`spec_guard.guard_answer(answer, cited_chunk_texts)` runs on the producer
+payload before the safety note is applied, so the note is never scanned.
+It extracts numbers with units and pin, connector, and terminal references.
+Each one must appear in a cited chunk. Otherwise the payload is replaced
+with a `not_found_in_manual` refusal that names the missing claims.
+Normalization is specified in
+[`docs/design/spec-guard.md`](../docs/design/spec-guard.md).
+
+Citation snippets are not evidence. `POST /chat` passes chunk text from
+`CitedChunkSource.cited_chunk_texts` when the producer implements it, and
+passes no chunks otherwise. With no chunks, any spec in the answer is refused.
+`LlmAnswerProducer` does not implement that protocol yet, because retrieval
+is not wired into `/chat`.
+
+Failures log a warning on the `sidekick.spec_guard` logger.
+`SpecGuardUncitedCounter` (`name` is `spec_guard`) is the harness hook: its
+`count` is `guard_answer(answer, ()).uncited_count`. The harness has no chunk
+text, so every claim still in a found answer counts, and a refusal counts as
+zero. `stats()` is the process total since `reset_stats()`.
+
 ## Safety preamble
 
-`POST /chat` runs every producer payload through `apply_safety_preamble`
-(`safety.py`) before schema validation. That includes `LlmAnswerProducer`.
-Procedure answers start with `SAFETY_NOTE`. That constant is the only copy of
-the wording; the owner reviews it there. The answer contract is unchanged: the
-note is part of `text`.
+`POST /chat` runs `apply_safety_preamble` (`safety.py`) on the guarded
+payload, before schema validation. Procedure answers start with `SAFETY_NOTE`.
+That constant is the only copy of the wording; the owner reviews it there.
+The answer contract is unchanged: the note is part of `text`.
 
 The detection rule lives on `is_procedure_answer` in `safety.py`. Refusals
 never receive the note. Eval cases are in
@@ -164,3 +220,28 @@ Environment variables (see `.env.example`):
 | `SIDEKICK_LLM_MAX_RETRIES` | `2` | Retries after the first attempt on timeout, transport errors, 429, and 5xx |
 
 `FixtureAnswerProducer` remains for tests that need a committed contract fixture.
+
+## Part resolver
+
+`part_resolver.resolve_answer` sets the answer contract's optional `highlight`
+from a model selection, or leaves the highlight off.
+
+The model must return `{"part_id": "<id>"}` or `{"part_id": null}`. The id
+has to be one of `BayMapView.part_ids()`. That view is a local stand-in for
+the bay map schema (#26), which is not merged. It carries part id, photo id,
+angle id, pixel area, and whether the region is confirmed. Polygons, image
+size, names, aliases, license, and source stay in #26. See
+[`docs/design/part-resolver.md`](../docs/design/part-resolver.md).
+
+Null, or an output that does not name exactly one listed id, leaves the
+answer text alone and sets no highlight. An id outside the closed list, or a
+listed part with no confirmed region of area greater than zero, also sets no
+highlight and appends `This part is not mapped yet.`
+
+The highlight photo is the confirmed region with the largest `area_px`.
+Equal areas break ties by `bay_photo_id`, then `angle_id`.
+
+`LlmAnswerProducer` asks for a part id only when it is constructed with a
+non-empty `BayMapView`. The default producer has no bay map, so `/chat` does
+not highlight until a map is supplied. A failed selection call leaves the
+answer without a highlight.

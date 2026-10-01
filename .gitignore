@@ -58,8 +58,16 @@ dist/
 manuals/
 *.pdf
 
+# Bay photos stay outside git. Day-one shots and fetched prototype
+# stand-ins both live here (see docs/vehicle/DAY_ONE.md).
+bay-photos/
+
 # Regenerated ingestion output (see backend/ingest.py)
 backend/.ingest/
+
+# Verification process lock. Proof files under .cursor/skills/verify-*/evidence stay.
+.cursor/skills/verify-backend/run/
+.cursor/skills/verify-ios/run/
 
 # Model weights and datasets
 *.mlmodel

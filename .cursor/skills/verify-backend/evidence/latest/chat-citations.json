@@ -1,0 +1,26 @@
+{
+  "feature_id": "chat-citations",
+  "entry_point": "POST /chat",
+  "request": {
+    "messages": [
+      {
+        "role": "user",
+        "text": "Why is it hard to start?"
+      }
+    ]
+  },
+  "status": 200,
+  "response": {
+    "kind": "answer",
+    "text": "Start with the fake intake path described in the fixture snippet. This is not a procedure.",
+    "citations": [
+      {
+        "doc_id": "FAKE-DOC-2JZ",
+        "page": 999,
+        "snippet": "FAKE-SNIPPET: no real spec. Value FAKE-SPEC."
+      }
+    ]
+  },
+  "schema_valid": true,
+  "schema_error": null
+}
