@@ -10,6 +10,8 @@ from typing import Any
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import ValidationError
 
+from part_resolver import BayMapView, BayPartView, PartRegionView
+
 CONTRACTS_DIR = Path(__file__).resolve().parent / "contracts"
 BAY_MAP_SCHEMA_PATH = CONTRACTS_DIR / "bay_map.schema.json"
 BAY_MAP_FIXTURE_PATH = CONTRACTS_DIR / "fixtures" / "bay-map" / "fake-bay-map.json"
@@ -154,6 +156,34 @@ class BayMap:
 
     def canonical_json(self) -> bytes:
         return json.dumps(_canonical_payload(self), separators=(",", ":")).encode("utf-8")
+
+
+def as_bay_map_view(bay_map: BayMap) -> BayMapView:
+    """Project the catalog into the part resolver's closed list.
+
+    Pixel area is normalized shoelace times width times height. Unconfirmed
+    regions stay in the view with ``confirmed=False`` so they cannot win.
+    """
+    regions_by_part: dict[str, list[PartRegionView]] = {
+        part.part_id: [] for part in bay_map.parts
+    }
+    for stored in bay_map._stored_photos:
+        photo = stored.photo
+        for region in stored.regions:
+            regions_by_part[region.part_id].append(
+                PartRegionView(
+                    bay_photo_id=photo.bay_photo_id,
+                    angle_id=photo.angle_id,
+                    area_px=_pixel_area(region.normalized_area, photo.width, photo.height),
+                    confirmed=region.confirmed_by is not None,
+                )
+            )
+    return BayMapView(
+        parts=tuple(
+            BayPartView(part_id=part.part_id, regions=tuple(regions_by_part[part.part_id]))
+            for part in bay_map.parts
+        )
+    )
 
 
 def load_bay_map(data: bytes) -> BayMap:

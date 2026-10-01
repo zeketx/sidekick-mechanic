@@ -7,7 +7,8 @@ from typing import Any
 import pytest
 from jsonschema.validators import Draft202012Validator
 
-from bay_map import BayMapError, BayPoint, load_bay_map
+from bay_map import BayMapError, BayPoint, as_bay_map_view, load_bay_map
+from part_resolver import largest_confirmed_region
 
 CONTRACTS_DIR = Path(__file__).resolve().parents[1] / "contracts"
 SCHEMA_PATH = CONTRACTS_DIR / "bay_map.schema.json"
@@ -107,6 +108,28 @@ def test_fixture_matches_schema_and_resolves_confirmed_regions() -> None:
     assert angles["fake-bay-photo-aaa"] == "fake-angle-shared"
     assert angles["fake-bay-photo-mmm"] == "fake-angle-shared"
     assert bay_map.photos[0].license_name == "FAKE-LICENSE"
+
+
+def test_resolver_view_skips_the_larger_unconfirmed_region() -> None:
+    bay_map = load_bay_map(FIXTURE_PATH.read_bytes())
+    view = as_bay_map_view(bay_map)
+    intake = next(part for part in view.parts if part.part_id == "fake-part-intake")
+    chosen = largest_confirmed_region(intake)
+    assert chosen is not None
+    assert chosen.bay_photo_id == "fake-bay-photo-wide"
+    assert chosen.angle_id == "fake-angle-wide"
+    assert chosen.area_px == 20000
+    assert chosen.confirmed is True
+    side = next(region for region in intake.regions if region.bay_photo_id == "fake-bay-photo-side")
+    assert side.confirmed is False
+    assert side.area_px == 160000
+    hidden = next(part for part in view.parts if part.part_id == "fake-part-hidden")
+    assert largest_confirmed_region(hidden) is None
+    tied = next(part for part in view.parts if part.part_id == "fake-part-tied")
+    tied_choice = largest_confirmed_region(tied)
+    assert tied_choice is not None
+    assert tied_choice.bay_photo_id == "fake-bay-photo-aaa"
+    assert tied_choice.area_px == 800
 
 
 def test_round_trip_keeps_the_unconfirmed_region() -> None:

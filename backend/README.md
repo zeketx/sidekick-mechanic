@@ -227,11 +227,11 @@ Environment variables (see `.env.example`):
 from a model selection, or leaves the highlight off.
 
 The model must return `{"part_id": "<id>"}` or `{"part_id": null}`. The id
-has to be one of `BayMapView.part_ids()`. That view is a local stand-in for
-the bay map schema (#26), which is not merged. It carries part id, photo id,
-angle id, pixel area, and whether the region is confirmed. Polygons, image
-size, names, aliases, license, and source stay in #26. See
-[`docs/design/part-resolver.md`](../docs/design/part-resolver.md).
+has to be one of `BayMapView.part_ids()`. `as_bay_map_view` builds that view
+from [`contracts/bay_map.schema.json`](contracts/bay_map.schema.json). The view
+carries part id, photo id, angle id, pixel area, and whether the region is
+confirmed. Polygons, image size, names, aliases, license, and source stay on
+the bay map. See [`docs/design/part-resolver.md`](../docs/design/part-resolver.md).
 
 Null, or an output that does not name exactly one listed id, leaves the
 answer text alone and sets no highlight. An id outside the closed list, or a
