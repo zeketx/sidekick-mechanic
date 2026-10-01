@@ -75,6 +75,18 @@ The response is an answer or a refusal as defined by the shared contract. The
 app must not invent vehicle facts; fixture citations use `page: 999` and
 `FAKE-*` values.
 
+## Safety preamble
+
+`POST /chat` runs every producer payload through `apply_safety_preamble`
+(`safety.py`) before schema validation. That includes `LlmAnswerProducer`.
+Procedure answers start with `SAFETY_NOTE`. That constant is the only copy of
+the wording; the owner reviews it there. The answer contract is unchanged: the
+note is part of `text`.
+
+The detection rule lives on `is_procedure_answer` in `safety.py`. Refusals
+never receive the note. Eval cases are in
+`eval/fixtures/safety_preamble.json`.
+
 ## LLM adapter
 
 `LLMClient.complete(messages)` returns text plus optional token usage.
