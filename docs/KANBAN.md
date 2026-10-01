@@ -46,24 +46,21 @@ Epics for Phases 2 and 3 are `size:L` issues with titles starting `Epic:`. Split
 
 ## Milestones
 
-Milestones match [ROADMAP.md](../ROADMAP.md): M0 to M6 for Phase 1, M7 to M9 for Phase 2, M10 for Phase 3. Definitions live in `backlog/milestones.json`.
+Milestones match [ROADMAP.md](../ROADMAP.md): M0 to M6 for Phase 1, M7 to M9 for Phase 2, M10 for Phase 3. Definitions live on [GitHub milestones](https://github.com/zeketx/sidekick-mechanic/milestones). Issues live on [GitHub Issues](https://github.com/zeketx/sidekick-mechanic/issues).
 
 ## Setup (owner, once GitHub access is set up)
 
-1. Preview: `DRY_RUN=1 scripts/create_issues.sh`
-2. Create labels, milestones, and issues: `scripts/create_issues.sh`
-3. Create the board (needs `gh auth refresh -s project`):
+Labels, milestones, and issues are on [GitHub Issues](https://github.com/zeketx/sidekick-mechanic/issues).
+
+1. Create the board (needs `gh auth refresh -s project`):
    `gh project create --owner zeketx --title "Sidekick Mechanic"`
-4. Link it to the repo: `gh project link <number> --owner zeketx --repo zeketx/sidekick-mechanic`
-5. In the board settings, set the Status options to the five columns above.
-6. Turn on the built-in workflows: "Item added to project → Backlog", "Pull request merged → Done", "Item closed → Done".
-7. Add all issues: re-run step 2 with `PROJECT="Sidekick Mechanic"` for new issues, or bulk-add existing ones from the board's "Add item" menu.
+2. Link it to the repo: `gh project link <number> --owner zeketx --repo zeketx/sidekick-mechanic`
+3. In the board settings, set the Status options to the five columns above.
+4. Turn on the built-in workflows: "Item added to project → Backlog", "Pull request merged → Done", "Item closed → Done".
+5. Add all issues from the board's "Add item" menu.
 
 Suggested views: **Board** grouped by Status. **Table** grouped by Milestone. **Phase 1** filtered to `label:phase:1`.
 
 ## Editing the backlog
 
-`backlog/issues.json` is the source of truth until the issues exist on GitHub. After that, GitHub is the source of truth.
-
-- Edit the JSON, then run `python3 scripts/render_backlog.py` to refresh `BACKLOG.md`.
-- `scripts/create_issues.sh` skips issues whose exact title already exists, so re-running it only adds new ones.
+[GitHub Issues](https://github.com/zeketx/sidekick-mechanic/issues) is the source of truth. Edit issues there. Edit milestones on [GitHub milestones](https://github.com/zeketx/sidekick-mechanic/milestones).

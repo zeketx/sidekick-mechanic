@@ -30,9 +30,9 @@ ml/                     Dataset scripts, training, Core ML export (Phase 2 dry r
 docs/                   Design docs, KANBAN.md, METRICS.md, MANUALS.md, BAY_MAP.md
 docs/vehicle/           TRUCK.md (fact registry), ECU.md, DAY_ONE.md
 docs/build-log/         Dated build log entries with metrics
-backlog/                issues.json and milestones.json
-scripts/                Repo tooling (create_issues.sh, render_backlog.py)
 ```
+
+Issues live on [GitHub Issues](https://github.com/zeketx/sidekick-mechanic/issues). Milestones live on [GitHub milestones](https://github.com/zeketx/sidekick-mechanic/milestones).
 
 If you need a new top-level folder, say why in the PR.
 
