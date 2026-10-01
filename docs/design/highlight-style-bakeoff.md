@@ -1,18 +1,18 @@
 # Highlight style bakeoff
 
-The default highlight is an 8 px fuchsia outline around the part, with the part's interior saturation at 3.0. The rest of the photo is unchanged. There is no circle.
+The default highlight config is an 8 px fuchsia outline and interior saturation of 3.0. Dim is off (`dim_factor` 1.0). The treatment does not draw a circle.
 
-The config is [`backend/data/highlight_style.json`](../../backend/data/highlight_style.json). `default_highlight_style()` loads it.
+Those values are the defaults on `HighlightConfig` in [`backend/highlight.py`](../../backend/highlight.py). `render_highlight` applies one operation per call. The winning treatment is saturate, then outline.
 
 ## What was compared
 
-Three style configs, rendered by one applicator on the same five 390×260 scenes: `dark`, `bright`, `mid`, `clutter`, `small`.
+Three style configs, on the same five 390×260 scenes: `dark`, `bright`, `mid`, `clutter`, `small`.
 
 The licensed manifest ([`backend/data/prototype_bay_photos.json`](../../backend/data/prototype_bay_photos.json)) has one photo. That is not five photos, and this bakeoff does not add another third-party image. The five scenes are synthetic. They are not the owner's truck.
 
-Issue #26 (bay map schema) and issue #29 (highlight renderer) are not merged. The applicator is the local stand-in `(photo, polygon, style) -> image` in `backend/highlight_style.py`. It is not the #29 renderer: no golden-image suite and no 12 MP timing claim. Polygons are passed in. This module does not define a bay map.
-
 `~/.cursor/rules/pstack-models.mdc` was not present, so the arena used its fallback runners: one candidate each on Claude Opus, GPT, and Grok, then a Claude Opus cross-judge.
+
+The bay map schema and the highlight renderer merged to main while the comparison was in progress. The comparison used a local applicator with the same four operations. That applicator is not in the tree. The winner is the default `HighlightConfig`, drawn by `render_highlight`.
 
 ## Rubric
 
@@ -39,13 +39,13 @@ The parent read and the cross-judge picked the same base. The only score that di
 | Config | 2 | 2 | 2 |
 | Total | 12 | 7 | 11 |
 
-`fuchsia-trace` is an opaque `[255, 0, 255, 255]` stroke, 8 px, saturate 3.0, dim 1.0, circle off, disabled circle fields zeroed.
+`fuchsia-trace` is an opaque fuchsia stroke, 8 px, saturate 3.0, dim off, circle off.
 
 `magenta-focus-ring` is a 10 px magenta stroke, saturate 2.7, dim 0.7, and a 5 px circle with 14 px pad.
 
-`blaze-contour` is a 12 px orange stroke, saturate 3.0, dim 1.0, circle off.
+`blaze-contour` is a 12 px orange stroke, saturate 3.0, dim off, circle off.
 
-Two of the three candidates agreed on the shape: a chromatic outline, saturation inside, no dim, no circle. The base is the 8 px fuchsia version. It leaves the surround pixel-identical outside the stroke, and it leaves more of the small part uncovered than the 12 px stroke (the small-part interior pixel `(308, 182)` stays a darkened green, not ink).
+Two of the three candidates agreed on the shape: a chromatic outline, saturation inside, no dim, no circle. The base is the 8 px fuchsia version. It leaves the surround unchanged outside the stroke, and it leaves more of the small part uncovered than the 12 px stroke.
 
 ## Grafts
 
@@ -53,17 +53,12 @@ Nothing from the losers was copied into the config.
 
 Rejected:
 
-- The 0.7 dim. It grays the bright scene and pushes the dark scene's faint shapes toward the canvas.
-- The always-on circle. It crosses neighbors on the large parts and on the clutter blobs. It helped only the small part.
-- The 12 px orange stroke. It covers the small part, and orange sits close to green interiors under simulated protan vision. The disabled circle color was also left orange; disabled fields on the winner are zero.
+- The 0.7 dim. It grays the bright scene and pushes the dark scene's faint shapes toward the canvas. The default `dim_factor` is 1.0, which leaves the photo unchanged. A caller can still pass a lower factor.
+- The always-on circle. It crosses neighbors on the large parts and on the clutter blobs. It helped only the small part. `HighlightConfig` still has circle fields because `render_highlight` can draw that style when asked. The default circle ink is the same fuchsia, so it is not a second color. The winning treatment does not call it.
+- The 12 px orange stroke. It covers the small part, and orange sits close to green interiors under simulated protan vision.
 
-The stand-in applicator draws a disk at each polygon vertex. Pillow's polyline leaves a gap where the outline closes, and that notch showed up at 8 px during the bakeoff. The disks close the joint. They do not change the config.
-
-Deferred, not built here:
-
-- Drawing the stroke outside the polygon, so a thick line does not cover a small part. That belongs to the #29 renderer.
-- A circle that appears only for a small part and only when it would not cross another region. The config cannot say that. It needs its own issue.
+The comparison applicator drew a disk at each vertex because its polyline left a gap where the outline closed. That applicator is gone. `render_highlight` strokes with `ImageDraw.polygon`, which closes the outline. An outward stroke, so a thick line would sit outside a small part, was not added here.
 
 ## Check
 
-`backend/tests/test_highlight_style.py` loads the default and checks literal pixels on all five scenes: untouched context, fuchsia at the closing vertex, saturated interior, and a still-visible small-part interior. No phone and no Xcode run. There is no app-target Swift in this change.
+`backend/tests/test_highlight.py` asserts the default config and literal pixels for outline, saturate, circle, and dim, and matches the golden images. The five-scene sheets were re-rendered with `render_highlight` after the defaults changed: each scene's corner pixel stayed the source color. No phone and no Xcode run. There is no app-target Swift in this change.

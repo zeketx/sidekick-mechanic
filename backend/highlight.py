@@ -39,13 +39,16 @@ class HighlightStyle(Enum):
 class HighlightConfig:
     """Parameters for outline, saturate, circle, and dim."""
 
-    outline_rgb: tuple[int, int, int] = (255, 176, 0)
-    outline_width_px: int = 4
-    saturation_factor: float = 2.0
-    circle_rgb: tuple[int, int, int] = (255, 176, 0)
+    # Bakeoff winner: fuchsia outline, strong interior saturation, no dim.
+    # The circle style is not part of that treatment. Its ink matches the
+    # outline so a caller who asks for a circle does not get a second color.
+    outline_rgb: tuple[int, int, int] = (255, 0, 255)
+    outline_width_px: int = 8
+    saturation_factor: float = 3.0
+    circle_rgb: tuple[int, int, int] = (255, 0, 255)
     circle_width_px: int = 4
     circle_padding_px: int = 8
-    dim_factor: float = 0.4
+    dim_factor: float = 1.0
 
     def __post_init__(self) -> None:
         _require_rgb(self.outline_rgb, "outline_rgb")
