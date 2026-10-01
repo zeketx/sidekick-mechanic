@@ -58,6 +58,9 @@ dist/
 manuals/
 *.pdf
 
+# Regenerated ingestion output (see backend/ingest.py)
+backend/.ingest/
+
 # Model weights and datasets
 *.mlmodel
 *.mlpackage

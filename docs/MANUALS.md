@@ -16,6 +16,7 @@ To verify local copies against this table (from `backend/`):
 
 ```bash
 python3 manifest.py
+python3 ingest.py
 ```
 
 ## Documents
@@ -33,4 +34,4 @@ Which documents belong in Phase 1 is taken from [VISION.md](../VISION.md) and [R
 
 ## How ingestion uses this file
 
-`backend/manifest.py` parses the table above. For each row it requires `manuals/<id>.pdf` and compares SHA-256. A later issue (#18) will chunk those verified PDFs; it should call the same verifier first rather than trusting files by name.
+`backend/manifest.py` parses the table above. For each row it requires `manuals/<id>.pdf` and compares SHA-256. `backend/ingest.py` calls that verifier first, then writes page-level chunks (`doc_id`, PDF page number, text) and a report of pages with no extractable text. Extra files in `manuals/` that are not in this table are ignored. Chunks are not an index; retrieval storage is a later issue.
