@@ -1,4 +1,7 @@
-"""FastAPI app: POST /chat returns a contract-valid answer."""
+"""FastAPI app: POST /chat returns a contract-valid answer.
+
+Procedure answers start with the safety note from safety.py. Refusals do not.
+"""
 
 from __future__ import annotations
 
@@ -10,6 +13,7 @@ from jsonschema.exceptions import ValidationError
 from chat_models import Conversation
 from contract import validate_answer
 from producer import AnswerProducer, FixtureAnswerProducer
+from safety import apply_safety_preamble
 
 
 def create_app(producer: AnswerProducer | None = None) -> FastAPI:
@@ -21,7 +25,9 @@ def create_app(producer: AnswerProducer | None = None) -> FastAPI:
 
     @application.post("/chat")
     def post_chat(conversation: Conversation) -> dict[str, Any]:
-        payload = answer_producer.produce(conversation)
+        # On the HTTP boundary so every producer, including a later LLM
+        # adapter, gets the same note.
+        payload = apply_safety_preamble(answer_producer.produce(conversation))
         try:
             return validate_answer(payload)
         except ValidationError as exc:
