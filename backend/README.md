@@ -4,8 +4,11 @@ Python 3.11+ and FastAPI. This is the RAG service for Sidekick Mechanic.
 
 `POST /chat` accepts a conversation and returns a payload that validates against
 [`contracts/answer.schema.json`](contracts/answer.schema.json). Answers come from
-`LlmAnswerProducer`, which calls an `LLMClient`. Retrieval is not wired yet, so
-replies have empty citations and must not be treated as a real procedure.
+`LlmAnswerProducer`, which calls an `LLMClient`. Retrieval (#19) is a SQLite FTS5
+index over ingest chunks, but it is not wired into `/chat` yet, so replies have
+empty citations and must not be treated as a real procedure.
+
+Design: [`docs/design/retrieval-index.md`](../docs/design/retrieval-index.md).
 
 ## Run locally
 
@@ -34,6 +37,19 @@ set -a && source .env && set +a
 uvicorn app:app --reload --host 127.0.0.1 --port 8000
 ```
 
+## Retrieval index
+
+After ingestion has written `.ingest/chunks.jsonl`:
+
+```bash
+python3 retrieval.py build
+python3 retrieval.py query "starter motor" --k 5
+```
+
+`build` reads `.ingest/chunks.jsonl` and replaces `.ingest/index.sqlite`. `query`
+prints top-k JSON lines with `doc_id`, `page`, `rank`, `score`, and `text`. Tests
+use generated `FAKE-*` chunks, not real manuals.
+
 ## Tests
 
 ```bash
@@ -55,6 +71,7 @@ with `httpx.MockTransport`.
 | Answer contract | `jsonschema` against `contracts/answer.schema.json` |
 | LLM | OpenAI-compatible `POST /chat/completions` over `httpx`, behind `LLMClient` |
 | Tests | pytest + FastAPI `TestClient` |
+| Retrieval | SQLite FTS5 (stdlib `sqlite3`), see `retrieval.py` |
 
 ## Request shape
 
