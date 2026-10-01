@@ -93,6 +93,20 @@ does not, and cited pages are not treated as hits. `python -m eval` passes
 uncited-number total uses the spec guard. `run_harness` without a counter
 still uses `LocalUncitedNumberCounter`.
 
+## Wiring-diagram spike
+
+Separate from ingestion and from the eval harness. It needs the system
+packages `tesseract-ocr`, `poppler-utils`, and `fonts-dejavu-core`. From this
+directory:
+
+```bash
+python3 spikes/wiring_spike.py --output eval/results/wiring-spike.json
+```
+
+The written result is [docs/design/wiring-diagram-spike.md](../docs/design/wiring-diagram-spike.md).
+`eval/results/wiring-spike.json` has no `generated_at`, so `make metrics` keeps
+the dated harness file. The script is not part of ingestion.
+
 ## Stack
 
 | Piece | Choice |
