@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -10,10 +11,10 @@ from chat_models import Conversation, Message
 from contract import load_answer_fixture, validate_answer
 from llm import DEFAULT_FAKE_TEXT, FakeLLMClient, LLMError
 from producer import (
+    UNAVAILABLE_ANSWER,
     AnswerProducer,
     FixtureAnswerProducer,
     LlmAnswerProducer,
-    UNAVAILABLE_ANSWER,
 )
 
 HAPPY_BODY = {
@@ -41,7 +42,11 @@ def test_chat_happy_path_returns_schema_valid_fixture() -> None:
     }
 
 
-def test_chat_default_without_api_key_uses_fake_llm() -> None:
+def test_chat_default_without_api_key_uses_fake_llm(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    missing = tmp_path / "missing.sqlite"
+    monkeypatch.setattr("producer._index_path", lambda: missing)
     response = _client().post("/chat", json=HAPPY_BODY)
 
     assert response.status_code == 200
