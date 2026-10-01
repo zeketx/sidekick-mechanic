@@ -19,6 +19,7 @@ from typing import Any, Protocol, runtime_checkable
 from chat_models import Conversation
 from contract import load_answer_fixture, validate_answer
 from llm import (
+    RETRIEVED_PAGES_HEADER,
     ChatTurn,
     LLMClient,
     LLMError,
@@ -269,7 +270,7 @@ def _grounded_system_prompt(hits: Sequence[_RetrievedPage]) -> str:
     rendered = json.dumps(pages, ensure_ascii=False)
     return (
         f"{_GROUNDED_PREAMBLE}\n\n{_GROUNDED_INSTRUCTIONS}\n\n"
-        f"Retrieved pages:\n{rendered}"
+        f"{RETRIEVED_PAGES_HEADER}{rendered}"
     )
 
 
