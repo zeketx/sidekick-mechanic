@@ -1,0 +1,116 @@
+Test Suite 'All tests' started at 2026-10-01 17:41:03.515
+Test Suite 'Debug-linux-x86_64.xctest' started at 2026-10-01 17:41:03.516
+Test Suite 'AnswerCardContentTests' started at 2026-10-01 17:41:03.516
+Test Case 'AnswerCardContentTests.testChipLabelsKeepCitationOrder' started at 2026-10-01 17:41:03.516
+Test Case 'AnswerCardContentTests.testChipLabelsKeepCitationOrder' passed (0.001 seconds)
+Test Case 'AnswerCardContentTests.testCitationChipLabelIsDocumentAndPage' started at 2026-10-01 17:41:03.516
+Test Case 'AnswerCardContentTests.testCitationChipLabelIsDocumentAndPage' passed (0.0 seconds)
+Test Case 'AnswerCardContentTests.testCitationsFixtureRendersDocAndPageChipsWithoutAHighlightSlot' started at 2026-10-01 17:41:03.516
+Test Case 'AnswerCardContentTests.testCitationsFixtureRendersDocAndPageChipsWithoutAHighlightSlot' passed (0.101 seconds)
+Test Case 'AnswerCardContentTests.testHighlightFixtureShowsTheImageSlot' started at 2026-10-01 17:41:03.617
+Test Case 'AnswerCardContentTests.testHighlightFixtureShowsTheImageSlot' passed (0.0 seconds)
+Test Case 'AnswerCardContentTests.testPlainFixtureHasTextAndNoChipsOrHighlight' started at 2026-10-01 17:41:03.617
+Test Case 'AnswerCardContentTests.testPlainFixtureHasTextAndNoChipsOrHighlight' passed (0.0 seconds)
+Test Case 'AnswerCardContentTests.testPreviewFixturesMatchContractFiles' started at 2026-10-01 17:41:03.618
+Test Case 'AnswerCardContentTests.testPreviewFixturesMatchContractFiles' passed (0.0 seconds)
+Test Case 'AnswerCardContentTests.testRefusalFixtureIsNotFoundAndHidesChipsAndHighlight' started at 2026-10-01 17:41:03.618
+Test Case 'AnswerCardContentTests.testRefusalFixtureIsNotFoundAndHidesChipsAndHighlight' passed (0.0 seconds)
+Test Suite 'AnswerCardContentTests' passed at 2026-10-01 17:41:03.618
+	 Executed 7 tests, with 0 failures (0 unexpected) in 0.102 (0.102) seconds
+Test Suite 'AnswerTests' started at 2026-10-01 17:41:03.618
+Test Case 'AnswerTests.testCitationJSONUsesSnakeCaseKeys' started at 2026-10-01 17:41:03.618
+Test Case 'AnswerTests.testCitationJSONUsesSnakeCaseKeys' passed (0.0 seconds)
+Test Case 'AnswerTests.testCitationPageZeroFailsToDecode' started at 2026-10-01 17:41:03.618
+Test Case 'AnswerTests.testCitationPageZeroFailsToDecode' passed (0.0 seconds)
+Test Case 'AnswerTests.testCitationWithoutPageFailsToDecode' started at 2026-10-01 17:41:03.618
+Test Case 'AnswerTests.testCitationWithoutPageFailsToDecode' passed (0.0 seconds)
+Test Case 'AnswerTests.testCitationsFixture' started at 2026-10-01 17:41:03.618
+Test Case 'AnswerTests.testCitationsFixture' passed (0.0 seconds)
+Test Case 'AnswerTests.testEmptyIDsCannotBeConstructed' started at 2026-10-01 17:41:03.618
+Test Case 'AnswerTests.testEmptyIDsCannotBeConstructed' passed (0.0 seconds)
+Test Case 'AnswerTests.testEmptySnippetFailsToDecode' started at 2026-10-01 17:41:03.619
+Test Case 'AnswerTests.testEmptySnippetFailsToDecode' passed (0.0 seconds)
+Test Case 'AnswerTests.testEveryFixtureDecodes' started at 2026-10-01 17:41:03.619
+Test Case 'AnswerTests.testEveryFixtureDecodes' passed (0.0 seconds)
+Test Case 'AnswerTests.testHighlightFixture' started at 2026-10-01 17:41:03.619
+Test Case 'AnswerTests.testHighlightFixture' passed (0.0 seconds)
+Test Case 'AnswerTests.testHighlightJSONUsesSnakeCaseKeys' started at 2026-10-01 17:41:03.619
+Test Case 'AnswerTests.testHighlightJSONUsesSnakeCaseKeys' passed (0.0 seconds)
+Test Case 'AnswerTests.testPageZeroCannotBeConstructed' started at 2026-10-01 17:41:03.619
+Test Case 'AnswerTests.testPageZeroCannotBeConstructed' passed (0.0 seconds)
+Test Case 'AnswerTests.testPlainAnswerFixture' started at 2026-10-01 17:41:03.619
+Test Case 'AnswerTests.testPlainAnswerFixture' passed (0.0 seconds)
+Test Case 'AnswerTests.testRefusalFixture' started at 2026-10-01 17:41:03.619
+Test Case 'AnswerTests.testRefusalFixture' passed (0.0 seconds)
+Test Case 'AnswerTests.testRefusalWithHighlightFailsToDecode' started at 2026-10-01 17:41:03.619
+Test Case 'AnswerTests.testRefusalWithHighlightFailsToDecode' passed (0.0 seconds)
+Test Case 'AnswerTests.testRequiredFixturesExist' started at 2026-10-01 17:41:03.619
+Test Case 'AnswerTests.testRequiredFixturesExist' passed (0.0 seconds)
+Test Case 'AnswerTests.testRoundTripEveryFixture' started at 2026-10-01 17:41:03.619
+Test Case 'AnswerTests.testRoundTripEveryFixture' passed (0.201 seconds)
+Test Case 'AnswerTests.testUnknownKindFailsToDecode' started at 2026-10-01 17:41:03.821
+Test Case 'AnswerTests.testUnknownKindFailsToDecode' passed (0.0 seconds)
+Test Suite 'AnswerTests' passed at 2026-10-01 17:41:03.821
+	 Executed 16 tests, with 0 failures (0 unexpected) in 0.203 (0.203) seconds
+Test Suite 'ChatClientTests' started at 2026-10-01 17:41:03.821
+Test Case 'ChatClientTests.testBackendURLComesFromBuildConfiguration' started at 2026-10-01 17:41:03.821
+Test Case 'ChatClientTests.testBackendURLComesFromBuildConfiguration' passed (0.0 seconds)
+Test Case 'ChatClientTests.testFactoryMockServesPlainFixture' started at 2026-10-01 17:41:03.821
+Test Case 'ChatClientTests.testFactoryMockServesPlainFixture' passed (0.0 seconds)
+Test Case 'ChatClientTests.testLiveErrorsMapToUserMessages' started at 2026-10-01 17:41:03.822
+Test Case 'ChatClientTests.testLiveErrorsMapToUserMessages' passed (0.102 seconds)
+Test Case 'ChatClientTests.testLivePostsSlimChatBodyAndDecodesAnswer' started at 2026-10-01 17:41:03.923
+Test Case 'ChatClientTests.testLivePostsSlimChatBodyAndDecodesAnswer' passed (0.101 seconds)
+Test Case 'ChatClientTests.testMockDelayIsConfigurable' started at 2026-10-01 17:41:04.024
+Test Case 'ChatClientTests.testMockDelayIsConfigurable' passed (0.0 seconds)
+Test Case 'ChatClientTests.testMockReturnsEachContractFixture' started at 2026-10-01 17:41:04.024
+Test Case 'ChatClientTests.testMockReturnsEachContractFixture' passed (0.0 seconds)
+Test Suite 'ChatClientTests' passed at 2026-10-01 17:41:04.025
+	 Executed 6 tests, with 0 failures (0 unexpected) in 0.203 (0.203) seconds
+Test Suite 'ChatViewModelTests' started at 2026-10-01 17:41:04.025
+Test Case 'ChatViewModelTests.testCancellationClearsLoadingWithoutAnError' started at 2026-10-01 17:41:04.025
+Test Case 'ChatViewModelTests.testCancellationClearsLoadingWithoutAnError' passed (0.002 seconds)
+Test Case 'ChatViewModelTests.testChatClientErrorSurfacesUserMessage' started at 2026-10-01 17:41:04.026
+Test Case 'ChatViewModelTests.testChatClientErrorSurfacesUserMessage' passed (0.0 seconds)
+Test Case 'ChatViewModelTests.testEmptySendDoesNotCallTheClient' started at 2026-10-01 17:41:04.026
+Test Case 'ChatViewModelTests.testEmptySendDoesNotCallTheClient' passed (0.0 seconds)
+Test Case 'ChatViewModelTests.testFailedSendCanBeFollowedByASuccessfulReply' started at 2026-10-01 17:41:04.027
+Test Case 'ChatViewModelTests.testFailedSendCanBeFollowedByASuccessfulReply' passed (0.0 seconds)
+Test Case 'ChatViewModelTests.testMockClientAppendsRefusalFixture' started at 2026-10-01 17:41:04.027
+Test Case 'ChatViewModelTests.testMockClientAppendsRefusalFixture' passed (0.0 seconds)
+Test Case 'ChatViewModelTests.testMockClientAppendsUserThenFixtureAnswer' started at 2026-10-01 17:41:04.027
+Test Case 'ChatViewModelTests.testMockClientAppendsUserThenFixtureAnswer' passed (0.0 seconds)
+Test Case 'ChatViewModelTests.testSendEnabledOnlyWhenTrimmedTextIsPresentAndIdle' started at 2026-10-01 17:41:04.027
+Test Case 'ChatViewModelTests.testSendEnabledOnlyWhenTrimmedTextIsPresentAndIdle' passed (0.0 seconds)
+Test Case 'ChatViewModelTests.testSendWhileLoadingDoesNotStartASecondRequest' started at 2026-10-01 17:41:04.027
+Test Case 'ChatViewModelTests.testSendWhileLoadingDoesNotStartASecondRequest' passed (0.101 seconds)
+Test Case 'ChatViewModelTests.testUnknownErrorUsesFallbackCopy' started at 2026-10-01 17:41:04.128
+Test Case 'ChatViewModelTests.testUnknownErrorUsesFallbackCopy' passed (0.101 seconds)
+Test Suite 'ChatViewModelTests' passed at 2026-10-01 17:41:04.230
+	 Executed 9 tests, with 0 failures (0 unexpected) in 0.205 (0.205) seconds
+Test Suite 'ConversationTests' started at 2026-10-01 17:41:04.230
+Test Case 'ConversationTests.testConversationAppendsMessagesInOrder' started at 2026-10-01 17:41:04.230
+Test Case 'ConversationTests.testConversationAppendsMessagesInOrder' passed (0.001 seconds)
+Test Case 'ConversationTests.testConversationRoundTripJSON' started at 2026-10-01 17:41:04.231
+Test Case 'ConversationTests.testConversationRoundTripJSON' passed (0.101 seconds)
+Test Case 'ConversationTests.testUserMessageRejectsEmptyText' started at 2026-10-01 17:41:04.331
+Test Case 'ConversationTests.testUserMessageRejectsEmptyText' passed (0.0 seconds)
+Test Case 'ConversationTests.testUserMessageWithAnswerFailsToDecode' started at 2026-10-01 17:41:04.331
+Test Case 'ConversationTests.testUserMessageWithAnswerFailsToDecode' passed (0.0 seconds)
+Test Suite 'ConversationTests' passed at 2026-10-01 17:41:04.332
+	 Executed 4 tests, with 0 failures (0 unexpected) in 0.102 (0.102) seconds
+Test Suite 'SidekickCoreTests' started at 2026-10-01 17:41:04.332
+Test Case 'SidekickCoreTests.testModuleName' started at 2026-10-01 17:41:04.332
+Test Case 'SidekickCoreTests.testModuleName' passed (0.0 seconds)
+Test Suite 'SidekickCoreTests' passed at 2026-10-01 17:41:04.332
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.0 (0.0) seconds
+Test Suite 'Debug-linux-x86_64.xctest' passed at 2026-10-01 17:41:04.332
+	 Executed 43 tests, with 0 failures (0 unexpected) in 0.816 (0.816) seconds
+Test Suite 'All tests' passed at 2026-10-01 17:41:04.332
+	 Executed 43 tests, with 0 failures (0 unexpected) in 0.816 (0.816) seconds
+◇ Test run started.
+↳ Testing Library Version: 6.4 (efd8d65801f569d)
+↳ Target Platform: x86_64-unknown-linux-gnu
+✔ Test run with 0 tests in 0 suites passed after 0.001 seconds.
+Building for debugging...
+Build complete! (0.36 secs)

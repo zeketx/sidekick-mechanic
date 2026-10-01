@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-10-01T17:40:19+00:00",
+  "date": "2026-10-01",
+  "golden_path": "eval/golden.sample.jsonl",
+  "subset": "full",
+  "runner": "inprocess_chat_fake_llm",
+  "uncited_number_counter": "spec_guard",
+  "case_count": 4,
+  "definitions": {
+    "recall@5": "Mean, over answerable questions that have retrieval hits, of how many expected (doc_id, page) pairs appear in the first 5 hits. Null when no question has retrieval. An empty hit list scores 0. Citations are not treated as retrieval.",
+    "citation accuracy": "Fraction of answerable questions whose answer cites at least one page and every cited (doc_id, page) is in the expected set. A refusal or an empty citation list scores 0 for that question.",
+    "refusal correctness": "Fraction of unanswerable questions returned as a contract refusal (kind refusal, reason not_found_in_manual).",
+    "uncited-number count": "Sum of the active counter's count for each answer. The local counter counts digit tokens in answer text that do not appear in a citation snippet. It does not understand units or pinouts. The spec guard counter counts unit-numbers and pin references it would block. The results file names the counter.",
+    "latency p50 (ms)": "50th percentile of per-question runner time in milliseconds. Linear index (n - 1) * 0.50.",
+    "latency p95 (ms)": "95th percentile of per-question runner time in milliseconds. Linear index (n - 1) * 0.95."
+  },
+  "metrics": {
+    "recall_at_5": null,
+    "citation_accuracy": 0.0,
+    "refusal_correctness": 0.0,
+    "uncited_number_count": 0,
+    "latency_p50_ms": 3.014,
+    "latency_p95_ms": 10.32
+  },
+  "cases": [
+    {
+      "id": "fake-answerable-intake",
+      "answerable": true,
+      "latency_ms": 11.576,
+      "answer_kind": "answer",
+      "retrieval_available": false,
+      "recall_at_5": null,
+      "citation_accurate": false,
+      "refusal_correct": null,
+      "uncited_number_count": 0,
+      "part_id": "fake-part-intake"
+    },
+    {
+      "id": "fake-answerable-pages",
+      "answerable": true,
+      "latency_ms": 3.2,
+      "answer_kind": "answer",
+      "retrieval_available": false,
+      "recall_at_5": null,
+      "citation_accurate": false,
+      "refusal_correct": null,
+      "uncited_number_count": 0
+    },
+    {
+      "id": "fake-unanswerable-pinout",
+      "answerable": false,
+      "latency_ms": 2.366,
+      "answer_kind": "answer",
+      "retrieval_available": false,
+      "recall_at_5": null,
+      "citation_accurate": null,
+      "refusal_correct": false,
+      "uncited_number_count": 0
+    },
+    {
+      "id": "fake-unanswerable-spec",
+      "answerable": false,
+      "latency_ms": 2.828,
+      "answer_kind": "answer",
+      "retrieval_available": false,
+      "recall_at_5": null,
+      "citation_accurate": null,
+      "refusal_correct": false,
+      "uncited_number_count": 0
+    }
+  ]
+}

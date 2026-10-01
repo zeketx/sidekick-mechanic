@@ -1,0 +1,11 @@
+INFO:     Started server process [5045]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:57407 (Press CTRL+C to quit)
+INFO:     127.0.0.1:40462 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40476 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40484 - "POST /chat HTTP/1.1" 200 OK
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [5045]
