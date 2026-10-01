@@ -4,8 +4,11 @@ Python 3.11+ and FastAPI. This is the RAG service for Sidekick Mechanic.
 
 `POST /chat` accepts a conversation and returns a payload that validates against
 [`contracts/answer.schema.json`](contracts/answer.schema.json). Answers come from
-`LlmAnswerProducer`, which calls an `LLMClient`. Retrieval is not wired yet, so
-replies have empty citations and must not be treated as a real procedure.
+`LlmAnswerProducer`, which calls an `LLMClient`. Retrieval (#19) is a SQLite FTS5
+index over ingest chunks, but it is not wired into `/chat` yet, so replies have
+empty citations and must not be treated as a real procedure.
+
+Design: [`docs/design/retrieval-index.md`](../docs/design/retrieval-index.md).
 
 ## Run locally
 
@@ -34,6 +37,19 @@ set -a && source .env && set +a
 uvicorn app:app --reload --host 127.0.0.1 --port 8000
 ```
 
+## Retrieval index
+
+After ingestion has written `.ingest/chunks.jsonl`:
+
+```bash
+python3 retrieval.py build
+python3 retrieval.py query "starter motor" --k 5
+```
+
+`build` reads `.ingest/chunks.jsonl` and replaces `.ingest/index.sqlite`. `query`
+prints top-k JSON lines with `doc_id`, `page`, `rank`, `score`, and `text`. Tests
+use generated `FAKE-*` chunks, not real manuals.
+
 ## Tests
 
 ```bash
@@ -45,7 +61,40 @@ Linux CI (#3) runs the same `pytest` from `backend/`. Tests never make network
 calls: the fake client is in-process, and the OpenAI-compatible client is driven
 with `httpx.MockTransport`.
 
-The wiring-diagram spike is separate from the service. It needs the system
+## Eval
+
+From the repository root:
+
+```bash
+make eval
+```
+
+That runs `golden.jsonl` when the file exists, otherwise
+[`eval/golden.sample.jsonl`](eval/golden.sample.jsonl), through in-process
+`POST /chat` with `FakeLLMClient`. It writes `eval/results/<UTC date>.json`
+and regenerates [`docs/METRICS.md`](../docs/METRICS.md). `make metrics`
+rebuilds the doc from the latest results file without re-running questions.
+
+The sample set is fake (`FAKE-*` document ids, page 999) so the harness and CI
+have rows before the real golden set exists. Do not put real manual pages in
+the sample. The golden-set issue owns `eval/golden.jsonl`.
+
+Each JSONL row matches [`eval/golden.schema.json`](eval/golden.schema.json):
+`id`, `question`, `answerable`, `expected` (`doc_id` and `page`), optional
+bay-map `part_id`, and optional `ci`. Answerable rows need at least one
+expected page. `ci: true` marks the fast subset.
+
+CI runs that subset and writes the table to the Actions job summary. The
+workflow token stays `contents: read`, so the check does not post a PR comment.
+
+Recall@5 stays null until a runner supplies retrieval hits. The default runner
+does not, and cited pages are not treated as hits. The uncited-number total
+uses `LocalUncitedNumberCounter`. `run_harness(..., uncited_counter=...)`
+accepts another `UncitedNumberCounter` for the spec guard.
+
+## Wiring-diagram spike
+
+Separate from ingestion and from the eval harness. It needs the system
 packages `tesseract-ocr`, `poppler-utils`, and `fonts-dejavu-core`. From this
 directory:
 
@@ -54,7 +103,8 @@ python3 spikes/wiring_spike.py --output eval/results/wiring-spike.json
 ```
 
 The written result is [docs/design/wiring-diagram-spike.md](../docs/design/wiring-diagram-spike.md).
-The script is not part of ingestion.
+`eval/results/wiring-spike.json` has no `generated_at`, so `make metrics` keeps
+the dated harness file. The script is not part of ingestion.
 
 ## Stack
 
@@ -66,6 +116,7 @@ The script is not part of ingestion.
 | Answer contract | `jsonschema` against `contracts/answer.schema.json` |
 | LLM | OpenAI-compatible `POST /chat/completions` over `httpx`, behind `LLMClient` |
 | Tests | pytest + FastAPI `TestClient` |
+| Retrieval | SQLite FTS5 (stdlib `sqlite3`), see `retrieval.py` |
 
 ## Request shape
 

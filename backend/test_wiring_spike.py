@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from eval.report import latest_results_path
 from spikes.wiring_spike import main, run
 
 _RESULTS = Path(__file__).resolve().parent / "eval" / "results" / "wiring-spike.json"
@@ -93,3 +94,9 @@ def test_cli_rewrites_the_committed_report(tmp_path: Path) -> None:
     assert fresh["real_manual"] == committed["real_manual"]
     assert committed["pages"][4]["sample_id"] == "mixed-caption"
     assert committed["pages"][4]["text_extraction"]["text"] == "FAKE-CAPTION"
+
+
+def test_spike_json_is_not_the_harness_latest_result() -> None:
+    latest = latest_results_path(_RESULTS.parent)
+    assert latest.name == "2026-10-01.json"
+    assert latest.name != "wiring-spike.json"

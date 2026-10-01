@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Golden question",
+  "description": "One JSONL row for the eval harness. The real question file is backend/eval/golden.jsonl (owned by the golden-set issue). The committed sample uses FAKE document ids and page 999.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "question", "answerable", "expected"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Stable question id."
+    },
+    "question": {
+      "type": "string",
+      "minLength": 1
+    },
+    "answerable": {
+      "type": "boolean",
+      "description": "False when the correct behavior is a contract refusal."
+    },
+    "expected": {
+      "type": "array",
+      "description": "Document pages that support an answerable question. Empty when the question is unanswerable and no page should be cited.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["doc_id", "page"],
+        "properties": {
+          "doc_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "page": {
+            "type": "integer",
+            "minimum": 1
+          }
+        }
+      }
+    },
+    "part_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Optional bay-map part id. Same field name as the highlight contract. Omit when the question names no mapped part."
+    },
+    "ci": {
+      "type": "boolean",
+      "description": "True includes the row in the fast CI subset. Omit or false for the full run only."
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "answerable": { "const": true }
+        },
+        "required": ["answerable"]
+      },
+      "then": {
+        "properties": {
+          "expected": { "minItems": 1 }
+        }
+      }
+    }
+  ]
+}
