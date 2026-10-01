@@ -1,0 +1,238 @@
+{
+  "fixture_policy": "Tokens are FAKE-* placeholders. They are not vehicle facts.",
+  "pages": [
+    {
+      "kind": "text-layer",
+      "ocr": {
+        "row_count": 2,
+        "rows_intact": 2,
+        "text": "FAKE-ROW-1A FAKE-ROW-1B\n\nFAKE-ROW-2A FAKE-ROW-2B",
+        "tokens_found": [
+          "FAKE-ROW-1A",
+          "FAKE-ROW-1B",
+          "FAKE-ROW-2A",
+          "FAKE-ROW-2B"
+        ],
+        "tokens_missing": [],
+        "unanchored_text": false,
+        "usable_as_lookup": true
+      },
+      "page": 1,
+      "rows": [
+        [
+          "FAKE-ROW-1A",
+          "FAKE-ROW-1B"
+        ],
+        [
+          "FAKE-ROW-2A",
+          "FAKE-ROW-2B"
+        ]
+      ],
+      "sample_id": "text-layer-rows",
+      "text_extraction": {
+        "row_count": 2,
+        "rows_intact": 2,
+        "text": "FAKE-ROW-1A FAKE-ROW-1B\nFAKE-ROW-2A FAKE-ROW-2B",
+        "tokens_found": [
+          "FAKE-ROW-1A",
+          "FAKE-ROW-1B",
+          "FAKE-ROW-2A",
+          "FAKE-ROW-2B"
+        ],
+        "tokens_missing": [],
+        "unanchored_text": false,
+        "usable_as_lookup": true
+      },
+      "tokens": [
+        "FAKE-ROW-1A",
+        "FAKE-ROW-1B",
+        "FAKE-ROW-2A",
+        "FAKE-ROW-2B"
+      ]
+    },
+    {
+      "kind": "image-only",
+      "ocr": {
+        "row_count": 1,
+        "rows_intact": 1,
+        "text": "FAKE-SCAN-1 FAKE-SCAN-2",
+        "tokens_found": [
+          "FAKE-SCAN-1",
+          "FAKE-SCAN-2"
+        ],
+        "tokens_missing": [],
+        "unanchored_text": false,
+        "usable_as_lookup": true
+      },
+      "page": 2,
+      "rows": [
+        [
+          "FAKE-SCAN-1",
+          "FAKE-SCAN-2"
+        ]
+      ],
+      "sample_id": "image-only",
+      "text_extraction": {
+        "row_count": 1,
+        "rows_intact": 0,
+        "text": "",
+        "tokens_found": [],
+        "tokens_missing": [
+          "FAKE-SCAN-1",
+          "FAKE-SCAN-2"
+        ],
+        "unanchored_text": false,
+        "usable_as_lookup": false
+      },
+      "tokens": [
+        "FAKE-SCAN-1",
+        "FAKE-SCAN-2"
+      ]
+    },
+    {
+      "kind": "text-layer-column-major",
+      "ocr": {
+        "row_count": 2,
+        "rows_intact": 2,
+        "text": "FAKE-PAIR-L1 FAKE-PAIR-R1\n\nFAKE-PAIR-L2 FAKE-PAIR-R2",
+        "tokens_found": [
+          "FAKE-PAIR-L1",
+          "FAKE-PAIR-R1",
+          "FAKE-PAIR-L2",
+          "FAKE-PAIR-R2"
+        ],
+        "tokens_missing": [],
+        "unanchored_text": false,
+        "usable_as_lookup": true
+      },
+      "page": 3,
+      "rows": [
+        [
+          "FAKE-PAIR-L1",
+          "FAKE-PAIR-R1"
+        ],
+        [
+          "FAKE-PAIR-L2",
+          "FAKE-PAIR-R2"
+        ]
+      ],
+      "sample_id": "scrambled-order",
+      "text_extraction": {
+        "row_count": 2,
+        "rows_intact": 0,
+        "text": "FAKE-PAIR-L1\nFAKE-PAIR-L2\nFAKE-PAIR-R1\nFAKE-PAIR-R2",
+        "tokens_found": [
+          "FAKE-PAIR-L1",
+          "FAKE-PAIR-R1",
+          "FAKE-PAIR-L2",
+          "FAKE-PAIR-R2"
+        ],
+        "tokens_missing": [],
+        "unanchored_text": false,
+        "usable_as_lookup": false
+      },
+      "tokens": [
+        "FAKE-PAIR-L1",
+        "FAKE-PAIR-R1",
+        "FAKE-PAIR-L2",
+        "FAKE-PAIR-R2"
+      ]
+    },
+    {
+      "kind": "image-only-vertical",
+      "ocr": {
+        "row_count": 1,
+        "rows_intact": 0,
+        "text": "CLdsaN AVA\n\nTLdsaANsV4",
+        "tokens_found": [],
+        "tokens_missing": [
+          "FAKE-VERT-1",
+          "FAKE-VERT-2"
+        ],
+        "unanchored_text": true,
+        "usable_as_lookup": false
+      },
+      "page": 4,
+      "rows": [
+        [
+          "FAKE-VERT-1",
+          "FAKE-VERT-2"
+        ]
+      ],
+      "sample_id": "vertical-image",
+      "text_extraction": {
+        "row_count": 1,
+        "rows_intact": 0,
+        "text": "",
+        "tokens_found": [],
+        "tokens_missing": [
+          "FAKE-VERT-1",
+          "FAKE-VERT-2"
+        ],
+        "unanchored_text": false,
+        "usable_as_lookup": false
+      },
+      "tokens": [
+        "FAKE-VERT-1",
+        "FAKE-VERT-2"
+      ]
+    },
+    {
+      "kind": "image-plus-caption",
+      "ocr": {
+        "row_count": 2,
+        "rows_intact": 2,
+        "text": "FAKE-DIAGRAM-1 FAKE-DIAGRAM-2\n\nFAKE-CAPTION",
+        "tokens_found": [
+          "FAKE-DIAGRAM-1",
+          "FAKE-DIAGRAM-2",
+          "FAKE-CAPTION"
+        ],
+        "tokens_missing": [],
+        "unanchored_text": false,
+        "usable_as_lookup": true
+      },
+      "page": 5,
+      "rows": [
+        [
+          "FAKE-DIAGRAM-1",
+          "FAKE-DIAGRAM-2"
+        ],
+        [
+          "FAKE-CAPTION"
+        ]
+      ],
+      "sample_id": "mixed-caption",
+      "text_extraction": {
+        "row_count": 2,
+        "rows_intact": 1,
+        "text": "FAKE-CAPTION",
+        "tokens_found": [
+          "FAKE-CAPTION"
+        ],
+        "tokens_missing": [
+          "FAKE-DIAGRAM-1",
+          "FAKE-DIAGRAM-2"
+        ],
+        "unanchored_text": false,
+        "usable_as_lookup": false
+      },
+      "tokens": [
+        "FAKE-DIAGRAM-1",
+        "FAKE-DIAGRAM-2",
+        "FAKE-CAPTION"
+      ]
+    }
+  ],
+  "real_manual": {
+    "accuracy": "TBD",
+    "doc_id": "lj78-wiring",
+    "reason": "docs/MANUALS.md records SHA-256 as TBD, and the PDF is not in the repo."
+  },
+  "tools": {
+    "pdftoppm_dpi": "150",
+    "poppler": "pdftotext version 24.02.0",
+    "pypdf": "6.19.0",
+    "tesseract": "tesseract 5.3.4"
+  }
+}

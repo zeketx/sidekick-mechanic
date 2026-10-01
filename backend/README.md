@@ -45,6 +45,17 @@ Linux CI (#3) runs the same `pytest` from `backend/`. Tests never make network
 calls: the fake client is in-process, and the OpenAI-compatible client is driven
 with `httpx.MockTransport`.
 
+The wiring-diagram spike is separate from the service. It needs the system
+packages `tesseract-ocr`, `poppler-utils`, and `fonts-dejavu-core`. From this
+directory:
+
+```bash
+python3 spikes/wiring_spike.py --output eval/results/wiring-spike.json
+```
+
+The written result is [docs/design/wiring-diagram-spike.md](../docs/design/wiring-diagram-spike.md).
+The script is not part of ingestion.
+
 ## Stack
 
 | Piece | Choice |

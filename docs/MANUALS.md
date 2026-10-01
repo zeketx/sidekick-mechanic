@@ -30,6 +30,8 @@ Edition, page count, and SHA-256 are `TBD` until the matching PDF is on disk and
 
 IDs are lowercase, filesystem-safe, and stable. Do not invent Toyota publication numbers, years, or page counts. When the owner has the real cover pages, replace the titles and `TBD` fields with what is printed on those copies.
 
+Wiring-diagram pages are cited as page images. Text extraction and OCR on synthetic pages are recorded in [wiring-diagram-spike.md](design/wiring-diagram-spike.md). Accuracy on `lj78-wiring` stays `TBD` until that PDF is hashed here.
+
 Which documents belong in Phase 1 is taken from [VISION.md](../VISION.md) and [ROADMAP.md](../ROADMAP.md) (2JZ-GE repair manual and LJ78 wiring docs). Additional manuals get a new row before ingestion may use them.
 
 ## How ingestion uses this file
