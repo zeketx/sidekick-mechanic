@@ -1,0 +1,419 @@
+from __future__ import annotations
+
+import json
+import logging
+from pathlib import Path
+from typing import Any
+
+import pytest
+from fastapi.testclient import TestClient
+
+from app import create_app
+from chat_models import Conversation, Message
+from llm import ChatTurn, FakeLLMClient, LLMError
+from producer import SYSTEM_PROMPT, LlmAnswerProducer, _IndexRetriever
+from retrieval import Chunk, build_index
+from safety import SAFETY_NOTE
+
+_DOC = "FAKE-DOC-2JZ"
+_PAGE = 999
+_SNIPPET = "FAKE-SNIPPET: no real spec."
+_QUESTION = "Where is the fake part?"
+_ANSWER = "The fake page names the fixture part."
+_REFUSAL = {
+    "kind": "refusal",
+    "text": "Not found in the manual. I do not have a cited page for this.",
+    "reason": "not_found_in_manual",
+}
+_UNAVAILABLE = {
+    "kind": "answer",
+    "text": "The mechanic is unavailable right now. Try again in a moment.",
+    "citations": [],
+}
+
+
+class _Hit:
+    def __init__(self, doc_id: str, page: int, text: str) -> None:
+        self.doc_id = doc_id
+        self.page = page
+        self.text = text
+
+
+class _Retriever:
+    def __init__(self, hits: tuple[_Hit, ...]) -> None:
+        self._hits = hits
+        self.queries: list[str] = []
+
+    def search(self, query: str, k: int = 5) -> tuple[_Hit, ...]:
+        self.queries.append(query)
+        return self._hits
+
+
+def _conversation(text: str = _QUESTION) -> Conversation:
+    return Conversation(messages=[Message(role="user", text=text)])
+
+
+def _completion(text: str, citations: list[dict[str, Any]]) -> str:
+    return json.dumps({"text": text, "citations": citations})
+
+
+def _cited(
+    snippet: str = _SNIPPET,
+    *,
+    page: int = _PAGE,
+    doc_id: str = _DOC,
+) -> dict[str, Any]:
+    return {"doc_id": doc_id, "page": page, "snippet": snippet}
+
+
+def _producer(
+    completion: str,
+    hits: tuple[_Hit, ...],
+    *,
+    error: Exception | None = None,
+) -> tuple[LlmAnswerProducer, FakeLLMClient, _Retriever]:
+    fake = FakeLLMClient(text=completion, error=error)
+    retriever = _Retriever(hits)
+    return LlmAnswerProducer(fake, retriever=retriever), fake, retriever
+
+
+def test_cited_answer_keeps_retrieved_snippet() -> None:
+    producer, fake, retriever = _producer(
+        _completion(_ANSWER, [_cited()]),
+        (_Hit(_DOC, _PAGE, _SNIPPET),),
+    )
+
+    payload = producer.produce(_conversation())
+
+    assert payload == {
+        "kind": "answer",
+        "text": _ANSWER,
+        "citations": [_cited()],
+    }
+    assert retriever.queries == [_QUESTION]
+    system = fake.calls[0][0]
+    assert system.role == "system"
+    assert "Do not invent torque" in system.content
+    assert "If you do not know, say so." not in system.content
+    assert "case-sensitive" in system.content
+    assert '"page" (integer)' in system.content
+    assert "Retrieved pages:" in system.content
+    assert _SNIPPET in system.content
+    assert "citations" in system.content
+    assert "doc_id" in system.content
+    assert "snippet" in system.content
+    assert '"score"' not in system.content
+    assert '"rank"' not in system.content
+    assert "N·m" not in system.content
+    assert fake.calls[0][1] == ChatTurn(role="user", content=_QUESTION)
+
+
+def test_mixed_citations_keep_only_retrieved_page() -> None:
+    producer, _, _ = _producer(
+        _completion(
+            _ANSWER,
+            [_cited(page=998), _cited()],
+        ),
+        (_Hit(_DOC, _PAGE, _SNIPPET),),
+    )
+
+    payload = producer.produce(_conversation())
+
+    assert payload == {
+        "kind": "answer",
+        "text": _ANSWER,
+        "citations": [_cited()],
+    }
+
+
+def test_invented_snippet_is_unavailable() -> None:
+    producer, _, _ = _producer(
+        _completion(_ANSWER, [_cited("FAKE-SNIPPET: invented and not on the page.")]),
+        (_Hit(_DOC, _PAGE, _SNIPPET),),
+    )
+
+    payload = producer.produce(_conversation())
+
+    assert payload == _UNAVAILABLE
+
+
+def test_empty_search_refuses_without_calling_the_model(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.INFO, logger="sidekick.llm")
+    producer, fake, _ = _producer("should not be sent", ())
+
+    payload = producer.produce(_conversation())
+
+    assert payload == _REFUSAL
+    assert fake.calls == []
+    assert "llm request" not in caplog.text
+
+
+def test_empty_citations_array_refuses_and_discards_model_text() -> None:
+    producer, _, _ = _producer(
+        _completion("nope", []),
+        (_Hit(_DOC, _PAGE, _SNIPPET),),
+    )
+
+    payload = producer.produce(_conversation())
+
+    assert payload == _REFUSAL
+    assert "nope" not in json.dumps(payload)
+
+
+def test_prose_completion_is_unavailable() -> None:
+    producer, _, _ = _producer(
+        "This prose is not a JSON object.",
+        (_Hit(_DOC, _PAGE, _SNIPPET),),
+    )
+
+    payload = producer.produce(_conversation())
+
+    assert payload == _UNAVAILABLE
+
+
+def test_llm_error_with_hits_is_unavailable() -> None:
+    producer, _, _ = _producer(
+        _ANSWER,
+        (_Hit(_DOC, _PAGE, _SNIPPET),),
+        error=LLMError("boom"),
+    )
+
+    payload = producer.produce(_conversation())
+
+    assert payload == _UNAVAILABLE
+
+
+def test_long_snippet_is_capped_on_whitespace() -> None:
+    page_text = "FAKE-WORD " * 40
+    stored = ("FAKE-WORD " * 27) + "FAKE-WORD"
+    producer, _, _ = _producer(
+        _completion(_ANSWER, [_cited(page_text)]),
+        (_Hit(_DOC, _PAGE, page_text),),
+    )
+
+    payload = producer.produce(_conversation())
+
+    assert payload == {
+        "kind": "answer",
+        "text": _ANSWER,
+        "citations": [_cited(stored)],
+    }
+    assert stored in page_text
+    assert len(stored) <= 280
+    assert stored.endswith("FAKE-WORD")
+
+
+def test_no_retriever_wraps_prose_with_empty_citations() -> None:
+    prose = "Fixture prose with no manual page."
+    payload = LlmAnswerProducer(FakeLLMClient(text=prose)).produce(_conversation())
+
+    assert payload == {"kind": "answer", "text": prose, "citations": []}
+
+
+def test_chat_keeps_a_spec_that_is_in_the_retrieved_page() -> None:
+    page_text = "FAKE-CHUNK: torque is 999 N·m."
+    answer = "Torque is 999 Nm."
+    snippet = "torque is 999 N·m."
+    producer, _, _ = _producer(
+        _completion(answer, [_cited(snippet)]),
+        (_Hit(_DOC, _PAGE, page_text),),
+    )
+
+    response = TestClient(create_app(producer=producer)).post(
+        "/chat",
+        json={"messages": [{"role": "user", "text": _QUESTION}]},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "kind": "answer",
+        "text": answer,
+        "citations": [_cited(snippet)],
+    }
+
+
+def test_chat_returns_cited_answer_and_refusal_without_safety_note() -> None:
+    cited_producer, _, _ = _producer(
+        _completion(_ANSWER, [_cited()]),
+        (_Hit(_DOC, _PAGE, _SNIPPET),),
+    )
+    cited = TestClient(create_app(producer=cited_producer)).post(
+        "/chat",
+        json={"messages": [{"role": "user", "text": _QUESTION}]},
+    )
+
+    assert cited.status_code == 200
+    assert cited.json() == {
+        "kind": "answer",
+        "text": _ANSWER,
+        "citations": [_cited()],
+    }
+
+    refusal_producer, _, _ = _producer("should not be sent", ())
+    refused = TestClient(create_app(producer=refusal_producer)).post(
+        "/chat",
+        json={"messages": [{"role": "user", "text": _QUESTION}]},
+    )
+
+    assert refused.status_code == 200
+    body = refused.json()
+    assert body == _REFUSAL
+    assert not body["text"].startswith(SAFETY_NOTE)
+
+
+def test_markdown_fence_json_is_a_cited_answer() -> None:
+    fenced = "```json\n" + _completion(_ANSWER, [_cited()]) + "\n```"
+    producer, _, _ = _producer(fenced, (_Hit(_DOC, _PAGE, _SNIPPET),))
+
+    payload = producer.produce(_conversation())
+
+    assert payload == {
+        "kind": "answer",
+        "text": _ANSWER,
+        "citations": [_cited()],
+    }
+
+
+def test_ill_typed_citations_are_unavailable() -> None:
+    producer, _, _ = _producer(
+        json.dumps(
+            {
+                "text": "nope",
+                "citations": [{"doc_id": " ", "page": True, "snippet": " "}],
+            }
+        ),
+        (_Hit(_DOC, _PAGE, _SNIPPET),),
+    )
+
+    payload = producer.produce(_conversation())
+
+    assert payload == _UNAVAILABLE
+    assert "nope" not in json.dumps(payload)
+
+
+def test_blank_text_with_empty_citations_is_a_refusal() -> None:
+    producer, _, _ = _producer(
+        json.dumps({"text": "", "citations": []}),
+        (_Hit(_DOC, _PAGE, _SNIPPET),),
+    )
+
+    payload = producer.produce(_conversation())
+
+    assert payload == _REFUSAL
+
+
+def test_case_changed_snippet_is_unavailable() -> None:
+    producer, _, _ = _producer(
+        _completion(_ANSWER, [_cited("fake-snippet: no real spec.")]),
+        (_Hit(_DOC, _PAGE, _SNIPPET),),
+    )
+
+    payload = producer.produce(_conversation())
+
+    assert payload == _UNAVAILABLE
+
+
+def test_long_snippet_cuts_back_from_a_mid_word_boundary() -> None:
+    page_text = ("FAKE-WORD " * 27) + "EXTRA-TAIL-LONG"
+    stored = ("FAKE-WORD " * 26) + "FAKE-WORD"
+    producer, _, _ = _producer(
+        _completion(_ANSWER, [_cited(page_text)]),
+        (_Hit(_DOC, _PAGE, page_text),),
+    )
+
+    payload = producer.produce(_conversation())
+
+    assert payload == {
+        "kind": "answer",
+        "text": _ANSWER,
+        "citations": [_cited(stored)],
+    }
+    assert len(stored) == 269
+    assert not stored.endswith("EXTRA-TAIL")
+
+
+def test_search_uses_the_last_user_message() -> None:
+    producer, _, retriever = _producer(
+        _completion(_ANSWER, [_cited()]),
+        (_Hit(_DOC, _PAGE, _SNIPPET),),
+    )
+    conversation = Conversation(
+        messages=[
+            Message(role="user", text="earlier fake question"),
+            Message(role="assistant", text="earlier reply"),
+            Message(role="user", text=_QUESTION),
+        ]
+    )
+
+    payload = producer.produce(conversation)
+
+    assert retriever.queries == [_QUESTION]
+    assert payload == {
+        "kind": "answer",
+        "text": _ANSWER,
+        "citations": [_cited()],
+    }
+
+
+def test_newline_in_page_text_round_trips_through_the_prompt() -> None:
+    page_text = "FAKE-LINE\nFAKE-SNIPPET: no real spec."
+    producer, fake, _ = _producer(
+        _completion(_ANSWER, [_cited(page_text)]),
+        (_Hit(_DOC, _PAGE, page_text),),
+    )
+
+    payload = producer.produce(_conversation())
+
+    rendered = fake.calls[0][0].content.split("Retrieved pages:\n", 1)[1]
+    decoded = json.loads(rendered)
+    assert decoded == [{"doc_id": _DOC, "page": _PAGE, "text": page_text}]
+    assert payload == {
+        "kind": "answer",
+        "text": _ANSWER,
+        "citations": [_cited(page_text)],
+    }
+
+
+def test_missing_index_file_wraps_prose(tmp_path: Path) -> None:
+    prose = "Fixture prose with no manual page."
+    fake = FakeLLMClient(text=prose)
+    producer = LlmAnswerProducer(
+        fake, retriever=_IndexRetriever(tmp_path / "missing.sqlite")
+    )
+
+    payload = producer.produce(_conversation())
+
+    assert payload == {"kind": "answer", "text": prose, "citations": []}
+    assert fake.calls[0][0] == ChatTurn(role="system", content=SYSTEM_PROMPT)
+
+
+def test_corrupt_index_file_is_unavailable(tmp_path: Path) -> None:
+    index_path = tmp_path / "index.sqlite"
+    index_path.write_text("not a database", encoding="utf-8")
+    fake = FakeLLMClient(text=_completion(_ANSWER, [_cited()]))
+    producer = LlmAnswerProducer(fake, retriever=_IndexRetriever(index_path))
+
+    payload = producer.produce(_conversation())
+
+    assert payload == _UNAVAILABLE
+    assert fake.calls == []
+
+
+def test_index_retriever_cites_a_fake_chunk(tmp_path: Path) -> None:
+    index_path = tmp_path / "index.sqlite"
+    build_index(
+        (Chunk(doc_id=_DOC, page=_PAGE, text=_SNIPPET),),
+        index_path,
+    )
+    fake = FakeLLMClient(text=_completion(_ANSWER, [_cited()]))
+    producer = LlmAnswerProducer(fake, retriever=_IndexRetriever(index_path))
+
+    payload = producer.produce(_conversation("FAKE-SNIPPET"))
+
+    assert payload == {
+        "kind": "answer",
+        "text": _ANSWER,
+        "citations": [_cited()],
+    }

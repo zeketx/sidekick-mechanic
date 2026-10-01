@@ -4,9 +4,21 @@ Python 3.11+ and FastAPI. This is the RAG service for Sidekick Mechanic.
 
 `POST /chat` accepts a conversation and returns a payload that validates against
 [`contracts/answer.schema.json`](contracts/answer.schema.json). Answers come from
-`LlmAnswerProducer`, which calls an `LLMClient`. Retrieval (#19) is a SQLite FTS5
-index over ingest chunks, but it is not wired into `/chat` yet, so replies have
-empty citations and must not be treated as a real procedure.
+`LlmAnswerProducer`, which calls an `LLMClient`. On each request, if
+`.ingest/index.sqlite` exists, the producer searches that FTS5 index and then
+calls the model. The model must reply with one JSON object. Each citation has
+`doc_id`, an integer `page`, and a `snippet` copied from that page. A citation
+stays only when that page was in the hits and the snippet is a case-sensitive
+contiguous span of the page text. An empty search, or a JSON object with an
+empty `citations` array, returns a refusal with reason `not_found_in_manual`.
+Non-JSON completions, citations that all fail that check, provider errors, and
+a blank completion return the unavailable answer (`kind: answer`). The
+unavailable answer means the producer could not return a cited reply. With no
+index file, the producer wraps the model text and sets `citations` to an empty
+array. Without
+an API key the fake client returns prose, so a search that finds pages becomes
+the unavailable answer until a key is set. Do not treat empty-citation replies
+as a real procedure.
 
 Design: [`docs/design/retrieval-index.md`](../docs/design/retrieval-index.md).
 
@@ -172,8 +184,9 @@ Normalization is specified in
 Citation snippets are not evidence. `POST /chat` passes chunk text from
 `CitedChunkSource.cited_chunk_texts` when the producer implements it, and
 passes no chunks otherwise. With no chunks, any spec in the answer is refused.
-`LlmAnswerProducer` does not implement that protocol yet, because retrieval
-is not wired into `/chat`.
+`LlmAnswerProducer` implements that protocol. `cited_chunk_texts` returns the
+page text from the same search as the citations. With no index file, or no
+hits, it returns no chunks.
 
 Failures log a warning on the `sidekick.spec_guard` logger.
 `SpecGuardUncitedCounter` (`name` is `spec_guard`) is the harness hook: its

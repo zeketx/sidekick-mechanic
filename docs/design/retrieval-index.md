@@ -31,7 +31,9 @@ Query from the CLI:
 python3 retrieval.py query "starter motor" --k 5
 ```
 
-`/chat` does not call this yet. #20 wires retrieval into the answer path. #15 stays the LLM seam.
+On each `/chat` request, `LlmAnswerProducer` searches `backend/.ingest/index.sqlite`
+when that file exists, before the model call. A missing file on that request
+skips search. #15 stays the LLM seam.
 
 ## Shape
 
@@ -89,4 +91,12 @@ Do not start that port in this issue. Re-evaluate only if M2 eval shows lexical 
 
 ## Next implementation step
 
-#20: call `Retriever.search` before the LLM, allow citations only to returned `(doc_id, page)` pairs, and refuse when the tuple is empty. #24: run `search(question, k=5)` and score membership of the golden pages.
+#20 calls `Retriever.search` before the model when the index file exists for that
+request. It keeps a citation only when `(doc_id, page)` was retrieved and the
+full snippet is a contiguous case-sensitive substring of that page. An empty
+search, or a JSON object with an empty citations array, returns the refusal
+shape. A completion that is not that JSON object, or a non-empty citation list
+that does not survive the check, returns the unavailable answer. The
+unavailable answer means the producer could not return a cited reply. #24 runs
+`search(question, k=5)`
+and scores membership of the golden pages.
