@@ -21,6 +21,7 @@ from llm import (
     TokenUsage,
     build_llm_client,
 )
+from part_resolver import BayMapView, complete_selection, resolve_answer
 
 DEFAULT_FIXTURE = "plain.json"
 LOGGER = logging.getLogger("sidekick.llm")
@@ -66,10 +67,16 @@ class FixtureAnswerProducer:
 
 
 class LlmAnswerProducer:
-    """Turns an LLM completion into a contract answer. Citations stay empty until retrieval."""
+    """Turns an LLM completion into a contract answer. Citations stay empty until retrieval.
 
-    def __init__(self, client: LLMClient) -> None:
+    A bay map view is optional. The default producer has none, because the
+    bay map schema (#26) is not loaded here. With a non-empty view, a second
+    completion picks a part id from that closed list.
+    """
+
+    def __init__(self, client: LLMClient, bay_map: BayMapView | None = None) -> None:
         self._client = client
+        self._bay_map = bay_map
 
     def produce(self, conversation: Conversation) -> dict[str, Any]:
         messages = [ChatTurn(role="system", content=SYSTEM_PROMPT)]
@@ -98,7 +105,23 @@ class LlmAnswerProducer:
         if not text:
             return dict(UNAVAILABLE_ANSWER)
         # Retrieval is not wired. Emitting citations here would invent pages.
-        return {"kind": "answer", "text": text, "citations": []}
+        payload: dict[str, Any] = {"kind": "answer", "text": text, "citations": []}
+        return self._with_part_highlight(payload)
+
+    def _with_part_highlight(self, payload: dict[str, Any]) -> dict[str, Any]:
+        bay_map = self._bay_map
+        if bay_map is None or not bay_map.parts:
+            return payload
+        try:
+            selection_text = complete_selection(
+                self._client,
+                answer_text=payload["text"],
+                bay_map=bay_map,
+            )
+        except LLMError:
+            LOGGER.warning("part selection failed; answer has no highlight")
+            return payload
+        return resolve_answer(payload, selection_text, bay_map)
 
 
 def default_producer() -> AnswerProducer:
