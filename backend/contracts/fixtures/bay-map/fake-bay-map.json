@@ -1,0 +1,159 @@
+{
+  "schema_version": 1,
+  "coordinate_space": {
+    "units": "normalized",
+    "origin": "top_left",
+    "x_axis": "right",
+    "y_axis": "down"
+  },
+  "parts": [
+    {
+      "part_id": "fake-part-intake",
+      "display_name": "FAKE-NAME-INTAKE",
+      "aliases": ["FAKE-ALIAS-INTAKE"]
+    },
+    {
+      "part_id": "fake-part-hidden",
+      "display_name": "FAKE-NAME-HIDDEN",
+      "aliases": []
+    },
+    {
+      "part_id": "fake-part-tied",
+      "display_name": "FAKE-NAME-TIED",
+      "aliases": ["FAKE-ALIAS-TIED"]
+    }
+  ],
+  "photos": [
+    {
+      "bay_photo_id": "fake-bay-photo-front",
+      "angle_id": "fake-angle-front",
+      "image_size": { "width": 100, "height": 50 },
+      "source": { "kind": "public_prototype", "reference": "FAKE-SOURCE" },
+      "license": { "name": "FAKE-LICENSE", "reference": "FAKE-LICENSE-REF" },
+      "regions": [
+        {
+          "part_id": "fake-part-intake",
+          "polygons": [
+            {
+              "points": [
+                { "x": 0, "y": 0 },
+                { "x": 0.5, "y": 0 },
+                { "x": 0.5, "y": 0.5 }
+              ]
+            },
+            {
+              "points": [
+                { "x": 0, "y": 0.5 },
+                { "x": 0.5, "y": 0.5 },
+                { "x": 0.5, "y": 1 }
+              ]
+            }
+          ],
+          "confirmation": { "kind": "confirmed", "confirmed_by": "FAKE-OWNER" }
+        },
+        {
+          "part_id": "fake-part-hidden",
+          "polygons": [
+            {
+              "points": [
+                { "x": 0.5, "y": 0 },
+                { "x": 1, "y": 0 },
+                { "x": 1, "y": 0.5 }
+              ]
+            }
+          ],
+          "confirmation": { "kind": "unconfirmed" }
+        }
+      ]
+    },
+    {
+      "bay_photo_id": "fake-bay-photo-side",
+      "angle_id": "fake-angle-side",
+      "image_size": { "width": 400, "height": 400 },
+      "source": { "kind": "owner_observation", "reference": "FAKE-OBS-SIDE" },
+      "license": { "name": "FAKE-LICENSE", "reference": "FAKE-LICENSE-REF" },
+      "regions": [
+        {
+          "part_id": "fake-part-intake",
+          "polygons": [
+            {
+              "points": [
+                { "x": 0, "y": 0 },
+                { "x": 1, "y": 0 },
+                { "x": 1, "y": 1 },
+                { "x": 0, "y": 1 }
+              ]
+            }
+          ],
+          "confirmation": { "kind": "unconfirmed" }
+        }
+      ]
+    },
+    {
+      "bay_photo_id": "fake-bay-photo-wide",
+      "angle_id": "fake-angle-wide",
+      "image_size": { "width": 400, "height": 400 },
+      "source": { "kind": "public_prototype", "reference": "FAKE-SOURCE" },
+      "license": { "name": "FAKE-LICENSE", "reference": "FAKE-LICENSE-REF" },
+      "regions": [
+        {
+          "part_id": "fake-part-intake",
+          "polygons": [
+            {
+              "points": [
+                { "x": 0, "y": 0 },
+                { "x": 0.5, "y": 0 },
+                { "x": 0, "y": 0.5 }
+              ]
+            }
+          ],
+          "confirmation": { "kind": "confirmed", "confirmed_by": "FAKE-OWNER" }
+        }
+      ]
+    },
+    {
+      "bay_photo_id": "fake-bay-photo-aaa",
+      "angle_id": "fake-angle-shared",
+      "image_size": { "width": 80, "height": 80 },
+      "source": { "kind": "public_prototype", "reference": "FAKE-SOURCE" },
+      "license": { "name": "FAKE-LICENSE", "reference": "FAKE-LICENSE-REF" },
+      "regions": [
+        {
+          "part_id": "fake-part-tied",
+          "polygons": [
+            {
+              "points": [
+                { "x": 0, "y": 0 },
+                { "x": 0.5, "y": 0 },
+                { "x": 0, "y": 0.5 }
+              ]
+            }
+          ],
+          "confirmation": { "kind": "confirmed", "confirmed_by": "FAKE-OWNER" }
+        }
+      ]
+    },
+    {
+      "bay_photo_id": "fake-bay-photo-mmm",
+      "angle_id": "fake-angle-shared",
+      "image_size": { "width": 80, "height": 80 },
+      "source": { "kind": "owner_observation", "reference": "FAKE-OBS-MMM" },
+      "license": { "name": "FAKE-LICENSE", "reference": "FAKE-LICENSE-REF" },
+      "regions": [
+        {
+          "part_id": "fake-part-tied",
+          "polygons": [
+            {
+              "points": [
+                { "x": 0, "y": 0 },
+                { "x": 0.5, "y": 0 },
+                { "x": 0, "y": 0.5 }
+              ]
+            }
+          ],
+          "confirmation": { "kind": "confirmed", "confirmed_by": "FAKE-OWNER" }
+        }
+      ]
+    }
+  ]
+}

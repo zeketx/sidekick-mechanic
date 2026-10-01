@@ -2,7 +2,7 @@
 
 The answer can point at one bay-map part. The highlight is that part on the photo where its confirmed region is largest. An unsure, unknown, or unmapped choice highlights nothing.
 
-Issue #26 (bay map schema) is not merged. This module does not define that schema. `BayMapView` in `backend/part_resolver.py` is the local view the resolver reads. When #26 lands, an adapter builds this view from it. Polygons, image size, display names, aliases, license, and source stay in that schema.
+`BayMapView` in `backend/part_resolver.py` is the view the resolver reads. `as_bay_map_view` in `backend/bay_map.py` builds it from the bay map schema. Polygons, image size, display names, aliases, license, and source stay in that schema.
 
 ## Call
 

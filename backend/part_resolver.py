@@ -1,8 +1,8 @@
 """Pick a bay-map highlight from a closed part list, or none.
 
-The bay map schema (#26) is not merged. ``BayMapView`` is the slice this
-module needs. An adapter from that schema should build this view. It should
-not grow polygons, image size, names, aliases, license, or source.
+``as_bay_map_view`` in ``bay_map`` builds ``BayMapView`` from the bay map
+schema. This view stays the resolver input. It does not carry polygons,
+image size, names, aliases, license, or source.
 """
 
 from __future__ import annotations

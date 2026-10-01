@@ -7,14 +7,19 @@ can pass those strings to spec_guard.guard_answer.
 
 from __future__ import annotations
 
+import json
 import logging
+import sqlite3
 import time
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
 from chat_models import Conversation
 from contract import load_answer_fixture, validate_answer
 from llm import (
+    RETRIEVED_PAGES_HEADER,
     ChatTurn,
     LLMClient,
     LLMError,
@@ -22,15 +27,39 @@ from llm import (
     build_llm_client,
 )
 from part_resolver import BayMapView, complete_selection, resolve_answer
+from retrieval import (
+    DEFAULT_K,
+    INDEX_FILENAME,
+    Fts5Index,
+    RetrievalError,
+    RetrievedChunk,
+    Retriever,
+)
 
 DEFAULT_FIXTURE = "plain.json"
 LOGGER = logging.getLogger("sidekick.llm")
+_SNIPPET_LIMIT = 280
 
-SYSTEM_PROMPT = (
+_GROUNDED_PREAMBLE = (
     "You are Sidekick Mechanic. Answer the owner's question. "
     "Do not invent torque values, part numbers, pinouts, wire colors, or other specs. "
-    "Do not cite a manual page you were not given. "
-    "If you do not know, say so."
+    "Do not cite a manual page you were not given."
+)
+
+SYSTEM_PROMPT = _GROUNDED_PREAMBLE + " If you do not know, say so."
+
+_GROUNDED_INSTRUCTIONS = (
+    "Reply with one JSON object and no other text. "
+    'The object has a string field "text" and an array field "citations". '
+    'Each citation has "doc_id" (string), "page" (integer), and "snippet" (string). '
+    "Retrieved pages is a JSON array. "
+    "snippet must be an exact case-sensitive copy of a contiguous span of the "
+    "decoded page text, not JSON escape sequences. "
+    "Do not add an ellipsis, quotes, or other characters. "
+    f"The server shortens a snippet longer than {_SNIPPET_LIMIT} characters. "
+    "Use only a doc_id and page from the retrieved pages. "
+    "If those pages do not support an answer, set citations to an empty array. "
+    "text may be empty only in that case."
 )
 
 UNAVAILABLE_ANSWER: dict[str, Any] = {
@@ -39,12 +68,32 @@ UNAVAILABLE_ANSWER: dict[str, Any] = {
     "citations": [],
 }
 
+NOT_FOUND_REFUSAL: dict[str, Any] = {
+    "kind": "refusal",
+    "text": "Not found in the manual. I do not have a cited page for this.",
+    "reason": "not_found_in_manual",
+}
+
 validate_answer(UNAVAILABLE_ANSWER)
+validate_answer(NOT_FOUND_REFUSAL)
 
 
 class AnswerProducer(Protocol):
     def produce(self, conversation: Conversation) -> dict[str, Any]:
         """Return an answer payload that must match answer.schema.json."""
+
+
+class _RetrievedPage(Protocol):
+    doc_id: str
+    page: int
+    text: str
+
+
+@dataclass(frozen=True)
+class _GroundedCompletion:
+    text: str
+    citations: tuple[dict[str, Any], ...]
+    citation_count: int
 
 
 @runtime_checkable
@@ -66,24 +115,77 @@ class FixtureAnswerProducer:
         return load_answer_fixture(self.fixture_name)
 
 
-class LlmAnswerProducer:
-    """Turns an LLM completion into a contract answer. Citations stay empty until retrieval.
+class _IndexMissing(Exception):
+    """The index file is absent for this request. Not a search miss."""
 
-    A bay map view is optional. The default producer has none, because the
-    bay map schema (#26) is not loaded here. With a non-empty view, a second
+
+class LlmAnswerProducer:
+    """A bay map view is optional. The default producer has none, because the
+    bay map schema is not loaded here. With a non-empty view, a second
     completion picks a part id from that closed list.
     """
 
-    def __init__(self, client: LLMClient, bay_map: BayMapView | None = None) -> None:
+    def __init__(
+        self,
+        client: LLMClient,
+        bay_map: BayMapView | None = None,
+        *,
+        retriever: Retriever | None = None,
+    ) -> None:
         self._client = client
         self._bay_map = bay_map
+        self._retriever = retriever
 
     def produce(self, conversation: Conversation) -> dict[str, Any]:
-        messages = [ChatTurn(role="system", content=SYSTEM_PROMPT)]
-        messages.extend(
-            ChatTurn(role=message.role, content=message.text)
-            for message in conversation.messages
+        retriever = self._retriever
+        if retriever is None:
+            return self._ungrounded(conversation)
+
+        try:
+            hits = retriever.search(_last_user_text(conversation))
+        except _IndexMissing:
+            return self._ungrounded(conversation)
+        except (RetrievalError, sqlite3.Error):
+            return dict(UNAVAILABLE_ANSWER)
+        if not hits:
+            return dict(NOT_FOUND_REFUSAL)
+
+        text = self._complete(
+            _chat_messages(conversation, _grounded_system_prompt(hits))
         )
+        if text is None:
+            return dict(UNAVAILABLE_ANSWER)
+        parsed = _parse_grounded_completion(text)
+        if parsed is None:
+            return dict(UNAVAILABLE_ANSWER)
+        if parsed.citation_count == 0:
+            return dict(NOT_FOUND_REFUSAL)
+        citations = _filter_citations(parsed.citations, hits)
+        if not citations:
+            return dict(UNAVAILABLE_ANSWER)
+        return self._with_part_highlight(
+            {"kind": "answer", "text": parsed.text, "citations": citations}
+        )
+
+    def cited_chunk_texts(self, conversation: Conversation) -> tuple[str, ...]:
+        retriever = self._retriever
+        if retriever is None:
+            return ()
+        try:
+            hits = retriever.search(_last_user_text(conversation))
+        except (_IndexMissing, RetrievalError, sqlite3.Error):
+            return ()
+        return tuple(hit.text for hit in hits)
+
+    def _ungrounded(self, conversation: Conversation) -> dict[str, Any]:
+        text = self._complete(_chat_messages(conversation, SYSTEM_PROMPT))
+        if text is None:
+            return dict(UNAVAILABLE_ANSWER)
+        return self._with_part_highlight(
+            {"kind": "answer", "text": text, "citations": []}
+        )
+
+    def _complete(self, messages: list[ChatTurn]) -> str | None:
         started = time.perf_counter()
         try:
             result = self._client.complete(messages)
@@ -94,7 +196,7 @@ class LlmAnswerProducer:
                 latency_ms=_latency_ms(started),
                 usage=None,
             )
-            return dict(UNAVAILABLE_ANSWER)
+            return None
         text = result.text.strip()
         _log_request(
             ok=bool(text),
@@ -103,10 +205,8 @@ class LlmAnswerProducer:
             usage=result.usage,
         )
         if not text:
-            return dict(UNAVAILABLE_ANSWER)
-        # Retrieval is not wired. Emitting citations here would invent pages.
-        payload: dict[str, Any] = {"kind": "answer", "text": text, "citations": []}
-        return self._with_part_highlight(payload)
+            return None
+        return text
 
     def _with_part_highlight(self, payload: dict[str, Any]) -> dict[str, Any]:
         bay_map = self._bay_map
@@ -124,8 +224,158 @@ class LlmAnswerProducer:
         return resolve_answer(payload, selection_text, bay_map)
 
 
+class _IndexRetriever:
+    """Opens the index for one search. A missing file is not an empty hit list."""
+
+    def __init__(self, index_path: Path | None = None) -> None:
+        self._index_path = index_path
+
+    def search(self, query: str, k: int = DEFAULT_K) -> tuple[RetrievedChunk, ...]:
+        path = self._index_path if self._index_path is not None else _index_path()
+        if not path.is_file():
+            raise _IndexMissing(str(path))
+        index = Fts5Index.open(path)
+        try:
+            return index.search(query, k)
+        finally:
+            index.close()
+
+
+def _index_path() -> Path:
+    return Path(__file__).resolve().parent / ".ingest" / INDEX_FILENAME
+
+
 def default_producer() -> AnswerProducer:
-    return LlmAnswerProducer(build_llm_client())
+    return LlmAnswerProducer(build_llm_client(), retriever=_IndexRetriever())
+
+
+def _chat_messages(conversation: Conversation, system: str) -> list[ChatTurn]:
+    messages = [ChatTurn(role="system", content=system)]
+    messages.extend(
+        ChatTurn(role=message.role, content=message.text)
+        for message in conversation.messages
+    )
+    return messages
+
+
+def _last_user_text(conversation: Conversation) -> str:
+    for message in reversed(conversation.messages):
+        if message.role == "user":
+            return message.text
+    return ""
+
+
+def _grounded_system_prompt(hits: Sequence[_RetrievedPage]) -> str:
+    pages = [{"doc_id": hit.doc_id, "page": hit.page, "text": hit.text} for hit in hits]
+    rendered = json.dumps(pages, ensure_ascii=False)
+    return (
+        f"{_GROUNDED_PREAMBLE}\n\n{_GROUNDED_INSTRUCTIONS}\n\n"
+        f"{RETRIEVED_PAGES_HEADER}{rendered}"
+    )
+
+
+def _parse_grounded_completion(raw: str) -> _GroundedCompletion | None:
+    try:
+        payload = json.loads(_unwrap_markdown_fence(raw.strip()))
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    citations = payload.get("citations")
+    if not isinstance(citations, list):
+        return None
+    if len(citations) == 0:
+        return _GroundedCompletion(text="", citations=(), citation_count=0)
+    text = payload.get("text")
+    if not isinstance(text, str):
+        return None
+    text = text.strip()
+    if not text:
+        return None
+    well_typed = tuple(
+        citation
+        for citation in (_well_typed_citation(element) for element in citations)
+        if citation is not None
+    )
+    return _GroundedCompletion(
+        text=text,
+        citations=well_typed,
+        citation_count=len(citations),
+    )
+
+
+def _well_typed_citation(element: Any) -> dict[str, Any] | None:
+    if not isinstance(element, dict):
+        return None
+    doc_id = element.get("doc_id")
+    page = element.get("page")
+    snippet = element.get("snippet")
+    if not isinstance(doc_id, str) or not doc_id.strip():
+        return None
+    if isinstance(page, bool) or not isinstance(page, int) or page < 1:
+        return None
+    if not isinstance(snippet, str) or not snippet.strip():
+        return None
+    return {"doc_id": doc_id, "page": page, "snippet": snippet}
+
+
+def _unwrap_markdown_fence(text: str) -> str:
+    if "\n" not in text or not text.startswith("```") or not text.endswith("```"):
+        return text
+    opener, _, body = text.partition("\n")
+    if opener.strip().lower() not in {"```", "```json"}:
+        return text
+    if not body.endswith("```"):
+        return text
+    inner = body[:-3]
+    return inner.removesuffix("\n")
+
+
+def _filter_citations(
+    citations: Sequence[Mapping[str, Any]],
+    hits: Sequence[_RetrievedPage],
+) -> list[dict[str, Any]]:
+    pages: dict[tuple[str, int], str] = {}
+    for hit in hits:
+        pages.setdefault((hit.doc_id, hit.page), hit.text)
+    kept: list[dict[str, Any]] = []
+    seen: set[tuple[str, int, str]] = set()
+    for citation in citations:
+        doc_id = citation["doc_id"]
+        page = citation["page"]
+        snippet = citation["snippet"]
+        page_text = pages.get((doc_id, page))
+        if page_text is None or snippet not in page_text:
+            continue
+        stored = _cap_snippet(snippet)
+        if not stored.strip():
+            continue
+        identity = (doc_id, page, stored)
+        if identity in seen:
+            continue
+        seen.add(identity)
+        kept.append({"doc_id": doc_id, "page": page, "snippet": stored})
+    return kept
+
+
+def _cap_snippet(snippet: str) -> str:
+    if len(snippet) <= _SNIPPET_LIMIT:
+        return snippet
+    window = snippet[:_SNIPPET_LIMIT]
+    last_space = _last_whitespace_index(window)
+    if last_space is None:
+        return window
+    trimmed = window[:last_space].rstrip()
+    if not trimmed:
+        return window
+    return trimmed
+
+
+def _last_whitespace_index(window: str) -> int | None:
+    for index in range(len(window) - 1, -1, -1):
+        if window[index].isspace():
+            return index
+    return None
 
 
 def _latency_ms(started: float) -> int:

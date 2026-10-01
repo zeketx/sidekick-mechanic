@@ -4,11 +4,30 @@ Python 3.11+ and FastAPI. This is the RAG service for Sidekick Mechanic.
 
 `POST /chat` accepts a conversation and returns a payload that validates against
 [`contracts/answer.schema.json`](contracts/answer.schema.json). Answers come from
-`LlmAnswerProducer`, which calls an `LLMClient`. Retrieval (#19) is a SQLite FTS5
-index over ingest chunks, but it is not wired into `/chat` yet, so replies have
-empty citations and must not be treated as a real procedure.
+`LlmAnswerProducer`, which calls an `LLMClient`. On each request, if
+`.ingest/index.sqlite` exists, the producer searches that FTS5 index and then
+calls the model. The model must reply with one JSON object. Each citation has
+`doc_id`, an integer `page`, and a `snippet` copied from that page. A citation
+stays only when that page was in the hits and the snippet is a case-sensitive
+contiguous span of the page text. An empty search, or a JSON object with an
+empty `citations` array, returns a refusal with reason `not_found_in_manual`.
+Non-JSON completions, citations that all fail that check, provider errors, and
+a blank completion return the unavailable answer (`kind: answer`). The
+unavailable answer means the producer could not return a cited reply. With no
+index file, the producer wraps the model text and sets `citations` to an empty
+array. With no API key, `FakeLLMClient` answers from the retrieved pages. Each
+citation is `doc_id`, `page`, and a snippet copied from that page, so the
+provenance check can keep it. The answer text is a local stand-in, not a model
+procedure. An empty search still returns `not_found_in_manual` and does not
+call the client. Do not treat the stand-in, or an empty-citation reply, as a
+real procedure.
 
 Design: [`docs/design/retrieval-index.md`](../docs/design/retrieval-index.md).
+
+The bay map is a separate contract,
+[`contracts/bay_map.schema.json`](contracts/bay_map.schema.json). `load_bay_map`
+in `bay_map.py` is the Python loader. A highlight on an answer is still only
+`bay_photo_id` and `part_id`. See [`docs/design/bay-map.md`](../docs/design/bay-map.md).
 
 ## Run locally
 
@@ -27,8 +46,15 @@ curl -sS http://127.0.0.1:8000/chat \
 ```
 
 With no `SIDEKICK_LLM_API_KEY`, the default producer uses `FakeLLMClient` (no
-network). Copy [`.env.example`](.env.example) to `.env` (gitignored), set a key,
-and load it into the shell before starting uvicorn:
+network). After ingestion has written `.ingest/chunks.jsonl`, build the index
+with `python3 retrieval.py build`. A question that matches indexed pages then
+returns those pages as citations. Each snippet is an exact span of the page
+text, and the answer sentence is a stand-in so `/chat` can be tried without a
+key. A question that matches nothing returns the refusal `not_found_in_manual`.
+If the index file is missing, the reply is prose and `citations` is empty.
+
+To call a real model, copy [`.env.example`](.env.example) to `.env`
+(gitignored), set a key, and load it into the shell before starting uvicorn:
 
 ```bash
 cp .env.example .env
@@ -139,9 +165,11 @@ The default treatment is [`data/highlight_style.json`](data/highlight_style.json
 | HTTP | FastAPI |
 | Server | uvicorn |
 | Answer contract | `jsonschema` against `contracts/answer.schema.json` |
+| Bay map | `jsonschema` plus `bay_map.py` against `contracts/bay_map.schema.json` |
 | LLM | OpenAI-compatible `POST /chat/completions` over `httpx`, behind `LLMClient` |
 | Tests | pytest + FastAPI `TestClient` |
 | Retrieval | SQLite FTS5 (stdlib `sqlite3`), see `retrieval.py` |
+| Highlight | Pillow renderer in `highlight.py` |
 
 ## Request shape
 
@@ -175,8 +203,9 @@ Normalization is specified in
 Citation snippets are not evidence. `POST /chat` passes chunk text from
 `CitedChunkSource.cited_chunk_texts` when the producer implements it, and
 passes no chunks otherwise. With no chunks, any spec in the answer is refused.
-`LlmAnswerProducer` does not implement that protocol yet, because retrieval
-is not wired into `/chat`.
+`LlmAnswerProducer` implements that protocol. `cited_chunk_texts` returns the
+page text from the same search as the citations. With no index file, or no
+hits, it returns no chunks.
 
 Failures log a warning on the `sidekick.spec_guard` logger.
 `SpecGuardUncitedCounter` (`name` is `spec_guard`) is the harness hook: its
@@ -199,6 +228,9 @@ never receive the note. Eval cases are in
 
 `LLMClient.complete(messages)` returns text plus optional token usage.
 `FakeLLMClient` is the test double and the default when no API key is set.
+Tests pass `text=` to force a completion. With no `text`, a prompt that
+includes retrieved pages becomes citation JSON (`doc_id`, `page`, `snippet`)
+built from those pages. Any other prompt returns prose with no citations.
 `OpenAICompatibleClient` is the live provider (OpenAI or any host that speaks
 the same `/v1/chat/completions` API).
 
@@ -225,11 +257,11 @@ Environment variables (see `.env.example`):
 from a model selection, or leaves the highlight off.
 
 The model must return `{"part_id": "<id>"}` or `{"part_id": null}`. The id
-has to be one of `BayMapView.part_ids()`. That view is a local stand-in for
-the bay map schema (#26), which is not merged. It carries part id, photo id,
-angle id, pixel area, and whether the region is confirmed. Polygons, image
-size, names, aliases, license, and source stay in #26. See
-[`docs/design/part-resolver.md`](../docs/design/part-resolver.md).
+has to be one of `BayMapView.part_ids()`. `as_bay_map_view` builds that view
+from [`contracts/bay_map.schema.json`](contracts/bay_map.schema.json). The view
+carries part id, photo id, angle id, pixel area, and whether the region is
+confirmed. Polygons, image size, names, aliases, license, and source stay on
+the bay map. See [`docs/design/part-resolver.md`](../docs/design/part-resolver.md).
 
 Null, or an output that does not name exactly one listed id, leaves the
 answer text alone and sets no highlight. An id outside the closed list, or a
@@ -243,3 +275,20 @@ Equal areas break ties by `bay_photo_id`, then `angle_id`.
 non-empty `BayMapView`. The default producer has no bay map, so `/chat` does
 not highlight until a map is supplied. A failed selection call leaves the
 answer without a highlight.
+
+## Highlight renderer
+
+`highlight.render_highlight(photo, polygon, style)` returns a new RGB image.
+`style` is a `HighlightStyle`: `outline`, `saturate`, `circle`, or `dim`.
+Widths, colors, and factors live on one `HighlightConfig`.
+
+The polygon is `(x, y)` pixels of the photo, origin top left. Callers pass
+the points. The bay map schema (#26) still owns how regions are stored.
+`part_resolver.BayMapView` carries photo and part ids. Pass the polygon into
+`render_highlight` directly.
+
+Golden images live in `tests/fixtures/highlight/`. Tests compare them with
+`GOLDEN_PIXEL_TOLERANCE` (max per-channel absolute difference). Those tests
+draw a synthetic photo, so they stay deterministic without the prototype bay
+photo files. A 4000×3000 render of each style is asserted to finish in under
+one second.
