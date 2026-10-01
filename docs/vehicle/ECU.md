@@ -12,8 +12,8 @@ Do not write torque values, pinouts, wire colors, or model-year-to-protocol maps
 
 | Term | Meaning here | Source |
 |---|---|---|
-| ECM / ECU | Toyota/Lexus **engine control module** / **engine control computer** that runs the 2JZ-GE. | Toyota 2JZ-GE troubleshooting calls it the Engine Control Module (ECM) ([MK4 Supra 2JZ-GE troubleshooting, EG-384][tsrm-eg384]). Lexus parts catalogs call the same class of part an Engine Control Computer ([Lexus parts listing, part name code 89661][lexus-89661]). |
-| `89661-xxxxx` | Toyota/Lexus **part name code 89661** plus a suffix. The full printed number is the catalog identity of one engine control computer. | [Lexus parts listing: part name code 89661, description COMPUTER, ENGINE CON][lexus-89661]. Toyota Genuine Parts pages list the same class as "Engine Control Computer" under `89661-` numbers ([example Toyota parts page][toyota-89661]). Those example suffixes are **not** this truck. |
+| ECM / ECU | Toyota/Lexus **engine control module** / **engine control computer** that runs the 2JZ-GE. | Toyota 2JZ-GE troubleshooting calls it the Engine Control Module (ECM) ([MK4 Supra 2JZ-GE troubleshooting, EG-384][tsrm-eg384]). Lexus TSB L-SB-0109-17 calls it Computer, Engine Control (ECM/PCM) ([NHTSA copy][lsb-0109-17]). |
+| `89661-xxxxx` | Toyota/Lexus **part number prefix** for Computer, Engine Control (ECM/PCM). The full printed number is the catalog identity of one engine control computer. | Lexus TSB L-SB-0109-17 names the part "Computer, Engine Control (ECM/PCM)" and uses `89661-` numbers as the ECM part number ([NHTSA copy][lsb-0109-17]). Toyota T-SB-0077-16 does the same ([NHTSA copy][tsb-0077-16]). Dealer catalogs list **part name code 89661** ([Lexus listing][lexus-89661]). Suffixes in those documents are **not** this truck. |
 | OBD-II path | Standardized emissions diagnostics: SAE J1979 data through a SAE J1962 vehicle connector, read with an ELM327-class tool over BLE. | [40 CFR 86.1806-05(h)][cfr-1806]; [SAE J1962][j1962]; [SAE J1979][j1979]; [ELM327][elm327]. |
 | OBD1 path | This project's name for **non-J1979** Toyota diagnostics (DLC1/DLC2 and MIL blink codes in the 2JZ-GE troubleshooting manual). Not California's 1988 "OBD I" regulation. | [MK4 Supra 2JZ-GE troubleshooting, EG-384–EG-385][tsrm-eg384]; EPA's OBD I vs OBD II contrast ([EPA420-F-03-042][epa-qa]). |
 | DLC1 / DLC2 | Toyota **data link connector 1** (engine compartment) and **data link connector 2** (cabin) in the MK4 Supra 2JZ-GE troubleshooting manual. | [EG-385][tsrm-eg385], [EG-484][tsrm-eg484]. Presence on **this** LJ78 is `TBD`. |
@@ -43,7 +43,7 @@ A swap can relocate the box. A donor-manual location is a search order, not a co
 
 ## What the `89661-xxxxx` number tells us
 
-Lexus dealer parts data uses **part name code 89661** with description **COMPUTER, ENGINE CON** (also sold as Engine Control Module / Engine Control Computer). Different full numbers are different catalog applications ([Lexus 89661 name-code listing][lexus-89661]; [Toyota Genuine "Engine Control Computer" `89661-` listings][toyota-89661]).
+Lexus TSB L-SB-0109-17 (RX 350, not this truck) names the ECM part "Computer, Engine Control (ECM/PCM)", lists `89661-` part numbers, and shows "Replacement ECM (PCM) Part Number (i.e., 89661-0E762)" on the authorized-modifications label figure ([NHTSA copy][lsb-0109-17]). Toyota T-SB-0077-16 uses the same part name and `89661-` pattern ([NHTSA copy][tsb-0077-16]). Dealer catalogs call the name code **89661** / COMPUTER, ENGINE CON ([Lexus listing][lexus-89661]). Different full numbers are different catalog applications. The suffixes in those bulletins are **not** this truck.
 
 After you photograph the sticker:
 
@@ -224,13 +224,14 @@ Manual pages (PDFs stay out of git; IDs TBD in `docs/MANUALS.md`):
 
 Linked references:
 
+- [Lexus L-SB-0109-17 (NHTSA): Computer, Engine Control (ECM/PCM), `89661-` ECM part numbers][lsb-0109-17] (example suffixes are **not** this truck)
+- [Toyota T-SB-0077-16 (NHTSA): Computer, Engine Control, `89661-` ECM part numbers][tsb-0077-16] (example suffixes are **not** this truck)
 - [Lexus dealer parts: part name code 89661 = COMPUTER, ENGINE CON][lexus-89661] (example suffix on that page is **not** this truck)
-- [Toyota Genuine Parts: Engine Control Computer under a `89661-` number][toyota-89661] (example suffix is **not** this truck)
 - [EPA420-F-03-042, Dec 2003 — OBD vs OBD II; 1994 start; 1996 full implementation][epa-qa]
 - [58 FR 9468, 19 Feb 1993 — federal OBD beginning 1994 MY][fr-1993] (as cited in later EPA documents)
 - [40 CFR 86.1806-05 — OBD; SAE J1962 / J1979; 1996–2007 protocols; 2008+ CAN][cfr-1806]
-- [SAE J1962 — diagnostic connector][j1962]
-- [SAE J1979 — diagnostic test modes][j1979]
+- [SAE J1962 — diagnostic connector][j1962] ([DOI][j1962-doi])
+- [SAE J1979 — diagnostic test modes][j1979] ([DOI][j1979-doi])
 - [ELM Electronics ELM327 — OBD-II protocols][elm327]
 - [ELM327 datasheet — RS232 interpreter, protocol search][elm327-ds]
 - [VISION.md](../../VISION.md), [ROADMAP.md](../../ROADMAP.md), [TRUCK.md](TRUCK.md)
@@ -247,7 +248,8 @@ Linked references:
 - Independent "Toyota/Lexus ECM location" shop lists as applied to this truck
 
 [lexus-89661]: https://www.lexuspartsnow.com/parts/lexus-computer-engine-con~89661-0el80.html
-[toyota-89661]: https://autoparts.toyota.com/products/product/computer-engine-con-896610ec90
+[lsb-0109-17]: https://static.nhtsa.gov/odi/tsbs/2017/MC-10131772-9999.pdf
+[tsb-0077-16]: https://static.nhtsa.gov/odi/tsbs/2016/MC-10132910-9999.pdf
 [tsrm-eg384]: https://tsrm.sasquatchvc.com/mk4/tsrm/TGE/4
 [tsrm-eg385]: https://tsrm.sasquatchvc.com/mk4/tsrm/TGE/5
 [tsrm-eg404]: https://tsrm.sasquatchvc.com/mk4/tsrm/TGE/24
@@ -257,6 +259,8 @@ Linked references:
 [fr-1993]: https://www.govinfo.gov/content/pkg/FR-1995-08-18/html/95-20539.htm
 [cfr-1806]: https://www.govinfo.gov/content/pkg/CFR-2014-title40-vol19/pdf/CFR-2014-title40-vol19-sec86-1806-05.pdf
 [j1962]: https://saemobilus.sae.org/standards/j1962_201607-diagnostic-connector
+[j1962-doi]: https://doi.org/10.4271/J1962_201607
 [j1979]: https://saemobilus.sae.org/standards/j1979_199709-e-e-diagnostic-test-modes
+[j1979-doi]: https://doi.org/10.4271/J1979_199709
 [elm327]: https://elmelectronics.com/products/ics/obd/
 [elm327-ds]: https://www.elmelectronics.com/wp-content/uploads/2020/05/ELM327DSL.pdf
