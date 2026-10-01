@@ -65,4 +65,8 @@ manuals/
 *.pt
 *.pth
 *.weights
+*.safetensors
+*.ckpt
+*.h5
+*.gguf
 datasets/
