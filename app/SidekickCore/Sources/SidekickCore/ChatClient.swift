@@ -1,37 +1,8 @@
 import Foundation
 
-/// Chat backend client. Returns `AnswerContract.Payload` so issue #9 can own
-/// `Answer` / `Message` / `Conversation` and this client stays a thin mapping.
+/// Sends a `Conversation` to the backend and returns the shared `Answer` model.
 public protocol ChatClient: Sendable {
-    func send(_ request: ChatRequest) async throws -> AnswerContract.Payload
-}
-
-/// Wire body for `POST /chat` while issue #14 lands in parallel.
-public struct ChatRequest: Codable, Equatable, Sendable {
-    public var messages: [Message]
-
-    public init(messages: [Message]) {
-        self.messages = messages
-    }
-
-    public init(userText: String) {
-        self.messages = [Message(role: .user, text: userText)]
-    }
-
-    public struct Message: Codable, Equatable, Sendable {
-        public var role: Role
-        public var text: String
-
-        public init(role: Role, text: String) {
-            self.role = role
-            self.text = text
-        }
-
-        public enum Role: String, Codable, Equatable, Sendable {
-            case user
-            case assistant
-        }
-    }
+    func send(_ conversation: Conversation) async throws -> Answer
 }
 
 public enum ChatClientKind: String, Equatable, Sendable {
@@ -133,18 +104,18 @@ public enum ContractFixtures {
         "refusal.json",
     ]
 
-    public static func load(from directory: URL) throws -> [String: AnswerContract.Payload] {
-        var payloads: [String: AnswerContract.Payload] = [:]
+    public static func load(from directory: URL) throws -> [String: Answer] {
+        var answers: [String: Answer] = [:]
         for name in requiredNames {
             let url = directory.appendingPathComponent(name)
             guard let data = try? Data(contentsOf: url),
-                  let payload = try? JSONDecoder().decode(AnswerContract.Payload.self, from: data)
+                  let answer = try? JSONDecoder().decode(Answer.self, from: data)
             else {
                 throw ChatClientError.fixturesUnavailable
             }
-            payloads[name] = payload
+            answers[name] = answer
         }
-        return payloads
+        return answers
     }
 
     public static func repositoryDirectory(startingAt filePath: String = #filePath) throws -> URL {

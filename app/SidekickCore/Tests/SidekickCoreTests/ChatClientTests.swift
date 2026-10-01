@@ -17,8 +17,8 @@ final class ChatClientTests: XCTestCase {
             ("this is a refusal not found", "refusal.json"),
         ]
         for (text, name) in cases {
-            let payload = try await client.send(ChatRequest(userText: text))
-            XCTAssertEqual(payload, expected[name], name)
+            let answer = try await client.send(try conversation(text))
+            XCTAssertEqual(answer, expected[name], name)
         }
     }
 
@@ -63,11 +63,11 @@ final class ChatClientTests: XCTestCase {
     func testFactoryMockServesPlainFixture() async throws {
         let client = try ChatClients.make(kind: .mock, mockDelay: .zero)
         let expected = try ContractFixtures.load(from: ContractFixtures.repositoryDirectory())
-        let payload = try await client.send(ChatRequest(userText: "hello"))
-        XCTAssertEqual(payload, expected["plain.json"])
+        let answer = try await client.send(try conversation("hello"))
+        XCTAssertEqual(answer, expected["plain.json"])
     }
 
-    func testLivePostsToChatAndDecodesAnswer() async throws {
+    func testLivePostsSlimChatBodyAndDecodesAnswer() async throws {
         let http = FakeHTTP(result: .success((
             Data(#"""
             {"kind":"answer","text":"Fixture-only live reply.","citations":[]}
@@ -78,13 +78,21 @@ final class ChatClientTests: XCTestCase {
             configuration: ChatClientConfiguration(baseURL: URL(string: "http://example.test:9")!),
             http: http
         )
-        let payload = try await client.send(ChatRequest(userText: "hello"))
-        XCTAssertEqual(payload, .answer(text: "Fixture-only live reply.", citations: [], highlight: nil))
+        let answer = try await client.send(try conversation("hello"))
+        XCTAssertEqual(
+            answer,
+            .found(try XCTUnwrap(FoundAnswer(text: "Fixture-only live reply.")))
+        )
         XCTAssertEqual(http.requests.count, 1)
         XCTAssertEqual(http.requests[0].url, URL(string: "http://example.test:9/chat"))
         XCTAssertEqual(http.requests[0].httpMethod, "POST")
-        let body = try JSONDecoder().decode(ChatRequest.self, from: XCTUnwrap(http.requests[0].httpBody))
-        XCTAssertEqual(body, ChatRequest(userText: "hello"))
+        let body = try JSONSerialization.jsonObject(with: XCTUnwrap(http.requests[0].httpBody))
+        let object = try XCTUnwrap(body as? [String: Any])
+        XCTAssertNil(object["id"])
+        XCTAssertEqual(
+            object["messages"] as? [[String: String]],
+            [["role": "user", "text": "hello"]]
+        )
     }
 
     func testLiveErrorsMapToUserMessages() async throws {
@@ -124,6 +132,22 @@ final class ChatClientTests: XCTestCase {
         )
     }
 
+    private func conversation(_ userText: String) throws -> Conversation {
+        Conversation(
+            id: try XCTUnwrap(ConversationID(rawValue: "convo-test")),
+            messages: [
+                .user(
+                    try XCTUnwrap(
+                        UserMessage(
+                            id: try XCTUnwrap(MessageID(rawValue: "msg-1")),
+                            text: userText
+                        )
+                    )
+                ),
+            ]
+        )
+    }
+
     private func assertMappedError(
         _ transportError: Error,
         expected: ChatClientError,
@@ -146,7 +170,7 @@ final class ChatClientTests: XCTestCase {
         message: String
     ) async {
         do {
-            _ = try await client.send(ChatRequest(userText: "hello"))
+            _ = try await client.send(try conversation("hello"))
             XCTFail("expected \(expected)")
         } catch let error as ChatClientError {
             XCTAssertEqual(error, expected)

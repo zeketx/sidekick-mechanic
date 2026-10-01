@@ -26,6 +26,28 @@ struct URLSessionHTTP: HTTPPerforming {
     }
 }
 
+/// Body for `POST /chat`. Matches `backend/chat_models.py`: `{ messages: [{ role, text }] }`.
+/// Conversation and message IDs stay on the domain model; the backend forbids extras.
+struct ChatHTTPBody: Encodable, Equatable {
+    var messages: [Item]
+
+    struct Item: Encodable, Equatable {
+        var role: String
+        var text: String
+    }
+
+    init(_ conversation: Conversation) {
+        messages = conversation.messages.map { message in
+            switch message {
+            case let .user(user):
+                Item(role: "user", text: user.text)
+            case let .assistant(assistant):
+                Item(role: "assistant", text: assistant.answer.text)
+            }
+        }
+    }
+}
+
 /// Live `POST /chat` client. Base URL comes from `ChatClientConfiguration`.
 public struct LiveChatClient: ChatClient, Sendable {
     private let configuration: ChatClientConfiguration
@@ -40,13 +62,13 @@ public struct LiveChatClient: ChatClient, Sendable {
         self.http = http
     }
 
-    public func send(_ request: ChatRequest) async throws -> AnswerContract.Payload {
+    public func send(_ conversation: Conversation) async throws -> Answer {
         var urlRequest = URLRequest(url: configuration.chatURL)
         urlRequest.httpMethod = "POST"
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         urlRequest.setValue("application/json", forHTTPHeaderField: "Accept")
         urlRequest.timeoutInterval = configuration.requestTimeout
-        urlRequest.httpBody = try JSONEncoder().encode(request)
+        urlRequest.httpBody = try JSONEncoder().encode(ChatHTTPBody(conversation))
 
         let data: Data
         let response: URLResponse
@@ -63,7 +85,7 @@ public struct LiveChatClient: ChatClient, Sendable {
             throw ChatClientError.httpStatus(httpResponse.statusCode)
         }
         do {
-            return try JSONDecoder().decode(AnswerContract.Payload.self, from: data)
+            return try JSONDecoder().decode(Answer.self, from: data)
         } catch {
             throw ChatClientError.badPayload
         }

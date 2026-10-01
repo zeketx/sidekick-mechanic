@@ -4,13 +4,13 @@ import Foundation
 /// without the backend.
 public struct MockChatClient: ChatClient, Sendable {
     public var delay: Duration
-    public var selectFixture: @Sendable (ChatRequest) -> String
-    private let fixtures: [String: AnswerContract.Payload]
+    public var selectFixture: @Sendable (Conversation) -> String
+    private let fixtures: [String: Answer]
 
     public init(
-        fixtures: [String: AnswerContract.Payload],
+        fixtures: [String: Answer],
         delay: Duration = .milliseconds(350),
-        selectFixture: @escaping @Sendable (ChatRequest) -> String = MockChatClient.defaultSelectFixture
+        selectFixture: @escaping @Sendable (Conversation) -> String = MockChatClient.defaultSelectFixture
     ) {
         self.fixtures = fixtures
         self.delay = delay
@@ -20,7 +20,7 @@ public struct MockChatClient: ChatClient, Sendable {
     public init(
         fixturesDirectory: URL,
         delay: Duration = .milliseconds(350),
-        selectFixture: @escaping @Sendable (ChatRequest) -> String = MockChatClient.defaultSelectFixture
+        selectFixture: @escaping @Sendable (Conversation) -> String = MockChatClient.defaultSelectFixture
     ) throws {
         try self.init(
             fixtures: ContractFixtures.load(from: fixturesDirectory),
@@ -29,21 +29,32 @@ public struct MockChatClient: ChatClient, Sendable {
         )
     }
 
-    public func send(_ request: ChatRequest) async throws -> AnswerContract.Payload {
+    public func send(_ conversation: Conversation) async throws -> Answer {
         if delay > .zero {
             try await Task.sleep(for: delay)
         }
-        guard let payload = fixtures[selectFixture(request)] else {
+        guard let answer = fixtures[selectFixture(conversation)] else {
             throw ChatClientError.fixturesUnavailable
         }
-        return payload
+        return answer
     }
 
-    public static func defaultSelectFixture(_ request: ChatRequest) -> String {
-        let text = request.messages.last(where: { $0.role == .user })?.text.lowercased() ?? ""
+    public static func defaultSelectFixture(_ conversation: Conversation) -> String {
+        let text = conversation.lastUserText?.lowercased() ?? ""
         if text.contains("not found") || text.contains("refusal") { return "refusal.json" }
         if text.contains("highlight") { return "with_highlight.json" }
         if text.contains("citation") { return "with_citations.json" }
         return "plain.json"
+    }
+}
+
+extension Conversation {
+    var lastUserText: String? {
+        for message in messages.reversed() {
+            if case let .user(user) = message {
+                return user.text
+            }
+        }
+        return nil
     }
 }
