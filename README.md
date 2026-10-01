@@ -12,7 +12,7 @@ Proposed minimum iOS version: iOS 17 (owner confirms).
 - [AGENTS.md](AGENTS.md) — how agents should work in this repo
 - [docs/](docs/) — kanban, poteto plan, and the [build log](docs/build-log/)
 
-Layout: `app/` (Xcode, owner-built), `backend/` (RAG), `ml/`, `docs/` (`docs/vehicle/`, `docs/build-log/`), `scripts/`. Manual PDFs stay in gitignored `manuals/`. From `backend/`, `pip install -r requirements.txt && python3 ingest.py` verifies those PDFs against [docs/MANUALS.md](docs/MANUALS.md) and writes page-level chunks. `make eval` scores the golden sample (fake pages until the real question set exists) and regenerates [docs/METRICS.md](docs/METRICS.md).
+Layout: `app/` (Xcode, owner-built), `backend/` (RAG), `ml/`, `docs/` (`docs/vehicle/`, `docs/build-log/`), `scripts/`. Manual PDFs stay in gitignored `manuals/`. The swappable telemetry protocol and JSON scenario simulator live in `app/SidekickCore` ([docs/design/telemetry-source.md](docs/design/telemetry-source.md)). From `backend/`, `pip install -r requirements.txt && python3 ingest.py` verifies those PDFs against [docs/MANUALS.md](docs/MANUALS.md) and writes page-level chunks. `make eval` scores the golden sample (fake pages until the real question set exists) and regenerates [docs/METRICS.md](docs/METRICS.md).
 
 ## Verification
 
