@@ -194,3 +194,28 @@ Environment variables (see `.env.example`):
 | `SIDEKICK_LLM_MAX_RETRIES` | `2` | Retries after the first attempt on timeout, transport errors, 429, and 5xx |
 
 `FixtureAnswerProducer` remains for tests that need a committed contract fixture.
+
+## Part resolver
+
+`part_resolver.resolve_answer` sets the answer contract's optional `highlight`
+from a model selection, or leaves the highlight off.
+
+The model must return `{"part_id": "<id>"}` or `{"part_id": null}`. The id
+has to be one of `BayMapView.part_ids()`. That view is a local stand-in for
+the bay map schema (#26), which is not merged. It carries part id, photo id,
+angle id, pixel area, and whether the region is confirmed. Polygons, image
+size, names, aliases, license, and source stay in #26. See
+[`docs/design/part-resolver.md`](../docs/design/part-resolver.md).
+
+Null, or an output that does not name exactly one listed id, leaves the
+answer text alone and sets no highlight. An id outside the closed list, or a
+listed part with no confirmed region of area greater than zero, also sets no
+highlight and appends `This part is not mapped yet.`
+
+The highlight photo is the confirmed region with the largest `area_px`.
+Equal areas break ties by `bay_photo_id`, then `angle_id`.
+
+`LlmAnswerProducer` asks for a part id only when it is constructed with a
+non-empty `BayMapView`. The default producer has no bay map, so `/chat` does
+not highlight until a map is supplied. A failed selection call leaves the
+answer without a highlight.
