@@ -1,0 +1,15 @@
+{
+  "kind": "answer",
+  "text": "Look at the fake intake area on the fixture bay photo.",
+  "citations": [
+    {
+      "doc_id": "FAKE-DOC-2JZ",
+      "page": 999,
+      "snippet": "FAKE-SNIPPET: check the mapped fixture part."
+    }
+  ],
+  "highlight": {
+    "bay_photo_id": "fake-bay-photo-front",
+    "part_id": "fake-part-intake"
+  }
+}

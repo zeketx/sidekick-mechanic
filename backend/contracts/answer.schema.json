@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Answer payload",
+  "description": "Wire contract for a Sidekick Mechanic chat answer, shared by the backend and the app. A found answer carries text, citations, and an optional highlight. A refusal is a distinct shape used when nothing in the manuals supports the question.",
+  "oneOf": [
+    { "$ref": "#/$defs/found_answer" },
+    { "$ref": "#/$defs/refusal" }
+  ],
+  "$defs": {
+    "citation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["doc_id", "page", "snippet"],
+      "properties": {
+        "doc_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "page": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "snippet": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "highlight_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bay_photo_id", "part_id"],
+      "properties": {
+        "bay_photo_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "part_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "found_answer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "text", "citations"],
+      "properties": {
+        "kind": { "const": "answer" },
+        "text": {
+          "type": "string",
+          "minLength": 1
+        },
+        "citations": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/citation" }
+        },
+        "highlight": { "$ref": "#/$defs/highlight_ref" }
+      }
+    },
+    "refusal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "text", "reason"],
+      "properties": {
+        "kind": { "const": "refusal" },
+        "text": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reason": {
+          "const": "not_found_in_manual"
+        }
+      }
+    }
+  }
+}
