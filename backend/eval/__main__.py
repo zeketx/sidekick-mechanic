@@ -10,6 +10,7 @@ from eval.golden import RESULTS_DIR, GoldenSetError
 from eval.harness import run_harness
 from eval.report import render_job_summary, write_metrics_document
 from eval.runner import RunnerError
+from spec_guard import SpecGuardUncitedCounter
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -54,6 +55,7 @@ def main(argv: list[str] | None = None) -> int:
             output_dir=args.output_dir,
             ci_only=args.ci,
             date=args.date,
+            uncited_counter=SpecGuardUncitedCounter(),
         )
     except (GoldenSetError, RunnerError) as exc:
         print(f"eval failed: {exc}", file=sys.stderr)

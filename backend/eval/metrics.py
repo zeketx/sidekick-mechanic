@@ -34,9 +34,11 @@ METRIC_DEFINITIONS: dict[str, str] = {
         "(kind refusal, reason not_found_in_manual)."
     ),
     "uncited-number count": (
-        "Count of numeric tokens in answer text that do not appear in a "
-        "citation snippet, summed across the run. The local counter does "
-        "not understand units or pinouts. An UncitedNumberCounter replaces it."
+        "Sum of the active counter's count for each answer. The local "
+        "counter counts digit tokens in answer text that do not appear in a "
+        "citation snippet. It does not understand units or pinouts. The spec "
+        "guard counter counts unit-numbers and pin references it would block. "
+        "The results file names the counter."
     ),
     "latency p50 (ms)": (
         "50th percentile of per-question runner time in milliseconds. "

@@ -88,9 +88,24 @@ CI runs that subset and writes the table to the Actions job summary. The
 workflow token stays `contents: read`, so the check does not post a PR comment.
 
 Recall@5 stays null until a runner supplies retrieval hits. The default runner
-does not, and cited pages are not treated as hits. The uncited-number total
-uses `LocalUncitedNumberCounter`. `run_harness(..., uncited_counter=...)`
-accepts another `UncitedNumberCounter` for the spec guard.
+does not, and cited pages are not treated as hits. `python -m eval` passes
+`SpecGuardUncitedCounter` to `run_harness(..., uncited_counter=...)`, so the
+uncited-number total uses the spec guard. `run_harness` without a counter
+still uses `LocalUncitedNumberCounter`.
+
+## Wiring-diagram spike
+
+Separate from ingestion and from the eval harness. It needs the system
+packages `tesseract-ocr`, `poppler-utils`, and `fonts-dejavu-core`. From this
+directory:
+
+```bash
+python3 spikes/wiring_spike.py --output eval/results/wiring-spike.json
+```
+
+The written result is [docs/design/wiring-diagram-spike.md](../docs/design/wiring-diagram-spike.md).
+`eval/results/wiring-spike.json` has no `generated_at`, so `make metrics` keeps
+the dated harness file. The script is not part of ingestion.
 
 ## Stack
 
@@ -123,13 +138,34 @@ The response is an answer or a refusal as defined by the shared contract. The
 app must not invent vehicle facts; fixture citations use `page: 999` and
 `FAKE-*` values.
 
+## Spec guard
+
+`spec_guard.guard_answer(answer, cited_chunk_texts)` runs on the producer
+payload before the safety note is applied, so the note is never scanned.
+It extracts numbers with units and pin, connector, and terminal references.
+Each one must appear in a cited chunk. Otherwise the payload is replaced
+with a `not_found_in_manual` refusal that names the missing claims.
+Normalization is specified in
+[`docs/design/spec-guard.md`](../docs/design/spec-guard.md).
+
+Citation snippets are not evidence. `POST /chat` passes chunk text from
+`CitedChunkSource.cited_chunk_texts` when the producer implements it, and
+passes no chunks otherwise. With no chunks, any spec in the answer is refused.
+`LlmAnswerProducer` does not implement that protocol yet, because retrieval
+is not wired into `/chat`.
+
+Failures log a warning on the `sidekick.spec_guard` logger.
+`SpecGuardUncitedCounter` (`name` is `spec_guard`) is the harness hook: its
+`count` is `guard_answer(answer, ()).uncited_count`. The harness has no chunk
+text, so every claim still in a found answer counts, and a refusal counts as
+zero. `stats()` is the process total since `reset_stats()`.
+
 ## Safety preamble
 
-`POST /chat` runs every producer payload through `apply_safety_preamble`
-(`safety.py`) before schema validation. That includes `LlmAnswerProducer`.
-Procedure answers start with `SAFETY_NOTE`. That constant is the only copy of
-the wording; the owner reviews it there. The answer contract is unchanged: the
-note is part of `text`.
+`POST /chat` runs `apply_safety_preamble` (`safety.py`) on the guarded
+payload, before schema validation. Procedure answers start with `SAFETY_NOTE`.
+That constant is the only copy of the wording; the owner reviews it there.
+The answer contract is unchanged: the note is part of `text`.
 
 The detection rule lives on `is_procedure_answer` in `safety.py`. Refusals
 never receive the note. Eval cases are in
