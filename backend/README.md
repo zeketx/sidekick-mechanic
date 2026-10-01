@@ -69,3 +69,23 @@ app must not invent vehicle facts; fixture citations use `page: 999` and
 answer schema. `FixtureAnswerProducer` loads a committed fixture and ignores
 the prompt. #15 should implement the same protocol and keep `/chat` as the HTTP
 boundary.
+
+## Spec guard
+
+`spec_guard.guard_answer(answer, cited_chunk_texts)` runs after generation.
+It extracts numbers with units and pin, connector, and terminal references
+from the answer text. Each one must appear in a cited chunk. Otherwise the
+payload is replaced with a `not_found_in_manual` refusal that names the
+missing claims. Normalization (whitespace, unit spelling, what must not
+match) is specified in [`docs/design/spec-guard.md`](../docs/design/spec-guard.md).
+
+Citation snippets are not evidence. `POST /chat` passes chunk text from
+`CitedChunkSource.cited_chunk_texts` when the producer implements it, and
+passes no chunks otherwise. With no chunks, any spec in the answer is refused.
+The fixture producer does not implement that protocol. Its committed fixtures
+have no unit-numbers or pin references, so the default reply is unchanged.
+
+Failures log a warning on the `sidekick.spec_guard` logger. The eval harness
+sums `GuardResult.uncited_count` for the uncited-number count. `stats()` is
+the same total for the process since `reset_stats()`. Refusals that enter
+the guard are not counted as failures.
