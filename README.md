@@ -15,3 +15,10 @@ Proposed minimum iOS version: iOS 17 (owner confirms).
 Layout: `app/` (Xcode, owner-built), `backend/` (RAG), `ml/`, `docs/` (`docs/vehicle/`, `docs/build-log/`), `scripts/`. Manual PDFs stay in gitignored `manuals/`. The swappable telemetry protocol and JSON scenario simulator live in `app/SidekickCore` ([docs/design/telemetry-source.md](docs/design/telemetry-source.md)). From `backend/`, `pip install -r requirements.txt && python3 ingest.py` verifies those PDFs against [docs/MANUALS.md](docs/MANUALS.md) and writes page-level chunks. `make eval` scores the golden sample (fake pages until the real question set exists) and regenerates [docs/METRICS.md](docs/METRICS.md).
 
 Tapping a citation chip pushes `CitationPageView` with that chip's `Citation`. It shows the document id, page number, a rendered page image, and the cited snippet. The image comes from the on-device cache (`SIDEKICK_PAGE_CACHE_DIR`, or the app cache directory `sidekick-manual-pages`). On a miss, the app requests `GET /manuals/{doc_id}/pages/{page}.png` and stores the PNG. Page images are not committed.
+
+## Verification
+
+Agents prove behavior with the project-local skills in `.cursor/skills/`, then keep the maps honest with `/maintain-verification-skill`.
+
+- Linux: [verify-backend](.cursor/skills/verify-backend/SKILL.md) launches FastAPI, posts `/chat` using the `FAKE-*` fixtures, and checks the answer contract, refusals, the spec guard, and citations. The same run executes `swift test` in `app/SidekickCore` and `make eval`.
+- Owner's Mac: [verify-ios](.cursor/skills/verify-ios/SKILL.md) builds with `xcodebuild`, boots a simulator with `simctl`, and runs a UI test that sends a message. There is no `xcodeproj` in the repo yet, and Linux cannot run this skill.

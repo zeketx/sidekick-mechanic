@@ -1,0 +1,31 @@
+{
+  "files": [
+    "chat-citations.json",
+    "chat-cited-spec.json",
+    "chat-fake.json",
+    "chat-highlight.json",
+    "chat-invalid.json",
+    "chat-plain.json",
+    "chat-refusal.json",
+    "chat-uncited-spec.json",
+    "doctor-cited-spec.json",
+    "doctor-fake.json",
+    "doctor-plain.json",
+    "doctor-refusal.json",
+    "doctor-uncited-spec.json",
+    "doctor-with_citations.json",
+    "doctor-with_highlight.json",
+    "eval-results.json",
+    "eval-stderr.txt",
+    "eval-stdout.txt",
+    "server-cited-spec.log",
+    "server-fake.log",
+    "server-plain.json.log",
+    "server-refusal.json.log",
+    "server-uncited-spec.log",
+    "server-with_citations.json.log",
+    "server-with_highlight.json.log",
+    "swift-test-exit.txt",
+    "swift-test.txt"
+  ]
+}

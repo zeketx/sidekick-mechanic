@@ -65,6 +65,10 @@ bay-photos/
 # Regenerated ingestion output (see backend/ingest.py)
 backend/.ingest/
 
+# Verification process lock. Proof files under .cursor/skills/verify-*/evidence stay.
+.cursor/skills/verify-backend/run/
+.cursor/skills/verify-ios/run/
+
 # Model weights and datasets
 *.mlmodel
 *.mlpackage
