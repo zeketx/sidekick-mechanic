@@ -48,9 +48,9 @@ All of these are invoked explicitly (they set `disable-model-invocation: true`).
 - Shared answer contract: implement from the architect sketch. Any later change runs `/blast-radius` first.
 - Chat screen, answer card, composer polish: small UI work, single agent, screenshots.
 - Backend `/chat` and LLM adapter: `/poteto-mode` Feature playbook.
-- **As soon as the app and backend run:** `/create-verification-skill`. Make two skills:
-  - `verify-backend` runs on Linux. Launch the backend, send a chat request, save the response.
-  - `verify-ios` runs on the owner's Mac. `xcodebuild`, boot a simulator with `simctl`, drive a UI test, save screenshots. Cloud agents cannot run this one. They hand it to the owner.
+- **As soon as the app and backend run:** `/create-verification-skill`. The skills live in the repo:
+  - `.cursor/skills/verify-backend/` runs on Linux. Launch the backend, send a chat request, save the response. The same run covers `swift test` and `make eval`.
+  - `.cursor/skills/verify-ios/` runs on the owner's Mac. `xcodebuild`, boot a simulator with `simctl`, drive a UI test, save screenshots. Cloud agents cannot run this one. They hand it to the owner.
 - PR review: `/interrogate` on the contract PR and the LLM adapter PR.
 
 ### M2: Grounded answers over the manuals

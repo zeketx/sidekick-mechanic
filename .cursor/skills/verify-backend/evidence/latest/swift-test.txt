@@ -1,0 +1,217 @@
+Test Suite 'All tests' started at 2026-10-01 17:44:59.643
+Test Suite 'Debug-linux-x86_64.xctest' started at 2026-10-01 17:44:59.644
+Test Suite 'AnswerCardContentTests' started at 2026-10-01 17:44:59.644
+Test Case 'AnswerCardContentTests.testChipLabelsKeepCitationOrder' started at 2026-10-01 17:44:59.644
+Test Case 'AnswerCardContentTests.testChipLabelsKeepCitationOrder' passed (0.001 seconds)
+Test Case 'AnswerCardContentTests.testCitationChipLabelIsDocumentAndPage' started at 2026-10-01 17:44:59.645
+Test Case 'AnswerCardContentTests.testCitationChipLabelIsDocumentAndPage' passed (0.0 seconds)
+Test Case 'AnswerCardContentTests.testCitationsFixtureRendersDocAndPageChipsWithoutAHighlightSlot' started at 2026-10-01 17:44:59.645
+Test Case 'AnswerCardContentTests.testCitationsFixtureRendersDocAndPageChipsWithoutAHighlightSlot' passed (0.001 seconds)
+Test Case 'AnswerCardContentTests.testHighlightFixtureShowsTheImageSlot' started at 2026-10-01 17:44:59.646
+Test Case 'AnswerCardContentTests.testHighlightFixtureShowsTheImageSlot' passed (0.0 seconds)
+Test Case 'AnswerCardContentTests.testPlainFixtureHasTextAndNoChipsOrHighlight' started at 2026-10-01 17:44:59.646
+Test Case 'AnswerCardContentTests.testPlainFixtureHasTextAndNoChipsOrHighlight' passed (0.0 seconds)
+Test Case 'AnswerCardContentTests.testPreviewFixturesMatchContractFiles' started at 2026-10-01 17:44:59.646
+Test Case 'AnswerCardContentTests.testPreviewFixturesMatchContractFiles' passed (0.0 seconds)
+Test Case 'AnswerCardContentTests.testRefusalFixtureIsNotFoundAndHidesChipsAndHighlight' started at 2026-10-01 17:44:59.646
+Test Case 'AnswerCardContentTests.testRefusalFixtureIsNotFoundAndHidesChipsAndHighlight' passed (0.0 seconds)
+Test Case 'AnswerCardContentTests.testSamePageChipsKeepTheirOwnSnippets' started at 2026-10-01 17:44:59.646
+Test Case 'AnswerCardContentTests.testSamePageChipsKeepTheirOwnSnippets' passed (0.0 seconds)
+Test Suite 'AnswerCardContentTests' passed at 2026-10-01 17:44:59.647
+	 Executed 8 tests, with 0 failures (0 unexpected) in 0.002 (0.002) seconds
+Test Suite 'AnswerTests' started at 2026-10-01 17:44:59.647
+Test Case 'AnswerTests.testCitationJSONUsesSnakeCaseKeys' started at 2026-10-01 17:44:59.647
+Test Case 'AnswerTests.testCitationJSONUsesSnakeCaseKeys' passed (0.0 seconds)
+Test Case 'AnswerTests.testCitationPageZeroFailsToDecode' started at 2026-10-01 17:44:59.647
+Test Case 'AnswerTests.testCitationPageZeroFailsToDecode' passed (0.0 seconds)
+Test Case 'AnswerTests.testCitationWithoutPageFailsToDecode' started at 2026-10-01 17:44:59.647
+Test Case 'AnswerTests.testCitationWithoutPageFailsToDecode' passed (0.0 seconds)
+Test Case 'AnswerTests.testCitationsFixture' started at 2026-10-01 17:44:59.647
+Test Case 'AnswerTests.testCitationsFixture' passed (0.0 seconds)
+Test Case 'AnswerTests.testEmptyIDsCannotBeConstructed' started at 2026-10-01 17:44:59.647
+Test Case 'AnswerTests.testEmptyIDsCannotBeConstructed' passed (0.101 seconds)
+Test Case 'AnswerTests.testEmptySnippetFailsToDecode' started at 2026-10-01 17:44:59.748
+Test Case 'AnswerTests.testEmptySnippetFailsToDecode' passed (0.0 seconds)
+Test Case 'AnswerTests.testEveryFixtureDecodes' started at 2026-10-01 17:44:59.748
+Test Case 'AnswerTests.testEveryFixtureDecodes' passed (0.0 seconds)
+Test Case 'AnswerTests.testHighlightFixture' started at 2026-10-01 17:44:59.748
+Test Case 'AnswerTests.testHighlightFixture' passed (0.0 seconds)
+Test Case 'AnswerTests.testHighlightJSONUsesSnakeCaseKeys' started at 2026-10-01 17:44:59.748
+Test Case 'AnswerTests.testHighlightJSONUsesSnakeCaseKeys' passed (0.0 seconds)
+Test Case 'AnswerTests.testPageZeroCannotBeConstructed' started at 2026-10-01 17:44:59.748
+Test Case 'AnswerTests.testPageZeroCannotBeConstructed' passed (0.101 seconds)
+Test Case 'AnswerTests.testPlainAnswerFixture' started at 2026-10-01 17:44:59.849
+Test Case 'AnswerTests.testPlainAnswerFixture' passed (0.001 seconds)
+Test Case 'AnswerTests.testRefusalFixture' started at 2026-10-01 17:44:59.850
+Test Case 'AnswerTests.testRefusalFixture' passed (0.001 seconds)
+Test Case 'AnswerTests.testRefusalWithHighlightFailsToDecode' started at 2026-10-01 17:44:59.851
+Test Case 'AnswerTests.testRefusalWithHighlightFailsToDecode' passed (0.0 seconds)
+Test Case 'AnswerTests.testRequiredFixturesExist' started at 2026-10-01 17:44:59.851
+Test Case 'AnswerTests.testRequiredFixturesExist' passed (0.0 seconds)
+Test Case 'AnswerTests.testRoundTripEveryFixture' started at 2026-10-01 17:44:59.851
+Test Case 'AnswerTests.testRoundTripEveryFixture' passed (0.0 seconds)
+Test Case 'AnswerTests.testUnknownKindFailsToDecode' started at 2026-10-01 17:44:59.851
+Test Case 'AnswerTests.testUnknownKindFailsToDecode' passed (0.0 seconds)
+Test Suite 'AnswerTests' passed at 2026-10-01 17:44:59.851
+	 Executed 16 tests, with 0 failures (0 unexpected) in 0.205 (0.205) seconds
+Test Suite 'ChatClientTests' started at 2026-10-01 17:44:59.851
+Test Case 'ChatClientTests.testBackendURLComesFromBuildConfiguration' started at 2026-10-01 17:44:59.851
+Test Case 'ChatClientTests.testBackendURLComesFromBuildConfiguration' passed (0.101 seconds)
+Test Case 'ChatClientTests.testFactoryMockServesPlainFixture' started at 2026-10-01 17:44:59.952
+Test Case 'ChatClientTests.testFactoryMockServesPlainFixture' passed (0.0 seconds)
+Test Case 'ChatClientTests.testLiveErrorsMapToUserMessages' started at 2026-10-01 17:44:59.953
+Test Case 'ChatClientTests.testLiveErrorsMapToUserMessages' passed (0.001 seconds)
+Test Case 'ChatClientTests.testLivePostsSlimChatBodyAndDecodesAnswer' started at 2026-10-01 17:44:59.954
+Test Case 'ChatClientTests.testLivePostsSlimChatBodyAndDecodesAnswer' passed (0.001 seconds)
+Test Case 'ChatClientTests.testMockDelayIsConfigurable' started at 2026-10-01 17:44:59.954
+Test Case 'ChatClientTests.testMockDelayIsConfigurable' passed (0.0 seconds)
+Test Case 'ChatClientTests.testMockReturnsEachContractFixture' started at 2026-10-01 17:44:59.955
+Test Case 'ChatClientTests.testMockReturnsEachContractFixture' passed (0.0 seconds)
+Test Suite 'ChatClientTests' passed at 2026-10-01 17:44:59.955
+	 Executed 6 tests, with 0 failures (0 unexpected) in 0.104 (0.104) seconds
+Test Suite 'ChatViewModelTests' started at 2026-10-01 17:44:59.955
+Test Case 'ChatViewModelTests.testCancellationClearsLoadingWithoutAnError' started at 2026-10-01 17:44:59.955
+Test Case 'ChatViewModelTests.testCancellationClearsLoadingWithoutAnError' passed (0.001 seconds)
+Test Case 'ChatViewModelTests.testChatClientErrorSurfacesUserMessage' started at 2026-10-01 17:44:59.956
+Test Case 'ChatViewModelTests.testChatClientErrorSurfacesUserMessage' passed (0.0 seconds)
+Test Case 'ChatViewModelTests.testEmptySendDoesNotCallTheClient' started at 2026-10-01 17:44:59.956
+Test Case 'ChatViewModelTests.testEmptySendDoesNotCallTheClient' passed (0.101 seconds)
+Test Case 'ChatViewModelTests.testFailedSendCanBeFollowedByASuccessfulReply' started at 2026-10-01 17:45:00.057
+Test Case 'ChatViewModelTests.testFailedSendCanBeFollowedByASuccessfulReply' passed (0.001 seconds)
+Test Case 'ChatViewModelTests.testMockClientAppendsRefusalFixture' started at 2026-10-01 17:45:00.059
+Test Case 'ChatViewModelTests.testMockClientAppendsRefusalFixture' passed (0.0 seconds)
+Test Case 'ChatViewModelTests.testMockClientAppendsUserThenFixtureAnswer' started at 2026-10-01 17:45:00.059
+Test Case 'ChatViewModelTests.testMockClientAppendsUserThenFixtureAnswer' passed (0.0 seconds)
+Test Case 'ChatViewModelTests.testSendEnabledOnlyWhenTrimmedTextIsPresentAndIdle' started at 2026-10-01 17:45:00.059
+Test Case 'ChatViewModelTests.testSendEnabledOnlyWhenTrimmedTextIsPresentAndIdle' passed (0.0 seconds)
+Test Case 'ChatViewModelTests.testSendWhileLoadingDoesNotStartASecondRequest' started at 2026-10-01 17:45:00.059
+Test Case 'ChatViewModelTests.testSendWhileLoadingDoesNotStartASecondRequest' passed (0.0 seconds)
+Test Case 'ChatViewModelTests.testUnknownErrorUsesFallbackCopy' started at 2026-10-01 17:45:00.060
+Test Case 'ChatViewModelTests.testUnknownErrorUsesFallbackCopy' passed (0.0 seconds)
+Test Suite 'ChatViewModelTests' passed at 2026-10-01 17:45:00.060
+	 Executed 9 tests, with 0 failures (0 unexpected) in 0.104 (0.104) seconds
+Test Suite 'CitationPageModelTests' started at 2026-10-01 17:45:00.060
+Test Case 'CitationPageModelTests.testCancellationRestoresThePageAlreadyOnScreen' started at 2026-10-01 17:45:00.060
+Test Case 'CitationPageModelTests.testCancellationRestoresThePageAlreadyOnScreen' passed (0.003 seconds)
+Test Case 'CitationPageModelTests.testLoadKeepsTheCitationHeaderAndSnippetWithTheImage' started at 2026-10-01 17:45:00.063
+Test Case 'CitationPageModelTests.testLoadKeepsTheCitationHeaderAndSnippetWithTheImage' passed (0.003 seconds)
+Test Case 'CitationPageModelTests.testMissingPageIsAnErrorAndStillShowsTheSnippet' started at 2026-10-01 17:45:00.066
+Test Case 'CitationPageModelTests.testMissingPageIsAnErrorAndStillShowsTheSnippet' passed (0.0 seconds)
+Test Case 'CitationPageModelTests.testOverlappingLoadUsesOneRequest' started at 2026-10-01 17:45:00.066
+Test Case 'CitationPageModelTests.testOverlappingLoadUsesOneRequest' passed (0.002 seconds)
+Test Case 'CitationPageModelTests.testRetryAfterAnErrorCanLoadThePage' started at 2026-10-01 17:45:00.068
+Test Case 'CitationPageModelTests.testRetryAfterAnErrorCanLoadThePage' passed (0.003 seconds)
+Test Case 'CitationPageModelTests.testUnreadableImageAndUnknownFailure' started at 2026-10-01 17:45:00.071
+Test Case 'CitationPageModelTests.testUnreadableImageAndUnknownFailure' passed (0.003 seconds)
+Test Suite 'CitationPageModelTests' passed at 2026-10-01 17:45:00.073
+	 Executed 6 tests, with 0 failures (0 unexpected) in 0.014 (0.014) seconds
+Test Suite 'ConversationTests' started at 2026-10-01 17:45:00.073
+Test Case 'ConversationTests.testConversationAppendsMessagesInOrder' started at 2026-10-01 17:45:00.073
+Test Case 'ConversationTests.testConversationAppendsMessagesInOrder' passed (0.0 seconds)
+Test Case 'ConversationTests.testConversationRoundTripJSON' started at 2026-10-01 17:45:00.074
+Test Case 'ConversationTests.testConversationRoundTripJSON' passed (0.0 seconds)
+Test Case 'ConversationTests.testUserMessageRejectsEmptyText' started at 2026-10-01 17:45:00.074
+Test Case 'ConversationTests.testUserMessageRejectsEmptyText' passed (0.101 seconds)
+Test Case 'ConversationTests.testUserMessageWithAnswerFailsToDecode' started at 2026-10-01 17:45:00.175
+Test Case 'ConversationTests.testUserMessageWithAnswerFailsToDecode' passed (0.0 seconds)
+Test Suite 'ConversationTests' passed at 2026-10-01 17:45:00.175
+	 Executed 4 tests, with 0 failures (0 unexpected) in 0.102 (0.102) seconds
+Test Suite 'ManualPageSourceTests' started at 2026-10-01 17:45:00.175
+Test Case 'ManualPageSourceTests.testCacheHitSkipsTheBackend' started at 2026-10-01 17:45:00.175
+Test Case 'ManualPageSourceTests.testCacheHitSkipsTheBackend' passed (0.007 seconds)
+Test Case 'ManualPageSourceTests.testCacheMissFetchesAndStoresThePNG' started at 2026-10-01 17:45:00.182
+Test Case 'ManualPageSourceTests.testCacheMissFetchesAndStoresThePNG' passed (0.006 seconds)
+Test Case 'ManualPageSourceTests.testCancelledFetchIsNotAPageFailure' started at 2026-10-01 17:45:00.188
+Test Case 'ManualPageSourceTests.testCancelledFetchIsNotAPageFailure' passed (0.0 seconds)
+Test Case 'ManualPageSourceTests.testConfigurationComesFromTheEnvironmentOrPlist' started at 2026-10-01 17:45:00.188
+Test Case 'ManualPageSourceTests.testConfigurationComesFromTheEnvironmentOrPlist' passed (0.0 seconds)
+Test Case 'ManualPageSourceTests.testConfiguredEnvironmentUsesTheCachingSource' started at 2026-10-01 17:45:00.188
+Test Case 'ManualPageSourceTests.testConfiguredEnvironmentUsesTheCachingSource' passed (0.001 seconds)
+Test Case 'ManualPageSourceTests.testCorruptCacheIsDroppedAndReplacedByTheBackendPNG' started at 2026-10-01 17:45:00.190
+Test Case 'ManualPageSourceTests.testCorruptCacheIsDroppedAndReplacedByTheBackendPNG' passed (0.009 seconds)
+Test Case 'ManualPageSourceTests.testMissingAndBadResponsesAreNotCached' started at 2026-10-01 17:45:00.199
+Test Case 'ManualPageSourceTests.testMissingAndBadResponsesAreNotCached' passed (0.003 seconds)
+Test Case 'ManualPageSourceTests.testMissingBackendURLFailsWithoutANetworkCall' started at 2026-10-01 17:45:00.202
+Test Case 'ManualPageSourceTests.testMissingBackendURLFailsWithoutANetworkCall' passed (0.0 seconds)
+Test Case 'ManualPageSourceTests.testPageErrorMessagesAreSpecific' started at 2026-10-01 17:45:00.202
+Test Case 'ManualPageSourceTests.testPageErrorMessagesAreSpecific' passed (0.0 seconds)
+Test Case 'ManualPageSourceTests.testPlaceholderPNGRoundTripsAndIsObviouslyFake' started at 2026-10-01 17:45:00.202
+Test Case 'ManualPageSourceTests.testPlaceholderPNGRoundTripsAndIsObviouslyFake' passed (0.006 seconds)
+Test Case 'ManualPageSourceTests.testStoredPNGRoundTripsAcrossDeflateBlockBoundary' started at 2026-10-01 17:45:00.209
+Test Case 'ManualPageSourceTests.testStoredPNGRoundTripsAcrossDeflateBlockBoundary' passed (0.017 seconds)
+Test Case 'ManualPageSourceTests.testUnsafeDocumentIDsDoNotEscapeTheCacheOrHitTheNetwork' started at 2026-10-01 17:45:00.226
+Test Case 'ManualPageSourceTests.testUnsafeDocumentIDsDoNotEscapeTheCacheOrHitTheNetwork' passed (0.103 seconds)
+Test Suite 'ManualPageSourceTests' passed at 2026-10-01 17:45:00.329
+	 Executed 12 tests, with 0 failures (0 unexpected) in 0.154 (0.154) seconds
+Test Suite 'ReadingsViewModelTests' started at 2026-10-01 17:45:00.329
+Test Case 'ReadingsViewModelTests.testIdleRowsAreLabeledSimulated' started at 2026-10-01 17:45:00.329
+Test Case 'ReadingsViewModelTests.testIdleRowsAreLabeledSimulated' passed (0.002 seconds)
+Test Case 'ReadingsViewModelTests.testNonSimulatedOriginHidesTheBanner' started at 2026-10-01 17:45:00.331
+Test Case 'ReadingsViewModelTests.testNonSimulatedOriginHidesTheBanner' passed (0.001 seconds)
+Test Case 'ReadingsViewModelTests.testSelectingWarmIdleResetsThenReplaysThatScript' started at 2026-10-01 17:45:00.332
+Test Case 'ReadingsViewModelTests.testSelectingWarmIdleResetsThenReplaysThatScript' passed (0.001 seconds)
+Test Case 'ReadingsViewModelTests.testStartReplaysTheLastFrameThenStops' started at 2026-10-01 17:45:00.333
+Test Case 'ReadingsViewModelTests.testStartReplaysTheLastFrameThenStops' passed (0.001 seconds)
+Test Case 'ReadingsViewModelTests.testStopKeepsTheFirstFrame' started at 2026-10-01 17:45:00.334
+Test Case 'ReadingsViewModelTests.testStopKeepsTheFirstFrame' passed (0.012 seconds)
+Test Suite 'ReadingsViewModelTests' passed at 2026-10-01 17:45:00.346
+	 Executed 5 tests, with 0 failures (0 unexpected) in 0.016 (0.016) seconds
+Test Suite 'SidekickCoreTests' started at 2026-10-01 17:45:00.346
+Test Case 'SidekickCoreTests.testModuleName' started at 2026-10-01 17:45:00.346
+Test Case 'SidekickCoreTests.testModuleName' passed (0.001 seconds)
+Test Suite 'SidekickCoreTests' passed at 2026-10-01 17:45:00.346
+	 Executed 1 test, with 0 failures (0 unexpected) in 0.001 (0.001) seconds
+Test Suite 'TelemetrySourceTests' started at 2026-10-01 17:45:00.346
+Test Case 'TelemetrySourceTests.testBundledScenariosArePlaceholderScripts' started at 2026-10-01 17:45:00.346
+Test Case 'TelemetrySourceTests.testBundledScenariosArePlaceholderScripts' passed (0.0 seconds)
+Test Case 'TelemetrySourceTests.testColdStartReplayIsLiteralForSeed35' started at 2026-10-01 17:45:00.347
+Test Case 'TelemetrySourceTests.testColdStartReplayIsLiteralForSeed35' passed (0.0 seconds)
+Test Case 'TelemetrySourceTests.testDifferentSeedChangesStampsNotScriptedValues' started at 2026-10-01 17:45:00.347
+Test Case 'TelemetrySourceTests.testDifferentSeedChangesStampsNotScriptedValues' passed (0.0 seconds)
+Test Case 'TelemetrySourceTests.testHardwareSeamsAreNotImplemented' started at 2026-10-01 17:45:00.347
+Test Case 'TelemetrySourceTests.testHardwareSeamsAreNotImplemented' passed (0.0 seconds)
+Test Case 'TelemetrySourceTests.testRejectsChannelThatIsNotAPlaceholder' started at 2026-10-01 17:45:00.347
+Test Case 'TelemetrySourceTests.testRejectsChannelThatIsNotAPlaceholder' passed (0.0 seconds)
+Test Case 'TelemetrySourceTests.testRejectsDecreasingOffsets' started at 2026-10-01 17:45:00.347
+Test Case 'TelemetrySourceTests.testRejectsDecreasingOffsets' passed (0.0 seconds)
+Test Case 'TelemetrySourceTests.testRejectsDisplayNameThatIsNotAPlaceholder' started at 2026-10-01 17:45:00.347
+Test Case 'TelemetrySourceTests.testRejectsDisplayNameThatIsNotAPlaceholder' passed (0.101 seconds)
+Test Case 'TelemetrySourceTests.testRejectsNoteThatDoesNotSayItIsNotASpec' started at 2026-10-01 17:45:00.448
+Test Case 'TelemetrySourceTests.testRejectsNoteThatDoesNotSayItIsNotASpec' passed (0.101 seconds)
+Test Case 'TelemetrySourceTests.testRejectsUnitThatIsNotAPlaceholder' started at 2026-10-01 17:45:00.549
+Test Case 'TelemetrySourceTests.testRejectsUnitThatIsNotAPlaceholder' passed (0.0 seconds)
+Test Case 'TelemetrySourceTests.testRejectsUnknownChannelInAFrame' started at 2026-10-01 17:45:00.549
+Test Case 'TelemetrySourceTests.testRejectsUnknownChannelInAFrame' passed (0.0 seconds)
+Test Case 'TelemetrySourceTests.testSameSeedReplaysIdenticalReadings' started at 2026-10-01 17:45:00.549
+Test Case 'TelemetrySourceTests.testSameSeedReplaysIdenticalReadings' passed (0.0 seconds)
+Test Case 'TelemetrySourceTests.testSimulatorStreamMatchesReplayAndCanRestart' started at 2026-10-01 17:45:00.549
+Test Case 'TelemetrySourceTests.testSimulatorStreamMatchesReplayAndCanRestart' passed (0.001 seconds)
+Test Case 'TelemetrySourceTests.testStartWhileRunningThrows' started at 2026-10-01 17:45:00.550
+Test Case 'TelemetrySourceTests.testStartWhileRunningThrows' passed (0.101 seconds)
+Test Case 'TelemetrySourceTests.testStopFinishesTheStreamBeforeTheNextFrame' started at 2026-10-01 17:45:00.651
+Test Case 'TelemetrySourceTests.testStopFinishesTheStreamBeforeTheNextFrame' passed (0.0 seconds)
+Test Case 'TelemetrySourceTests.testValueTextUsesAStableFormat' started at 2026-10-01 17:45:00.652
+Test Case 'TelemetrySourceTests.testValueTextUsesAStableFormat' passed (0.0 seconds)
+Test Case 'TelemetrySourceTests.testWarmIdleReplayIsLiteralForSeed70' started at 2026-10-01 17:45:00.652
+Test Case 'TelemetrySourceTests.testWarmIdleReplayIsLiteralForSeed70' passed (0.101 seconds)
+Test Suite 'TelemetrySourceTests' passed at 2026-10-01 17:45:00.752
+	 Executed 16 tests, with 0 failures (0 unexpected) in 0.406 (0.406) seconds
+Test Suite 'Debug-linux-x86_64.xctest' passed at 2026-10-01 17:45:00.752
+	 Executed 83 tests, with 0 failures (0 unexpected) in 1.108 (1.108) seconds
+Test Suite 'All tests' passed at 2026-10-01 17:45:00.752
+	 Executed 83 tests, with 0 failures (0 unexpected) in 1.108 (1.108) seconds
+◇ Test run started.
+↳ Testing Library Version: 6.4 (efd8d65801f569d)
+↳ Target Platform: x86_64-unknown-linux-gnu
+✔ Test run with 0 tests in 0 suites passed after 0.001 seconds.
+Building for debugging...
+[Pre-planning 1 / 153]
+[3 / 5] SidekickCore
+[4 / 6] SidekickCore
+[12 / 14] SidekickCoreTests-product
+[20 / 22] SidekickCore
+[29 / 37] SidekickCoreTests-product
+[33 / 38] SidekickCoreTests-product
+[39 / 42] SidekickCoreTests-test-runner
+[43 / 43] SidekickCoreTests-test-runner
+Build complete! (2.88 secs)

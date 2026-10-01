@@ -1,0 +1,26 @@
+{
+  "feature_id": "chat-spec-guard-allows",
+  "entry_point": "POST /chat",
+  "request": {
+    "messages": [
+      {
+        "role": "user",
+        "text": "Why is it hard to start?"
+      }
+    ]
+  },
+  "status": 200,
+  "response": {
+    "kind": "answer",
+    "text": "Torque is 999 Nm.",
+    "citations": [
+      {
+        "doc_id": "FAKE-DOC",
+        "page": 999,
+        "snippet": "FAKE-SNIPPET"
+      }
+    ]
+  },
+  "schema_valid": true,
+  "schema_error": null
+}
