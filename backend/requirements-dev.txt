@@ -1,0 +1,2 @@
+# Test-only deps until the RAG service lands. pytest collects tests/ automatically.
+pytest==9.1.1

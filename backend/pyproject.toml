@@ -1,0 +1,8 @@
+[project]
+name = "sidekick-backend"
+version = "0.0.0"
+description = "RAG service for Sidekick Mechanic."
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
