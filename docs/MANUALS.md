@@ -34,4 +34,4 @@ Which documents belong in Phase 1 is taken from [VISION.md](../VISION.md) and [R
 
 ## How ingestion uses this file
 
-`backend/manifest.py` parses the table above. For each row it requires `manuals/<id>.pdf` and compares SHA-256. `backend/ingest.py` calls that verifier first, then writes page-level chunks (`doc_id`, PDF page number, text) and a report of pages with no extractable text. Extra files in `manuals/` that are not in this table are ignored. Chunks are not an index; retrieval storage is a later issue.
+`backend/manifest.py` parses the table above. For each row it requires `manuals/<id>.pdf` and compares SHA-256. `backend/ingest.py` calls that verifier first, then writes page-level chunks (`doc_id`, PDF page number, text) and a report of pages with no extractable text. Extra files in `manuals/` that are not in this table are ignored. `backend/retrieval.py build` turns that JSONL into the SQLite FTS5 index (`docs/design/retrieval-index.md`).

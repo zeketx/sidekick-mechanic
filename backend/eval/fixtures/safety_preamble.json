@@ -1,0 +1,50 @@
+{
+  "cases": [
+    {
+      "id": "numbered_steps",
+      "expect_preamble": true,
+      "answer": {
+        "kind": "answer",
+        "text": "1. Let the fixture engine cool.\n2) Disconnect the fixture battery when that step calls for it.",
+        "citations": [
+          {
+            "doc_id": "FAKE-DOC-2JZ",
+            "page": 999,
+            "snippet": "FAKE-SNIPPET: numbered fixture steps. Value FAKE-SPEC."
+          }
+        ],
+        "highlight": {
+          "bay_photo_id": "fake-bay-photo-front",
+          "part_id": "fake-part-intake"
+        }
+      }
+    },
+    {
+      "id": "step_labels",
+      "expect_preamble": true,
+      "answer": {
+        "kind": "answer",
+        "text": "Step 1: Support the fixture vehicle on stands.\nstep 2. Leave the fixture bay.",
+        "citations": []
+      }
+    },
+    {
+      "id": "prose",
+      "expect_preamble": false,
+      "answer": {
+        "kind": "answer",
+        "text": "The fixture reply mentions step 1 in a sentence. This is not a procedure.",
+        "citations": []
+      }
+    },
+    {
+      "id": "refusal_with_numbered_lines",
+      "expect_preamble": false,
+      "answer": {
+        "kind": "refusal",
+        "text": "Not found in the manual.\n1. This numbered line stays inside the refusal.\nStep 1: So does this label.",
+        "reason": "not_found_in_manual"
+      }
+    }
+  ]
+}

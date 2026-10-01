@@ -190,6 +190,20 @@ def guard_answer(
     return GuardResult(answer=refusal, uncited=blocked)
 
 
+class SpecGuardUncitedCounter:
+    """Harness hook. ``name`` is ``spec_guard``.
+
+    ``count`` is how many claims ``guard_answer`` would block. The harness
+    has no retrieved chunk text, and citation snippets are not evidence, so
+    the chunk list is empty. A refusal counts as zero.
+    """
+
+    name = "spec_guard"
+
+    def count(self, answer: Mapping[str, Any]) -> int:
+        return guard_answer(answer, ()).uncited_count
+
+
 def stats() -> GuardStats:
     """Return a snapshot of guard counters for this process."""
     with _stats_lock:

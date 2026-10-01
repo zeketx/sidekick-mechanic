@@ -8,7 +8,14 @@ from fastapi.testclient import TestClient
 from app import create_app
 from chat_models import Conversation, Message
 from contract import load_answer_fixture, validate_answer
-from producer import FixtureAnswerProducer
+from llm import DEFAULT_FAKE_TEXT, FakeLLMClient, LLMError
+from producer import (
+    UNAVAILABLE_ANSWER,
+    AnswerProducer,
+    FixtureAnswerProducer,
+    LlmAnswerProducer,
+)
+from safety import SAFETY_NOTE
 
 HAPPY_BODY = {
     "messages": [
@@ -17,12 +24,12 @@ HAPPY_BODY = {
 }
 
 
-def _client(producer: FixtureAnswerProducer | None = None) -> TestClient:
+def _client(producer: AnswerProducer | None = None) -> TestClient:
     return TestClient(create_app(producer=producer))
 
 
 def test_chat_happy_path_returns_schema_valid_fixture() -> None:
-    response = _client().post("/chat", json=HAPPY_BODY)
+    response = _client(FixtureAnswerProducer()).post("/chat", json=HAPPY_BODY)
 
     assert response.status_code == 200
     payload = response.json()
@@ -33,6 +40,29 @@ def test_chat_happy_path_returns_schema_valid_fixture() -> None:
         "text": "This is a fixture-only reply with no manual citations.",
         "citations": [],
     }
+
+
+def test_chat_default_without_api_key_uses_fake_llm() -> None:
+    response = _client().post("/chat", json=HAPPY_BODY)
+
+    assert response.status_code == 200
+    payload = response.json()
+    validate_answer(payload)
+    assert payload == {
+        "kind": "answer",
+        "text": DEFAULT_FAKE_TEXT,
+        "citations": [],
+    }
+
+
+def test_chat_llm_error_returns_contract_valid_error_answer() -> None:
+    producer = LlmAnswerProducer(FakeLLMClient(error=LLMError("timeout")))
+    response = _client(producer).post("/chat", json=HAPPY_BODY)
+
+    assert response.status_code == 200
+    payload = response.json()
+    validate_answer(payload)
+    assert payload == UNAVAILABLE_ANSWER
 
 
 def test_chat_uses_injected_producer() -> None:
@@ -147,3 +177,50 @@ def test_chat_allows_spec_when_producer_supplies_the_chunk() -> None:
 
     assert response.status_code == 200
     assert response.json() == answer
+
+
+def test_chat_refuses_uncited_spec_before_safety_note() -> None:
+    class ProcedureWithSpec:
+        def produce(self, conversation: Conversation) -> dict[str, Any]:
+            del conversation
+            return {
+                "kind": "answer",
+                "text": "1. Tighten the FAKE bolt to 999 Nm.",
+                "citations": [],
+            }
+
+    response = TestClient(create_app(producer=ProcedureWithSpec())).post(
+        "/chat", json=HAPPY_BODY
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    validate_answer(payload)
+    assert payload["kind"] == "refusal"
+    assert payload["text"] == "Not found in the cited manual text: 999 Nm."
+    assert SAFETY_NOTE not in payload["text"]
+
+
+def test_chat_does_not_scan_the_safety_note(monkeypatch: pytest.MonkeyPatch) -> None:
+    patched = SAFETY_NOTE + " Fixture note voltage 999 V."
+    monkeypatch.setattr("safety.SAFETY_NOTE", patched)
+
+    class Procedure:
+        def produce(self, conversation: Conversation) -> dict[str, Any]:
+            del conversation
+            return {
+                "kind": "answer",
+                "text": "1. Leave the FAKE bay.",
+                "citations": [],
+            }
+
+    response = TestClient(create_app(producer=Procedure())).post(
+        "/chat", json=HAPPY_BODY
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    validate_answer(payload)
+    assert payload["kind"] == "answer"
+    assert payload["text"] == f"{patched}\n\n1. Leave the FAKE bay."
+    assert "999 V" in payload["text"]

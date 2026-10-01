@@ -68,7 +68,9 @@ Logger name: `sidekick.spec_guard`. Each blocked answer logs one warning:
 spec guard blocked 2 uncited claim(s): 999 Nm, pin 999
 ```
 
-`GuardResult.uncited_count` is the number of distinct missing claims on that answer, `0` when the answer is allowed through. Issue #24's uncited-number count is the sum of `uncited_count` over the answers in the run.
+`GuardResult.uncited_count` is the number of distinct missing claims on that answer, `0` when the answer is allowed through. The eval uncited-number count is the sum of those counts.
+
+`python -m eval` passes `SpecGuardUncitedCounter` to `run_harness`. Its `count` calls `guard_answer(answer, ())` and returns `uncited_count`. The harness answer has no chunk text, so every claim still in a found answer counts. A refusal counts as zero. `run_harness` without a counter still uses the local digit counter.
 
 `stats()` returns process totals since `reset_stats()`:
 
@@ -82,9 +84,9 @@ Refusals that enter the guard are not checks and are not failures. `failures` co
 
 ## POST /chat
 
-`POST /chat` calls `guard_answer` after `AnswerProducer.produce` and before contract validation.
+`POST /chat` calls `guard_answer` on the producer payload, then `apply_safety_preamble` on the guarded payload, then contract validation. The safety note is appended after the guard, so the note is never scanned.
 
-Chunk text comes from `CitedChunkSource.cited_chunk_texts` on the producer (`backend/producer.py`). The fixture producer does not implement that, so the chunk list is empty. Any spec in the answer is then uncited and the response is a refusal. Retrieved-page producers (#19) and the cloud adapter (#15) should implement `CitedChunkSource` once they have chunk text. Until they do, failing closed is the safe default.
+Chunk text comes from `CitedChunkSource.cited_chunk_texts` on the producer (`backend/producer.py`). `LlmAnswerProducer` does not implement that yet, so the chunk list is empty. Any spec in the answer is then uncited and the response is a refusal. A producer should implement `CitedChunkSource` once it has retrieved page text. Until then, failing closed is the safe default.
 
 The guard does not retrieve pages and does not call a model.
 

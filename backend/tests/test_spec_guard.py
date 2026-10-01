@@ -6,7 +6,13 @@ from typing import Any
 import pytest
 
 from contract import load_answer_fixture, validate_answer
-from spec_guard import GuardStats, guard_answer, reset_stats, stats
+from spec_guard import (
+    GuardStats,
+    SpecGuardUncitedCounter,
+    guard_answer,
+    reset_stats,
+    stats,
+)
 
 pytestmark = pytest.mark.usefixtures("_reset_guard_stats")
 
@@ -348,6 +354,31 @@ def test_malformed_answer_is_not_rewritten() -> None:
     assert result.answer == payload
     assert result.uncited == ()
     assert stats() == GuardStats(0, 0, 0)
+
+
+def test_harness_counter_uses_the_guard_and_ignores_snippets() -> None:
+    counter = SpecGuardUncitedCounter()
+    cited_only_in_snippet = {
+        "kind": "answer",
+        "text": "Torque is 999 Nm.",
+        "citations": [
+            {
+                "doc_id": "FAKE-DOC",
+                "page": 999,
+                "snippet": "Torque is 999 Nm.",
+            }
+        ],
+    }
+    refusal = {
+        "kind": "refusal",
+        "text": "Not found in the cited manual text: 999 Nm.",
+        "reason": "not_found_in_manual",
+    }
+
+    assert counter.name == "spec_guard"
+    assert counter.count(cited_only_in_snippet) == 1
+    assert counter.count(refusal) == 0
+    assert counter.count(_found("No spec in this FAKE reply.")) == 0
 
 
 def test_string_of_chunks_is_rejected() -> None:
