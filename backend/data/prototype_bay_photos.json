@@ -1,0 +1,66 @@
+{
+  "label": "Prototype stand-in. Not Zeke's truck. Replaced in M5.",
+  "replaced_in": "M5",
+  "owners_truck": false,
+  "shot_list_source": "docs/vehicle/DAY_ONE.md",
+  "shot_list_angles": [
+    "front",
+    "overhead",
+    "vehicle-left",
+    "vehicle-right",
+    "firewall"
+  ],
+  "angles": {
+    "front": ["hrymx-2jz-ge-25308847029"],
+    "overhead": [],
+    "vehicle-left": [],
+    "vehicle-right": [],
+    "firewall": []
+  },
+  "gaps": {
+    "below_requested_range": true,
+    "requested_min": 10,
+    "requested_max": 20,
+    "verified_count": 1,
+    "missing_angles": [
+      "overhead",
+      "vehicle-left",
+      "vehicle-right",
+      "firewall"
+    ],
+    "summary": "Wikimedia Commons and Flickr, limited to CC0, CC BY, and CC BY-SA, produced one engine-bay photo whose own caption names a 2JZ-GE. That is below the 10 to 20 photos requested. Four shot-list angles have no photo. Other files were left out instead of being added to fill the count.",
+    "excluded": [
+      "Commons files in Category:Toyota 2JZ-GTE engine are categorized as 2JZ-GTE. Their descriptions do not call the engine 2JZ-GE.",
+      "File:Toyota Crown Sedan 3.0 1997 (Bahrain).jpg and File:Toyota GF-JZS155 Crown ROYAL Saloon (23031013390).jpg mention 2JZ-GE and show the outside of the car, not an engine bay.",
+      "File:1996 Toyota Mark II Grande G 2.5 1jz-ge Engine.jpg is titled 1jz-ge.",
+      "Flickr photos 45527780302, 30637121867, and 45578254221 (Dixon Pai, CC BY 2.0) share the keywords 2jzge and 2jzgte and have empty descriptions, so the keywords do not say which engine is in the frame.",
+      "Flickr photos 3105438310 and 3104607475 (Stephen Kruso, CC BY-SA 2.0) are tagged 1uzfe.",
+      "File:Aristo 2JZ-GTE.jpg, File:Aristo 2JZGTE.jpg, and File:Tuned 2JZ-GTE engine.jpg show engines out of a car. They are not bay photos, and the descriptions say 2JZ-GTE.",
+      "File:MK4 supra engine bay.JPG uses the Commons template PD-user-en and the description says it shows what 2jzgte looks like. It is outside CC0, CC BY, and CC BY-SA, and the author did not call it 2JZ-GE."
+    ]
+  },
+  "photos": [
+    {
+      "id": "hrymx-2jz-ge-25308847029",
+      "filename": "hrymx-2jz-ge-25308847029.jpg",
+      "angle_id": "front",
+      "angle_note": "Grouped as front: the camera is ahead of the open hood. Not the day-one grille stance, and not overhead, vehicle-left, vehicle-right, or firewall.",
+      "label": "Prototype stand-in. Not Zeke's truck. Replaced in M5.",
+      "owners_truck": false,
+      "source_url": "https://www.flickr.com/photos/henrymaxm/25308847029/",
+      "download_url": "https://live.staticflickr.com/5713/25308847029_ee56ff65af_o.jpg",
+      "author": "HRYMX",
+      "author_url": "https://www.flickr.com/photos/henrymaxm/",
+      "license": "CC BY 2.0",
+      "license_url": "https://creativecommons.org/licenses/by/2.0/",
+      "license_evidence": "Flickr photo license field 4 and oEmbed license_id 4, both CC BY 2.0, checked 2026-10-01.",
+      "attribution": "\"2JZ-GE Engine\" by HRYMX, licensed under CC BY 2.0. https://www.flickr.com/photos/henrymaxm/25308847029/",
+      "source_subject": "Toyota FRS with a 2JZ-GE Engine.\n\n--\nCars and Coffee (Miami)\nSaturday, November 12th, 2016",
+      "media_type": "image/jpeg",
+      "sha256": "ebe2ead77c0ed06717fbc221c226d1d9fae168ac580869abde3f943b748d7682",
+      "byte_size": 7519365,
+      "width": 5184,
+      "height": 3456
+    }
+  ]
+}
