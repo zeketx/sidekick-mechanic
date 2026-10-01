@@ -25,14 +25,17 @@ To confirm a row: set **Value** to the observed or cited fact, set **Status** to
 | Donor model year | TBD | TBD | — | — |
 | Harness notes | TBD | TBD | — | — |
 | Dongle compatibility | TBD | TBD | — | — |
-| Bay photo angle list | TBD | TBD | — | — |
+| Bay photo angle list | TBD | TBD | Planned angles: [DAY_ONE.md](DAY_ONE.md). Value stays TBD until those photos are recorded here. | — |
 | Truck delivered | no | confirmed | [VISION.md](../../VISION.md), [AGENTS.md](../../AGENTS.md) | 2026-09-30 |
 | Delivery date | TBD | TBD | — | — |
 
 Unconfirmed rows are blocked on delivery. Do not treat a planning mention (for example a future telemetry path) as a confirmed hardware fact.
+
+Delivery day is [DAY_ONE.md](DAY_ONE.md). Fill TBD rows from that checklist. The checklist is not a confirmation.
 
 ## Changelog
 
 | Date | Change |
 |---|---|
 | 2026-10-01 | Registry created. Confirmed rows copied from [VISION.md](../../VISION.md) and [AGENTS.md](../../AGENTS.md). Remaining rows `TBD`, blocked on delivery. |
+| 2026-10-01 | Pointed the bay photo angle list at [DAY_ONE.md](DAY_ONE.md). Value stays TBD until the photos exist. |

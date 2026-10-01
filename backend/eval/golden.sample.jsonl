@@ -1,0 +1,4 @@
+{"id":"fake-answerable-intake","question":"Where does the fixture manual describe FAKE-PART-INTAKE?","answerable":true,"expected":[{"doc_id":"FAKE-DOC-2JZ","page":999}],"part_id":"fake-part-intake","ci":true}
+{"id":"fake-answerable-pages","question":"Which fixture pages mention FAKE-SPEC?","answerable":true,"expected":[{"doc_id":"FAKE-DOC-2JZ","page":999},{"doc_id":"FAKE-DOC-WIRING","page":999}],"ci":true}
+{"id":"fake-unanswerable-pinout","question":"What is the fixture pinout for FAKE-CONNECTOR?","answerable":false,"expected":[],"ci":true}
+{"id":"fake-unanswerable-spec","question":"What fixture value is listed for FAKE-BOLT?","answerable":false,"expected":[],"ci":false}

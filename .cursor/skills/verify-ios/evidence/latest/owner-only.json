@@ -1,0 +1,34 @@
+{
+  "feature_id": "chat",
+  "entry_point": "xcodebuild test",
+  "result": "owner-only",
+  "platform": "linux",
+  "unmet_preconditions": [
+    "platform is Linux, not Darwin",
+    "xcodebuild is not installed",
+    "xcrun simctl is not installed",
+    "app/SidekickMechanic.xcodeproj does not exist. The owner creates that project and points its root view at ChatScreen."
+  ],
+  "attempted": [
+    [
+      "xcodebuild",
+      "-version"
+    ],
+    [
+      "xcrun",
+      "simctl",
+      "list",
+      "devices",
+      "available"
+    ]
+  ],
+  "owner_command": "python3 .cursor/skills/verify-ios/scripts/verify_ios.py run",
+  "ui_test_source": ".cursor/skills/verify-ios/ui-tests/ChatSendUITests.swift",
+  "expected_screenshots": [
+    "chat-composer.png",
+    "chat-answer.png",
+    "answer-card.png",
+    "answer-card-refusal.png",
+    "mock-highlight.png"
+  ]
+}

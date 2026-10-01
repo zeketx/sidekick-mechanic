@@ -212,6 +212,28 @@ def test_no_retriever_wraps_prose_with_empty_citations() -> None:
     assert payload == {"kind": "answer", "text": prose, "citations": []}
 
 
+def test_chat_keeps_a_spec_that_is_in_the_retrieved_page() -> None:
+    page_text = "FAKE-CHUNK: torque is 999 N·m."
+    answer = "Torque is 999 Nm."
+    snippet = "torque is 999 N·m."
+    producer, _, _ = _producer(
+        _completion(answer, [_cited(snippet)]),
+        (_Hit(_DOC, _PAGE, page_text),),
+    )
+
+    response = TestClient(create_app(producer=producer)).post(
+        "/chat",
+        json={"messages": [{"role": "user", "text": _QUESTION}]},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "kind": "answer",
+        "text": answer,
+        "citations": [_cited(snippet)],
+    }
+
+
 def test_chat_returns_cited_answer_and_refusal_without_safety_note() -> None:
     cited_producer, _, _ = _producer(
         _completion(_ANSWER, [_cited()]),

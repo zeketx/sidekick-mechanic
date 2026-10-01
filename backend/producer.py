@@ -1,4 +1,9 @@
-"""Answer-producer seam. LLM adapter implements AnswerProducer."""
+"""Answer-producer seam. LLM adapter implements AnswerProducer.
+
+The spec guard does not read citation snippets. A producer that has
+retrieved page text should also implement CitedChunkSource so POST /chat
+can pass those strings to spec_guard.guard_answer.
+"""
 
 from __future__ import annotations
 
@@ -9,7 +14,7 @@ import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Protocol, runtime_checkable
 
 from chat_models import Conversation
 from contract import load_answer_fixture, validate_answer
@@ -20,6 +25,7 @@ from llm import (
     TokenUsage,
     build_llm_client,
 )
+from part_resolver import BayMapView, complete_selection, resolve_answer
 from retrieval import (
     DEFAULT_K,
     INDEX_FILENAME,
@@ -89,6 +95,14 @@ class _GroundedCompletion:
     citation_count: int
 
 
+@runtime_checkable
+class CitedChunkSource(Protocol):
+    """Page text the spec guard may treat as evidence."""
+
+    def cited_chunk_texts(self, conversation: Conversation) -> Sequence[str]:
+        """Chunk texts retrieved for this conversation, one string per chunk."""
+
+
 class FixtureAnswerProducer:
     """Returns a committed contract fixture. Does not call a model."""
 
@@ -105,13 +119,20 @@ class _IndexMissing(Exception):
 
 
 class LlmAnswerProducer:
+    """A bay map view is optional. The default producer has none, because the
+    bay map schema is not loaded here. With a non-empty view, a second
+    completion picks a part id from that closed list.
+    """
+
     def __init__(
         self,
         client: LLMClient,
+        bay_map: BayMapView | None = None,
         *,
         retriever: Retriever | None = None,
     ) -> None:
         self._client = client
+        self._bay_map = bay_map
         self._retriever = retriever
 
     def produce(self, conversation: Conversation) -> dict[str, Any]:
@@ -141,13 +162,27 @@ class LlmAnswerProducer:
         citations = _filter_citations(parsed.citations, hits)
         if not citations:
             return dict(UNAVAILABLE_ANSWER)
-        return {"kind": "answer", "text": parsed.text, "citations": citations}
+        return self._with_part_highlight(
+            {"kind": "answer", "text": parsed.text, "citations": citations}
+        )
+
+    def cited_chunk_texts(self, conversation: Conversation) -> tuple[str, ...]:
+        retriever = self._retriever
+        if retriever is None:
+            return ()
+        try:
+            hits = retriever.search(_last_user_text(conversation))
+        except (_IndexMissing, RetrievalError, sqlite3.Error):
+            return ()
+        return tuple(hit.text for hit in hits)
 
     def _ungrounded(self, conversation: Conversation) -> dict[str, Any]:
         text = self._complete(_chat_messages(conversation, SYSTEM_PROMPT))
         if text is None:
             return dict(UNAVAILABLE_ANSWER)
-        return {"kind": "answer", "text": text, "citations": []}
+        return self._with_part_highlight(
+            {"kind": "answer", "text": text, "citations": []}
+        )
 
     def _complete(self, messages: list[ChatTurn]) -> str | None:
         started = time.perf_counter()
@@ -171,6 +206,21 @@ class LlmAnswerProducer:
         if not text:
             return None
         return text
+
+    def _with_part_highlight(self, payload: dict[str, Any]) -> dict[str, Any]:
+        bay_map = self._bay_map
+        if bay_map is None or not bay_map.parts:
+            return payload
+        try:
+            selection_text = complete_selection(
+                self._client,
+                answer_text=payload["text"],
+                bay_map=bay_map,
+            )
+        except LLMError:
+            LOGGER.warning("part selection failed; answer has no highlight")
+            return payload
+        return resolve_answer(payload, selection_text, bay_map)
 
 
 class _IndexRetriever:
