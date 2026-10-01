@@ -63,7 +63,8 @@ final class ChatClientTests: XCTestCase {
     func testFactoryMockServesPlainFixture() async throws {
         let client = try ChatClients.make(kind: .mock, mockDelay: .zero)
         let expected = try ContractFixtures.load(from: ContractFixtures.repositoryDirectory())
-        XCTAssertEqual(try await client.send(ChatRequest(userText: "hello")), expected["plain.json"])
+        let payload = try await client.send(ChatRequest(userText: "hello"))
+        XCTAssertEqual(payload, expected["plain.json"])
     }
 
     func testLivePostsToChatAndDecodesAnswer() async throws {
