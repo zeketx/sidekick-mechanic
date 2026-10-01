@@ -15,10 +15,12 @@ Non-JSON completions, citations that all fail that check, provider errors, and
 a blank completion return the unavailable answer (`kind: answer`). The
 unavailable answer means the producer could not return a cited reply. With no
 index file, the producer wraps the model text and sets `citations` to an empty
-array. Without
-an API key the fake client returns prose, so a search that finds pages becomes
-the unavailable answer until a key is set. Do not treat empty-citation replies
-as a real procedure.
+array. With no API key, `FakeLLMClient` answers from the retrieved pages. Each
+citation is `doc_id`, `page`, and a snippet copied from that page, so the
+provenance check can keep it. The answer text is a local stand-in, not a model
+procedure. An empty search still returns `not_found_in_manual` and does not
+call the client. Do not treat the stand-in, or an empty-citation reply, as a
+real procedure.
 
 Design: [`docs/design/retrieval-index.md`](../docs/design/retrieval-index.md).
 
@@ -44,8 +46,15 @@ curl -sS http://127.0.0.1:8000/chat \
 ```
 
 With no `SIDEKICK_LLM_API_KEY`, the default producer uses `FakeLLMClient` (no
-network). Copy [`.env.example`](.env.example) to `.env` (gitignored), set a key,
-and load it into the shell before starting uvicorn:
+network). After ingestion has written `.ingest/chunks.jsonl`, build the index
+with `python3 retrieval.py build`. A question that matches indexed pages then
+returns those pages as citations. Each snippet is an exact span of the page
+text, and the answer sentence is a stand-in so `/chat` can be tried without a
+key. A question that matches nothing returns the refusal `not_found_in_manual`.
+If the index file is missing, the reply is prose and `citations` is empty.
+
+To call a real model, copy [`.env.example`](.env.example) to `.env`
+(gitignored), set a key, and load it into the shell before starting uvicorn:
 
 ```bash
 cp .env.example .env
@@ -234,6 +243,9 @@ never receive the note. Eval cases are in
 
 `LLMClient.complete(messages)` returns text plus optional token usage.
 `FakeLLMClient` is the test double and the default when no API key is set.
+Tests pass `text=` to force a completion. With no `text`, a prompt that
+includes retrieved pages becomes citation JSON (`doc_id`, `page`, `snippet`)
+built from those pages. Any other prompt returns prose with no citations.
 `OpenAICompatibleClient` is the live provider (OpenAI or any host that speaks
 the same `/v1/chat/completions` API).
 
