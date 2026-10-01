@@ -4,6 +4,6 @@ Sidekick Mechanic is a chat-first AI mechanic sidekick for the owner's 2JZ-GE-sw
 
 - [VISION.md](VISION.md) — why this exists
 - [ROADMAP.md](ROADMAP.md) — phases and milestones
-- [BACKLOG.md](BACKLOG.md) — issues by milestone
+- [Issues](https://github.com/zeketx/sidekick-mechanic/issues) — issues and milestones
 - [AGENTS.md](AGENTS.md) — how agents should work in this repo
 - [docs/](docs/) — kanban, poteto plan, and the build log
