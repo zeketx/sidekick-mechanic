@@ -1,3 +1,0 @@
-# Test deps for CI. Pins match backend/requirements.txt.
-jsonschema==4.23.0
-pytest==8.3.5

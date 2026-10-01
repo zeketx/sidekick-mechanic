@@ -3,8 +3,3 @@ name = "sidekick-backend"
 version = "0.0.0"
 description = "RAG service for Sidekick Mechanic."
 requires-python = ">=3.11"
-
-[tool.pytest.ini_options]
-# tests/ plus root-level test_manifest.py from #8. pytest.ini is the file pytest
-# actually reads when both exist; keep these lists in sync.
-testpaths = ["tests", "test_manifest.py"]

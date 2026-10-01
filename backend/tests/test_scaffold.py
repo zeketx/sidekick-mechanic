@@ -1,4 +1,4 @@
-"""Scaffold tests that stay collected alongside tests/ and root-level test_*.py."""
+"""Scaffold tests collected with the rest of backend/ via pytest.ini testpaths."""
 
 import sys
 from pathlib import Path
