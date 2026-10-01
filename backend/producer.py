@@ -1,10 +1,16 @@
-"""Answer-producer seam. LLM adapter implements AnswerProducer."""
+"""Answer-producer seam. LLM adapter implements AnswerProducer.
+
+The spec guard does not read citation snippets. A producer that has
+retrieved page text should also implement CitedChunkSource so POST /chat
+can pass those strings to spec_guard.guard_answer.
+"""
 
 from __future__ import annotations
 
 import logging
 import time
-from typing import Any, Protocol
+from collections.abc import Sequence
+from typing import Any, Protocol, runtime_checkable
 
 from chat_models import Conversation
 from contract import load_answer_fixture, validate_answer
@@ -38,6 +44,14 @@ validate_answer(UNAVAILABLE_ANSWER)
 class AnswerProducer(Protocol):
     def produce(self, conversation: Conversation) -> dict[str, Any]:
         """Return an answer payload that must match answer.schema.json."""
+
+
+@runtime_checkable
+class CitedChunkSource(Protocol):
+    """Page text the spec guard may treat as evidence."""
+
+    def cited_chunk_texts(self, conversation: Conversation) -> Sequence[str]:
+        """Chunk texts retrieved for this conversation, one string per chunk."""
 
 
 class FixtureAnswerProducer:

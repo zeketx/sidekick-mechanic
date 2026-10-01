@@ -103,6 +103,28 @@ def test_harness_sample_does_not_invent_recall(tmp_path: Path) -> None:
     assert all(case["retrieval_available"] is False for case in written["cases"])
 
 
+def test_cli_uses_spec_guard_counter(tmp_path: Path) -> None:
+    from eval.__main__ import main
+
+    code = main(
+        [
+            "--golden",
+            str(SAMPLE_PATH),
+            "--ci",
+            "--output-dir",
+            str(tmp_path),
+            "--date",
+            FAKE_DATE,
+        ]
+    )
+    payload = json.loads((tmp_path / f"{FAKE_DATE}.json").read_text(encoding="utf-8"))
+
+    assert code == 0
+    assert payload["uncited_number_counter"] == "spec_guard"
+    assert payload["metrics"]["uncited_number_count"] == 0
+    assert payload["case_count"] == 3
+
+
 def test_harness_ci_subset_is_smaller(tmp_path: Path) -> None:
     payload = run_harness(SAMPLE_PATH, output_dir=tmp_path, ci_only=True, date=FAKE_DATE)
 
