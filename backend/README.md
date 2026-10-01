@@ -45,6 +45,37 @@ Linux CI (#3) runs the same `pytest` from `backend/`. Tests never make network
 calls: the fake client is in-process, and the OpenAI-compatible client is driven
 with `httpx.MockTransport`.
 
+## Eval
+
+From the repository root:
+
+```bash
+make eval
+```
+
+That runs `golden.jsonl` when the file exists, otherwise
+[`eval/golden.sample.jsonl`](eval/golden.sample.jsonl), through in-process
+`POST /chat` with `FakeLLMClient`. It writes `eval/results/<UTC date>.json`
+and regenerates [`docs/METRICS.md`](../docs/METRICS.md). `make metrics`
+rebuilds the doc from the latest results file without re-running questions.
+
+The sample set is fake (`FAKE-*` document ids, page 999) so the harness and CI
+have rows before the real golden set exists. Do not put real manual pages in
+the sample. The golden-set issue owns `eval/golden.jsonl`.
+
+Each JSONL row matches [`eval/golden.schema.json`](eval/golden.schema.json):
+`id`, `question`, `answerable`, `expected` (`doc_id` and `page`), optional
+bay-map `part_id`, and optional `ci`. Answerable rows need at least one
+expected page. `ci: true` marks the fast subset.
+
+CI runs that subset and writes the table to the Actions job summary. The
+workflow token stays `contents: read`, so the check does not post a PR comment.
+
+Recall@5 stays null until a runner supplies retrieval hits. The default runner
+does not, and cited pages are not treated as hits. The uncited-number total
+uses `LocalUncitedNumberCounter`. `run_harness(..., uncited_counter=...)`
+accepts another `UncitedNumberCounter` for the spec guard.
+
 ## Stack
 
 | Piece | Choice |
