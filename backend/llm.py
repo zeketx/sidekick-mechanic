@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import time
 from collections.abc import Callable, Mapping
@@ -19,6 +20,10 @@ DEFAULT_MAX_RETRIES = 2
 DEFAULT_FAKE_TEXT = (
     "This is a fake LLM reply with no manual citations. No vehicle specs in this reply."
 )
+FAKE_GROUNDED_TEXT = (
+    "The retrieved pages are cited below. This stand-in does not add manual facts."
+)
+RETRIEVED_PAGES_HEADER = "Retrieved pages:\n"
 RETRYABLE_STATUS = frozenset({429, 500, 502, 503, 504})
 
 
@@ -64,11 +69,16 @@ FAKE_USAGE = TokenUsage(prompt_tokens=1, completion_tokens=1, total_tokens=2)
 
 
 class FakeLLMClient:
-    """In-process stub. Used in tests and when no API key is configured."""
+    """In-process stub. Used in tests and when no API key is configured.
+
+    ``text`` forces one completion. With ``text`` omitted, a grounded prompt
+    becomes citation JSON built from the retrieved pages. Any other prompt
+    returns ``DEFAULT_FAKE_TEXT``.
+    """
 
     def __init__(
         self,
-        text: str = DEFAULT_FAKE_TEXT,
+        text: str | None = None,
         usage: TokenUsage | None = FAKE_USAGE,
         error: Exception | None = None,
     ) -> None:
@@ -81,7 +91,8 @@ class FakeLLMClient:
         self.calls.append(list(messages))
         if self.error is not None:
             raise self.error
-        return LLMResult(text=self.text, model="fake", usage=self.usage)
+        text = self.text if self.text is not None else _fake_completion_text(messages)
+        return LLMResult(text=text, model="fake", usage=self.usage)
 
 
 class OpenAICompatibleClient:
@@ -212,6 +223,73 @@ def _parse_completion(response: httpx.Response, *, fallback_model: str) -> LLMRe
     model = payload.get("model")
     model_name = model if isinstance(model, str) and model else fallback_model
     return LLMResult(text=content, model=model_name, usage=_parse_usage(payload.get("usage")))
+
+
+def _fake_completion_text(messages: list[ChatTurn]) -> str:
+    citations = _citations_from_messages(messages)
+    if citations is None:
+        return DEFAULT_FAKE_TEXT
+    if not citations:
+        return json.dumps({"text": "", "citations": []})
+    return json.dumps(
+        {"text": FAKE_GROUNDED_TEXT, "citations": citations},
+        ensure_ascii=False,
+    )
+
+
+def _citations_from_messages(messages: list[ChatTurn]) -> list[dict[str, Any]] | None:
+    """Copy citations from the grounded prompt.
+
+    Hits reach this client only as retrieved-pages JSON on the system turn.
+    Each snippet is that page's text so the provenance check can keep it.
+    ``None`` means the prompt is not grounded.
+    """
+
+    for turn in messages:
+        if turn.role != "system" or RETRIEVED_PAGES_HEADER not in turn.content:
+            continue
+        raw = turn.content.split(RETRIEVED_PAGES_HEADER, 1)[1]
+        try:
+            pages = json.loads(raw)
+        except json.JSONDecodeError:
+            return None
+        if not isinstance(pages, list):
+            return None
+        return _citations_from_pages(pages)
+    return None
+
+
+def _citations_from_pages(pages: list[Any]) -> list[dict[str, Any]]:
+    citations: list[dict[str, Any]] = []
+    seen: set[tuple[str, int]] = set()
+    for page in pages:
+        citation = _citation_from_page(page)
+        if citation is None:
+            continue
+        key = (citation["doc_id"], citation["page"])
+        if key in seen:
+            continue
+        seen.add(key)
+        citations.append(citation)
+    return citations
+
+
+def _citation_from_page(page: Any) -> dict[str, Any] | None:
+    if not isinstance(page, dict):
+        return None
+    doc_id = page.get("doc_id")
+    number = page.get("page")
+    text = page.get("text")
+    if not isinstance(doc_id, str) or not doc_id.strip():
+        return None
+    if isinstance(number, bool) or not isinstance(number, int) or number < 1:
+        return None
+    if not isinstance(text, str):
+        return None
+    snippet = text.strip()
+    if not snippet or snippet not in text:
+        return None
+    return {"doc_id": doc_id, "page": number, "snippet": snippet}
 
 
 def _parse_usage(raw: Any) -> TokenUsage | None:

@@ -10,7 +10,7 @@ from fastapi.testclient import TestClient
 
 from app import create_app
 from chat_models import Conversation, Message
-from llm import ChatTurn, FakeLLMClient, LLMError
+from llm import FAKE_GROUNDED_TEXT, ChatTurn, FakeLLMClient, LLMError
 from producer import SYSTEM_PROMPT, LlmAnswerProducer, _IndexRetriever
 from retrieval import Chunk, build_index
 from safety import SAFETY_NOTE
@@ -399,6 +399,116 @@ def test_corrupt_index_file_is_unavailable(tmp_path: Path) -> None:
 
     assert payload == _UNAVAILABLE
     assert fake.calls == []
+
+
+def test_fake_client_cited_answer_survives_provenance_filter() -> None:
+    alpha = "FAKE-ALPHA page text."
+    beta = "FAKE-BETA page text."
+    fake = FakeLLMClient()
+    producer = LlmAnswerProducer(
+        fake,
+        retriever=_Retriever(
+            (
+                _Hit("FAKE-DOC-2JZ", 999, alpha),
+                _Hit("FAKE-DOC-LJ78", 999, beta),
+            )
+        ),
+    )
+
+    response = TestClient(create_app(producer=producer)).post(
+        "/chat",
+        json={"messages": [{"role": "user", "text": _QUESTION}]},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body == {
+        "kind": "answer",
+        "text": FAKE_GROUNDED_TEXT,
+        "citations": [
+            {"doc_id": "FAKE-DOC-2JZ", "page": 999, "snippet": alpha},
+            {"doc_id": "FAKE-DOC-LJ78", "page": 999, "snippet": beta},
+        ],
+    }
+    assert body["citations"][0]["snippet"] in alpha
+    assert body["citations"][1]["snippet"] in beta
+
+
+def test_fake_client_refuses_when_retrieval_is_empty(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.INFO, logger="sidekick.llm")
+    fake = FakeLLMClient()
+    producer = LlmAnswerProducer(fake, retriever=_Retriever(()))
+
+    response = TestClient(create_app(producer=producer)).post(
+        "/chat",
+        json={"messages": [{"role": "user", "text": _QUESTION}]},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == _REFUSAL
+    assert fake.calls == []
+    assert "llm request" not in caplog.text
+
+
+def test_keyless_chat_cites_an_indexed_fake_page(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    page_text = "FAKE-PAGE-TEXT\nwith no real spec."
+    index_path = tmp_path / "index.sqlite"
+    build_index(
+        (Chunk(doc_id="FAKE-DOC-2JZ", page=999, text=page_text),),
+        index_path,
+    )
+    monkeypatch.setattr("producer._index_path", lambda: index_path)
+    monkeypatch.delenv("SIDEKICK_LLM_API_KEY", raising=False)
+
+    response = TestClient(create_app()).post(
+        "/chat",
+        json={"messages": [{"role": "user", "text": "FAKE-PAGE-TEXT"}]},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body == {
+        "kind": "answer",
+        "text": FAKE_GROUNDED_TEXT,
+        "citations": [
+            {"doc_id": "FAKE-DOC-2JZ", "page": 999, "snippet": page_text},
+        ],
+    }
+    assert body["citations"][0]["snippet"] in page_text
+
+
+def test_keyless_chat_refuses_when_the_index_has_no_hits(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.INFO, logger="sidekick.llm")
+    index_path = tmp_path / "index.sqlite"
+    build_index(
+        (
+            Chunk(
+                doc_id="FAKE-DOC-2JZ",
+                page=999,
+                text="FAKE-PAGE-TEXT with no real spec.",
+            ),
+        ),
+        index_path,
+    )
+    monkeypatch.setattr("producer._index_path", lambda: index_path)
+    monkeypatch.delenv("SIDEKICK_LLM_API_KEY", raising=False)
+
+    response = TestClient(create_app()).post(
+        "/chat",
+        json={"messages": [{"role": "user", "text": "not-a-manual-term-zzzz"}]},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == _REFUSAL
+    assert "llm request" not in caplog.text
 
 
 def test_index_retriever_cites_a_fake_chunk(tmp_path: Path) -> None:
