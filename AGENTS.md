@@ -51,6 +51,8 @@ So:
 
 This app gives advice about real machinery. A wrong number can break parts or hurt someone.
 
+[`docs/vehicle/TRUCK.md`](docs/vehicle/TRUCK.md) is the source of truth for vehicle facts.
+
 - **Never write a torque value, spec, clearance, pinout, connector ID, wire color, or part number from memory.** Not in code, prompts, fixtures, tests, or docs.
 - **Every vehicle fact cites a source**: document ID and page (from `docs/MANUALS.md`), or an owner observation recorded in `docs/vehicle/TRUCK.md`.
 - **Unknown means TBD.** If a fact is not confirmed in `TRUCK.md`, write `TBD`. Do not fill it with a "typical" value.
