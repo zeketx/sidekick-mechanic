@@ -94,8 +94,6 @@ struct ChatScreen: View {
                         .fill(Color.secondary.opacity(0.15))
                 }
                 .accessibilityIdentifier("chat.composer")
-                .submitLabel(.send)
-                .onSubmit { Task { await model.send() } }
 
             Button {
                 Task { await model.send() }

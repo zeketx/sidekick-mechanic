@@ -38,7 +38,7 @@ public final class ChatViewModel {
         self.makeMessageID = makeMessageID
     }
 
-    public static func makeUUIDMessageID() -> MessageID {
+    public nonisolated static func makeUUIDMessageID() -> MessageID {
         let raw = UUID().uuidString
         guard let id = MessageID(rawValue: raw) else {
             preconditionFailure("UUID string is non-empty")
