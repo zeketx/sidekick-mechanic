@@ -1,0 +1,34 @@
+{
+  "id": "FAKE-WARM-IDLE",
+  "display_name": "Warm idle",
+  "note": "Illustrative placeholder. Not a spec for this engine.",
+  "seed": 70,
+  "channels": [
+    {
+      "id": "FAKE-CHANNEL-A",
+      "display_name": "Placeholder channel A",
+      "unit": "FAKE-UNIT-A"
+    },
+    {
+      "id": "FAKE-CHANNEL-B",
+      "display_name": "Placeholder channel B",
+      "unit": "FAKE-UNIT-B"
+    }
+  ],
+  "frames": [
+    {
+      "offset_ms": 0,
+      "samples": [
+        { "channel": "FAKE-CHANNEL-A", "value": 55 },
+        { "channel": "FAKE-CHANNEL-B", "value": 66 }
+      ]
+    },
+    {
+      "offset_ms": 500,
+      "samples": [
+        { "channel": "FAKE-CHANNEL-A", "value": 77 },
+        { "channel": "FAKE-CHANNEL-B", "value": 88 }
+      ]
+    }
+  ]
+}
