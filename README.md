@@ -13,3 +13,5 @@ Proposed minimum iOS version: iOS 17 (owner confirms).
 - [docs/](docs/) — kanban, poteto plan, and the [build log](docs/build-log/)
 
 Layout: `app/` (Xcode, owner-built), `backend/` (RAG), `ml/`, `docs/` (`docs/vehicle/`, `docs/build-log/`), `scripts/`. Manual PDFs stay in gitignored `manuals/`. From `backend/`, `pip install -r requirements.txt && python3 ingest.py` verifies those PDFs against [docs/MANUALS.md](docs/MANUALS.md) and writes page-level chunks. `make eval` scores the golden sample (fake pages until the real question set exists) and regenerates [docs/METRICS.md](docs/METRICS.md).
+
+Tapping a citation opens `CitationPageView` in the app target. It shows the document id, page number, a rendered page image, and the cited snippet. The image comes from the on-device cache (`SIDEKICK_PAGE_CACHE_DIR`, or the app cache directory `sidekick-manual-pages`). On a miss, the app requests `GET /manuals/{doc_id}/pages/{page}.png` and stores the PNG. Page images are not committed.
