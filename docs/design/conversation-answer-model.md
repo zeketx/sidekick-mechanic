@@ -84,4 +84,4 @@ Candidate B was a sum type for `Answer` and `Message`, with branded IDs and a re
 
 ## Next implementation step
 
-Build the chat screen and answer card against `Conversation` and `Answer`, decoding the four fixtures in `backend/contracts/fixtures/`.
+The chat screen holds a `ChatViewModel` over `Conversation` and renders each turn as text. The answer card is the next view: citation chips and the highlight slot, still switching on `Answer`.
