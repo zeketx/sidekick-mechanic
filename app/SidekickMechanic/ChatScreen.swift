@@ -1,7 +1,7 @@
 import SidekickCore
 import SwiftUI
 
-/// Message list and composer. Answer cards (citation chips, highlight slot) are a later screen.
+/// Message list and composer. Assistant replies use `AnswerCardView`.
 struct ChatScreen: View {
     @Bindable var model: ChatViewModel
 
@@ -122,35 +122,33 @@ struct ChatScreen: View {
     private static let loadingID = "chat-loading"
 }
 
-/// Text bubble. Citation chips and the highlight image slot are the answer card, not this row.
+/// User turns stay text bubbles. Assistant turns are answer cards.
 private struct MessageBubble: View {
     let message: Message
 
     var body: some View {
         switch message {
         case let .user(user):
-            bubble(text: user.text, isUser: true)
+            HStack(alignment: .bottom, spacing: 0) {
+                Spacer(minLength: 32)
+                Text(user.text)
+                    .font(.body)
+                    .foregroundStyle(.primary)
+                    .multilineTextAlignment(.leading)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(
+                        Color.accentColor.opacity(0.18),
+                        in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    )
+            }
+            .accessibilityLabel("You said \(user.text)")
         case let .assistant(assistant):
-            bubble(text: assistant.answer.text, isUser: false)
+            HStack(alignment: .top, spacing: 0) {
+                AnswerCardView(content: AnswerCardContent(answer: assistant.answer))
+                Spacer(minLength: 32)
+            }
         }
-    }
-
-    private func bubble(text: String, isUser: Bool) -> some View {
-        HStack(alignment: .bottom, spacing: 0) {
-            if isUser { Spacer(minLength: 32) }
-            Text(text)
-                .font(.body)
-                .foregroundStyle(.primary)
-                .multilineTextAlignment(.leading)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(
-                    isUser ? Color.accentColor.opacity(0.18) : Color.secondary.opacity(0.15),
-                    in: RoundedRectangle(cornerRadius: 18, style: .continuous)
-                )
-            if !isUser { Spacer(minLength: 32) }
-        }
-        .accessibilityLabel(isUser ? "You said \(text)" : "Sidekick said \(text)")
     }
 }
 

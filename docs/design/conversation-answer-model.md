@@ -14,15 +14,14 @@ let conversation = Conversation(id: conversationID)
     .appending(.assistant(AssistantMessage(id: replyID, answer: decoded)))
 ```
 
-The answer card switches on `Answer`:
+The answer card reads `AnswerCardContent`, built from `Answer`:
 
 ```swift
-switch answer {
-case .found(let found):
-    // text, citation chips from found.citations, optional found.highlight
-case .refusal(let refusal):
-    // "not found in the manual" using refusal.text
-}
+let card = AnswerCardContent(answer: answer)
+// card.text
+// card.chips[].label  — document id and page
+// card.statusTitle     — "Not found in the manual", or nil when found
+// card.showsHighlightSlot
 ```
 
 The network client and eval decode the #10 fixtures with `JSONDecoder().decode(Answer.self, from: data)`. They do not map through a second wire type.
@@ -82,6 +81,6 @@ Candidate B was a sum type for `Answer` and `Message`, with branded IDs and a re
 - Will there be refusal reasons besides `not_found_in_manual`? The type can grow cases. The schema would need a matching change.
 - Should decode fail on unknown JSON keys the way the schema's `additionalProperties: false` does? Swift `Codable` ignores extras today. The Python tests own that check.
 
-## Next implementation step
+## Answer card
 
-The chat screen holds a `ChatViewModel` over `Conversation` and renders each turn as text. The answer card is the next view: citation chips and the highlight slot, still switching on `Answer`.
+The chat screen holds a `ChatViewModel` over `Conversation`. Assistant turns render `AnswerCardContent` (chip labels, refusal status, highlight-slot visibility) in `AnswerCardView`. The image slot is a placeholder until the highlight engine has a bay photo.
