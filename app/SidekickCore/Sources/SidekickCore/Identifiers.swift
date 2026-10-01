@@ -38,6 +38,26 @@ public struct PartID: Hashable, Sendable, RawRepresentable {
     }
 }
 
+/// Bay-map camera angle ID. JSON key: `angle_id`.
+public struct BayAngleID: Hashable, Sendable, RawRepresentable {
+    public let rawValue: String
+
+    public init?(rawValue: String) {
+        guard !rawValue.isEmpty else { return nil }
+        self.rawValue = rawValue
+    }
+}
+
+/// Who confirmed a region. JSON key: `confirmed_by`.
+public struct ConfirmerID: Hashable, Sendable, RawRepresentable {
+    public let rawValue: String
+
+    public init?(rawValue: String) {
+        guard !rawValue.isEmpty else { return nil }
+        self.rawValue = rawValue
+    }
+}
+
 /// Stable conversation identity for chat storage and `/chat` requests.
 public struct ConversationID: Hashable, Sendable, RawRepresentable {
     public let rawValue: String
@@ -102,6 +122,28 @@ extension BayPhotoID: Codable {
 extension PartID: Codable {
     public init(from decoder: Decoder) throws {
         rawValue = try decodeNonEmptyString(from: decoder, label: "part_id")
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
+}
+
+extension BayAngleID: Codable {
+    public init(from decoder: Decoder) throws {
+        rawValue = try decodeNonEmptyString(from: decoder, label: "angle_id")
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
+}
+
+extension ConfirmerID: Codable {
+    public init(from decoder: Decoder) throws {
+        rawValue = try decodeNonEmptyString(from: decoder, label: "confirmed_by")
     }
 
     public func encode(to encoder: Encoder) throws {

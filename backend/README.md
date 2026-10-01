@@ -10,6 +10,11 @@ empty citations and must not be treated as a real procedure.
 
 Design: [`docs/design/retrieval-index.md`](../docs/design/retrieval-index.md).
 
+The bay map is a separate contract,
+[`contracts/bay_map.schema.json`](contracts/bay_map.schema.json). `load_bay_map`
+in `bay_map.py` is the Python loader. A highlight on an answer is still only
+`bay_photo_id` and `part_id`. See [`docs/design/bay-map.md`](../docs/design/bay-map.md).
+
 ## Run locally
 
 From this directory, after installing dependencies:
@@ -100,6 +105,7 @@ accepts another `UncitedNumberCounter` for the spec guard.
 | HTTP | FastAPI |
 | Server | uvicorn |
 | Answer contract | `jsonschema` against `contracts/answer.schema.json` |
+| Bay map | `jsonschema` plus `bay_map.py` against `contracts/bay_map.schema.json` |
 | LLM | OpenAI-compatible `POST /chat/completions` over `httpx`, behind `LLMClient` |
 | Tests | pytest + FastAPI `TestClient` |
 | Retrieval | SQLite FTS5 (stdlib `sqlite3`), see `retrieval.py` |
