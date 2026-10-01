@@ -27,6 +27,7 @@ Preconditions:
 ## Gotchas
 
 - The chip label joins the document id and the page with ` · ` (U+00B7). Assert that string, not a hyphen.
+- The chip is a `NavigationLink`. Tapping `answerCard.chip.0` pushes `CitationPageView` and leaves the chat screen. This recipe only checks the chip label. It does not open the page.
 - Page `999` and `FAKE-DOC-2JZ` are fixtures. They are not a manual page.
 - The refusal status is a SwiftUI `Label`. If the spoken label grows past `Not found in the manual`, the test expectation has to change with it. Do not treat a missing status as a pass.
 - Citation snippets are not on this card. The chip is the document id and the page only.
