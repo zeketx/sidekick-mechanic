@@ -138,6 +138,7 @@ short of 10 photos. The `gaps` object says what is missing and what was left out
 | LLM | OpenAI-compatible `POST /chat/completions` over `httpx`, behind `LLMClient` |
 | Tests | pytest + FastAPI `TestClient` |
 | Retrieval | SQLite FTS5 (stdlib `sqlite3`), see `retrieval.py` |
+| Highlight | Pillow renderer in `highlight.py` |
 
 ## Request shape
 
@@ -239,3 +240,20 @@ Equal areas break ties by `bay_photo_id`, then `angle_id`.
 non-empty `BayMapView`. The default producer has no bay map, so `/chat` does
 not highlight until a map is supplied. A failed selection call leaves the
 answer without a highlight.
+
+## Highlight renderer
+
+`highlight.render_highlight(photo, polygon, style)` returns a new RGB image.
+`style` is a `HighlightStyle`: `outline`, `saturate`, `circle`, or `dim`.
+Widths, colors, and factors live on one `HighlightConfig`.
+
+The polygon is `(x, y)` pixels of the photo, origin top left. Callers pass
+the points. The bay map schema (#26) still owns how regions are stored.
+`part_resolver.BayMapView` carries photo and part ids. Pass the polygon into
+`render_highlight` directly.
+
+Golden images live in `tests/fixtures/highlight/`. Tests compare them with
+`GOLDEN_PIXEL_TOLERANCE` (max per-channel absolute difference). Those tests
+draw a synthetic photo, so they stay deterministic without the prototype bay
+photo files. A 4000×3000 render of each style is asserted to finish in under
+one second.
