@@ -4,6 +4,8 @@ Chat-first AI mechanic on iPhone for one truck: a 1990 Land Cruiser LJ78 with a 
 
 Phase 1 is the chat sidekick. The truck is not delivered yet; unknowns stay TBD.
 
+Proposed minimum iOS version: iOS 17 (owner confirms).
+
 - [VISION.md](VISION.md) — why this exists
 - [ROADMAP.md](ROADMAP.md) — phases and milestones
 - [Backlog](https://github.com/zeketx/sidekick-mechanic/issues) — GitHub Issues and [milestones](https://github.com/zeketx/sidekick-mechanic/milestones)
