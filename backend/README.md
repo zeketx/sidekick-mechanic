@@ -127,6 +127,10 @@ each file's SHA-256. A photo is accepted only when its license is CC0, CC BY,
 or CC BY-SA and the source's own words name a 2JZ-GE. The committed set is
 short of 10 photos. The `gaps` object says what is missing and what was left out.
 
+## Highlight style
+
+The default treatment is [`data/highlight_style.json`](data/highlight_style.json): an 8 px fuchsia outline and a saturation boost inside the part. `highlight_style.default_highlight_style` loads it. `apply_highlight` draws that config on a 390×260 image. Issue #29 has not merged, so this function is the local stand-in, not the golden-image renderer. The comparison is [docs/design/highlight-style-bakeoff.md](../docs/design/highlight-style-bakeoff.md). Tests draw five synthetic scenes, not the licensed photo and not the owner's truck.
+
 ## Stack
 
 | Piece | Choice |
