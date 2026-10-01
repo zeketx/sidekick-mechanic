@@ -1,0 +1,11 @@
+{
+  "kind": "answer",
+  "text": "Start with the fake intake path described in the fixture snippet. This is not a procedure.",
+  "citations": [
+    {
+      "doc_id": "FAKE-DOC-2JZ",
+      "page": 999,
+      "snippet": "FAKE-SNIPPET: no real spec. Value FAKE-SPEC."
+    }
+  ]
+}
