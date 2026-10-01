@@ -12,4 +12,4 @@ Proposed minimum iOS version: iOS 17 (owner confirms).
 - [AGENTS.md](AGENTS.md) — how agents should work in this repo
 - [docs/](docs/) — kanban, poteto plan, and the build log
 
-Layout: `app/` (Xcode, owner-built), `backend/` (RAG), `ml/`, `docs/` (`docs/vehicle/`, `docs/build-log/`), `scripts/`, `backlog/`. Manual PDFs stay in gitignored `manuals/`.
+Layout: `app/` (Xcode, owner-built), `backend/` (RAG), `ml/`, `docs/` (`docs/vehicle/`, `docs/build-log/`), `scripts/`. Manual PDFs stay in gitignored `manuals/`.

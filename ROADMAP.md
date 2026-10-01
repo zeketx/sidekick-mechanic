@@ -4,7 +4,7 @@ Phase 1 is detailed. Phases 2 and 3 are lighter and will be re-planned when Phas
 
 Every milestone ends with a build log entry in `docs/build-log/` that reports its exit metrics.
 
-Issues for each milestone live in [BACKLOG.md](BACKLOG.md) and `backlog/issues.json`.
+Issues for each milestone live on [GitHub Issues](https://github.com/zeketx/sidekick-mechanic/issues) and [GitHub milestones](https://github.com/zeketx/sidekick-mechanic/milestones).
 
 ## Timeline at a glance
 
@@ -25,10 +25,10 @@ The truck delivery date is TBD. M0 through M4 do not need the truck. M5 is the o
 **Goal.** A working repo that cloud agents and the owner can both build in, plus a plan for identifying the ECU on day one.
 
 **Deliverables**
-- Repo layout: `app/`, `backend/`, `ml/`, `docs/`, `docs/build-log/`, `scripts/`, `backlog/`.
+- Repo layout: `app/`, `backend/`, `ml/`, `docs/`, `docs/build-log/`, `scripts/`.
 - Xcode SwiftUI project in `app/` (created by the owner on the Mac) and a pure-Swift `SidekickCore` package that also builds on Linux.
 - Linux CI running backend tests and `swift test` for `SidekickCore`.
-- PR and issue templates. Labels, milestones, and issues created from `backlog/issues.json`. Projects board set up per `docs/KANBAN.md`.
+- PR and issue templates. Labels, milestones, and issues are on [GitHub Issues](https://github.com/zeketx/sidekick-mechanic/issues). Projects board set up per `docs/KANBAN.md`.
 - `docs/vehicle/TRUCK.md`: a registry of every vehicle fact with status (TBD or confirmed), source, and date.
 - `docs/vehicle/ECU.md`: how to read the ECU label (89661-xxxxx) and a decision tree for OBD-II vs OBD1.
 - Manual inventory and storage policy (PDFs stay out of git).
