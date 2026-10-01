@@ -8,7 +8,13 @@ from fastapi.testclient import TestClient
 from app import create_app
 from chat_models import Conversation, Message
 from contract import load_answer_fixture, validate_answer
-from producer import FixtureAnswerProducer
+from llm import DEFAULT_FAKE_TEXT, FakeLLMClient, LLMError
+from producer import (
+    AnswerProducer,
+    FixtureAnswerProducer,
+    LlmAnswerProducer,
+    UNAVAILABLE_ANSWER,
+)
 
 HAPPY_BODY = {
     "messages": [
@@ -17,12 +23,12 @@ HAPPY_BODY = {
 }
 
 
-def _client(producer: FixtureAnswerProducer | None = None) -> TestClient:
+def _client(producer: AnswerProducer | None = None) -> TestClient:
     return TestClient(create_app(producer=producer))
 
 
 def test_chat_happy_path_returns_schema_valid_fixture() -> None:
-    response = _client().post("/chat", json=HAPPY_BODY)
+    response = _client(FixtureAnswerProducer()).post("/chat", json=HAPPY_BODY)
 
     assert response.status_code == 200
     payload = response.json()
@@ -33,6 +39,29 @@ def test_chat_happy_path_returns_schema_valid_fixture() -> None:
         "text": "This is a fixture-only reply with no manual citations.",
         "citations": [],
     }
+
+
+def test_chat_default_without_api_key_uses_fake_llm() -> None:
+    response = _client().post("/chat", json=HAPPY_BODY)
+
+    assert response.status_code == 200
+    payload = response.json()
+    validate_answer(payload)
+    assert payload == {
+        "kind": "answer",
+        "text": DEFAULT_FAKE_TEXT,
+        "citations": [],
+    }
+
+
+def test_chat_llm_error_returns_contract_valid_error_answer() -> None:
+    producer = LlmAnswerProducer(FakeLLMClient(error=LLMError("timeout")))
+    response = _client(producer).post("/chat", json=HAPPY_BODY)
+
+    assert response.status_code == 200
+    payload = response.json()
+    validate_answer(payload)
+    assert payload == UNAVAILABLE_ANSWER
 
 
 def test_chat_uses_injected_producer() -> None:

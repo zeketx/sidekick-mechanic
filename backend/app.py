@@ -9,14 +9,14 @@ from jsonschema.exceptions import ValidationError
 
 from chat_models import Conversation
 from contract import validate_answer
-from producer import AnswerProducer, FixtureAnswerProducer
+from producer import AnswerProducer, default_producer
 
 
 def create_app(producer: AnswerProducer | None = None) -> FastAPI:
-    answer_producer = producer or FixtureAnswerProducer()
+    answer_producer = producer if producer is not None else default_producer()
     application = FastAPI(
         title="Sidekick Mechanic",
-        summary="Chat skeleton. Answers are fixture-backed until the LLM adapter lands.",
+        summary="Chat endpoint. Uses a cloud LLM when SIDEKICK_LLM_API_KEY is set.",
     )
 
     @application.post("/chat")
