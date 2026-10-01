@@ -22,6 +22,11 @@ as a real procedure.
 
 Design: [`docs/design/retrieval-index.md`](../docs/design/retrieval-index.md).
 
+The bay map is a separate contract,
+[`contracts/bay_map.schema.json`](contracts/bay_map.schema.json). `load_bay_map`
+in `bay_map.py` is the Python loader. A highlight on an answer is still only
+`bay_photo_id` and `part_id`. See [`docs/design/bay-map.md`](../docs/design/bay-map.md).
+
 ## Run locally
 
 From this directory, after installing dependencies:
@@ -147,6 +152,7 @@ short of 10 photos. The `gaps` object says what is missing and what was left out
 | HTTP | FastAPI |
 | Server | uvicorn |
 | Answer contract | `jsonschema` against `contracts/answer.schema.json` |
+| Bay map | `jsonschema` plus `bay_map.py` against `contracts/bay_map.schema.json` |
 | LLM | OpenAI-compatible `POST /chat/completions` over `httpx`, behind `LLMClient` |
 | Tests | pytest + FastAPI `TestClient` |
 | Retrieval | SQLite FTS5 (stdlib `sqlite3`), see `retrieval.py` |
@@ -235,11 +241,11 @@ Environment variables (see `.env.example`):
 from a model selection, or leaves the highlight off.
 
 The model must return `{"part_id": "<id>"}` or `{"part_id": null}`. The id
-has to be one of `BayMapView.part_ids()`. That view is a local stand-in for
-the bay map schema (#26), which is not merged. It carries part id, photo id,
-angle id, pixel area, and whether the region is confirmed. Polygons, image
-size, names, aliases, license, and source stay in #26. See
-[`docs/design/part-resolver.md`](../docs/design/part-resolver.md).
+has to be one of `BayMapView.part_ids()`. `as_bay_map_view` builds that view
+from [`contracts/bay_map.schema.json`](contracts/bay_map.schema.json). The view
+carries part id, photo id, angle id, pixel area, and whether the region is
+confirmed. Polygons, image size, names, aliases, license, and source stay on
+the bay map. See [`docs/design/part-resolver.md`](../docs/design/part-resolver.md).
 
 Null, or an output that does not name exactly one listed id, leaves the
 answer text alone and sets no highlight. An id outside the closed list, or a
