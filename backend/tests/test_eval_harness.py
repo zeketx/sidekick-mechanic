@@ -55,7 +55,7 @@ def test_load_golden_rejects_answerable_row_without_pages(tmp_path: Path) -> Non
         encoding="utf-8",
     )
 
-    with pytest.raises(GoldenSetError, match="is too short"):
+    with pytest.raises(GoldenSetError, match="should be non-empty"):
         load_golden(path)
 
 

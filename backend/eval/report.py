@@ -120,8 +120,9 @@ def render_metrics_markdown(payload: dict[str, Any], *, source: Path) -> str:
 
 def render_job_summary(payload: dict[str, Any]) -> str:
     metrics = payload["metrics"]
+    title = "### Eval subset" if payload.get("subset") == "ci" else "### Eval"
     lines = [
-        "### Eval subset",
+        title,
         "",
         "| Metric | Value |",
         "| --- | --- |",
