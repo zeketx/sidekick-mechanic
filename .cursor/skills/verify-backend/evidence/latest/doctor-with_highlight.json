@@ -1,7 +1,7 @@
 {
   "ok": true,
-  "url": "http://127.0.0.1:46121",
-  "pid": 5048,
+  "url": "http://127.0.0.1:55257",
+  "pid": 6288,
   "port_owned_by_pid": true,
   "api_key_set": false,
   "title": "Sidekick Mechanic",
@@ -9,5 +9,5 @@
   "case": "fixture",
   "fixture": "with_highlight.json",
   "python": "3.12.3",
-  "git_head": "4acd641a9343d4d9dc433d2e0c7a926b2a7c60fb"
+  "git_head": "f520072d32b46edb78de7d5bdcda69e4a1c4e611"
 }

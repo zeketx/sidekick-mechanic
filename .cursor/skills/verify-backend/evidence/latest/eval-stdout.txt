@@ -7,8 +7,8 @@ cd backend && /workspace/.venv/bin/python -m eval --metrics
 | citation accuracy | 0.0000 |
 | refusal correctness | 0.0000 |
 | uncited-number count | 0 |
-| latency p50 (ms) | 3.014 |
-| latency p95 (ms) | 10.320 |
+| latency p50 (ms) | 2.739 |
+| latency p95 (ms) | 15.010 |
 
 Golden file: `eval/golden.sample.jsonl` (full set, 4 questions). Runner: `inprocess_chat_fake_llm`.
 Wrote /workspace/backend/eval/results/2026-10-01.json

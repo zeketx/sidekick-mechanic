@@ -1,12 +1,12 @@
-INFO:     Started server process [5051]
+INFO:     Started server process [6291]
 INFO:     Waiting for application startup.
 INFO:     Application startup complete.
-INFO:     Uvicorn running on http://127.0.0.1:47087 (Press CTRL+C to quit)
-INFO:     127.0.0.1:59582 - "GET /openapi.json HTTP/1.1" 200 OK
-INFO:     127.0.0.1:59588 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     Uvicorn running on http://127.0.0.1:48861 (Press CTRL+C to quit)
+INFO:     127.0.0.1:35104 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35118 - "GET /openapi.json HTTP/1.1" 200 OK
 spec guard blocked 1 uncited claim(s): 999 Nm
-INFO:     127.0.0.1:59602 - "POST /chat HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35122 - "POST /chat HTTP/1.1" 200 OK
 INFO:     Shutting down
 INFO:     Waiting for application shutdown.
 INFO:     Application shutdown complete.
-INFO:     Finished server process [5051]
+INFO:     Finished server process [6291]
