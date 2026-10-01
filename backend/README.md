@@ -107,6 +107,26 @@ The written result is [docs/design/wiring-diagram-spike.md](../docs/design/wirin
 `eval/results/wiring-spike.json` has no `generated_at`, so `make metrics` keeps
 the dated harness file. The script is not part of ingestion.
 
+## Prototype bay photos
+
+Public stand-ins for the highlight engine, before the truck arrives. They are
+not the owner's truck and they are replaced in M5. The manifest is
+[`data/prototype_bay_photos.json`](data/prototype_bay_photos.json). It records
+the source URL, author, license, and attribution for each file, and groups
+files by the five angle ids in [`docs/vehicle/DAY_ONE.md`](../docs/vehicle/DAY_ONE.md).
+
+The image files are not in git. From this directory:
+
+```bash
+python3 prototype_photos.py validate
+python3 prototype_photos.py fetch
+```
+
+`fetch` writes `bay-photos/prototype/` at the repo root (gitignored) and checks
+each file's SHA-256. A photo is accepted only when its license is CC0, CC BY,
+or CC BY-SA and the source's own words name a 2JZ-GE. The committed set is
+short of 10 photos. The `gaps` object says what is missing and what was left out.
+
 ## Stack
 
 | Piece | Choice |

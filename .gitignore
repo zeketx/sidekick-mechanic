@@ -58,6 +58,10 @@ dist/
 manuals/
 *.pdf
 
+# Bay photos stay outside git. Day-one shots and fetched prototype
+# stand-ins both live here (see docs/vehicle/DAY_ONE.md).
+bay-photos/
+
 # Regenerated ingestion output (see backend/ingest.py)
 backend/.ingest/
 

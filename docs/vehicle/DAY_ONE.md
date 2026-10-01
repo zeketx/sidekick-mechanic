@@ -67,7 +67,7 @@ Keep the phone's original if a rename would throw away the only copy. Write the 
 | Image files | On your machine, in `bay-photos/day-one/`, next to the repo. Do not `git add` them from this checklist. [Issue #39](https://github.com/zeketx/sidekick-mechanic/issues/39) stores them the way `docs/BAY_MAP.md` says. That page is [issue #28](https://github.com/zeketx/sidekick-mechanic/issues/28) and is not on `main` yet. |
 | Part regions on these photos | [Issue #40](https://github.com/zeketx/sidekick-mechanic/issues/40), after the bay map schema ([issue #26](https://github.com/zeketx/sidekick-mechanic/issues/26)). That schema is not on `main` yet. When it lands, the angle id column below is the schema's angle ID, and the `_01` filename is the photo ID. Do not draw regions on delivery day. |
 
-Public prototype bay photos ([issue #27](https://github.com/zeketx/sidekick-mechanic/issues/27)) are a different set. Keep them out of `bay-photos/day-one/`.
+Public prototype bay photos ([issue #27](https://github.com/zeketx/sidekick-mechanic/issues/27)) are a different set. Keep them out of `bay-photos/day-one/`. Their manifest is [`backend/data/prototype_bay_photos.json`](../../backend/data/prototype_bay_photos.json). From `backend/`, `python3 prototype_photos.py fetch` writes them into `bay-photos/prototype/`. That directory is gitignored. Every file in it is a prototype stand-in, not this truck, and is replaced in M5.
 
 ## Fixed-angle bay photos
 
