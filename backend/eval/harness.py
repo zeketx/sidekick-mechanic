@@ -3,18 +3,26 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Collection, Mapping
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 from jsonschema.exceptions import ValidationError
 
+from bay_map import load_bay_map
 from contract import validate_answer
 from eval.golden import (
     RESULTS_DIR,
     GoldenQuestion,
     load_golden,
     resolve_golden_path,
+)
+from eval.labels import (
+    load_hand_labels,
+    mean_rendered_iou,
+    resolve_bay_map_path,
+    resolve_hand_labels_path,
 )
 from eval.metrics import (
     METRIC_DEFINITIONS,
@@ -27,7 +35,15 @@ from eval.metrics import (
 )
 from eval.runner import EvalRunner, InProcessChatRunner, RetrievedHit, RunnerError
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+
+
+class UnmappedHighlightError(RuntimeError):
+    """An answer highlighted a part that has no confirmed bay-map region."""
+
+    def __init__(self, count: int) -> None:
+        self.count = count
+        super().__init__(f"unmapped-highlight count is {count}, expected 0")
 
 
 def run_harness(
@@ -38,12 +54,20 @@ def run_harness(
     ci_only: bool = False,
     date: str | None = None,
     uncited_counter: UncitedNumberCounter | None = None,
+    bay_map_path: Path | None = None,
+    hand_labels_path: Path | None = None,
 ) -> dict[str, Any]:
     path = resolve_golden_path(golden_path)
     questions = load_golden(path, ci_only=ci_only)
     chosen = runner if runner is not None else InProcessChatRunner()
+    map_path = resolve_bay_map_path(bay_map_path)
+    labels_path = resolve_hand_labels_path(hand_labels_path)
+    bay_map = load_bay_map(map_path.read_bytes())
+    labels = load_hand_labels(labels_path)
+    mapped = frozenset(choice.part_id for choice in bay_map.highlight_choices)
     scores = [
-        _score_question(question, chosen, uncited_counter) for question in questions
+        _score_question(question, chosen, uncited_counter, mapped)
+        for question in questions
     ]
     metrics = aggregate_metrics(scores)
     payload = _payload(
@@ -54,15 +78,32 @@ def run_harness(
         scores=scores,
         metrics=metrics,
         counter_label=counter_name(uncited_counter),
+        bay_map_path=map_path,
+        hand_labels_path=labels_path,
+        region_iou=mean_rendered_iou(bay_map, labels),
     )
     _write_results(output_dir, payload)
     return payload
+
+
+def require_no_unmapped_highlights(payload: Mapping[str, Any]) -> None:
+    """Raise when the run highlighted a part outside the confirmed map."""
+
+    metrics = payload.get("metrics")
+    count = None
+    if isinstance(metrics, Mapping):
+        count = metrics.get("unmapped_highlight_count")
+    if isinstance(count, bool) or not isinstance(count, int):
+        raise UnmappedHighlightError(-1)
+    if count != 0:
+        raise UnmappedHighlightError(count)
 
 
 def _score_question(
     question: GoldenQuestion,
     runner: EvalRunner,
     counter: UncitedNumberCounter | None,
+    mapped_part_ids: Collection[str],
 ) -> CaseScore:
     output = runner.run(question.question)
     try:
@@ -80,6 +121,7 @@ def _score_question(
         latency_ms=output.latency_ms,
         retrieval=_retrieval_pairs(output.retrieval),
         counter=counter,
+        mapped_part_ids=mapped_part_ids,
     )
 
 
@@ -107,6 +149,9 @@ def _payload(
     scores: list[CaseScore],
     metrics: Metrics,
     counter_label: str,
+    bay_map_path: Path,
+    hand_labels_path: Path,
+    region_iou: float | None,
 ) -> dict[str, Any]:
     generated_at = datetime.now(timezone.utc).isoformat(timespec="seconds")
     return {
@@ -114,6 +159,8 @@ def _payload(
         "generated_at": generated_at,
         "date": date,
         "golden_path": _display_path(golden_path),
+        "bay_map_path": _display_path(bay_map_path),
+        "hand_labels_path": _display_path(hand_labels_path),
         "subset": "ci" if ci_only else "full",
         "runner": runner_name,
         "uncited_number_counter": counter_label,
@@ -126,6 +173,9 @@ def _payload(
             "uncited_number_count": metrics.uncited_number_count,
             "latency_p50_ms": _round_latency(metrics.latency_p50_ms),
             "latency_p95_ms": _round_latency(metrics.latency_p95_ms),
+            "correct_part_rate": _round_rate(metrics.correct_part_rate),
+            "region_iou": _round_rate(region_iou),
+            "unmapped_highlight_count": metrics.unmapped_highlight_count,
         },
         "cases": [_case_dict(score) for score in scores],
     }
@@ -142,6 +192,8 @@ def _case_dict(score: CaseScore) -> dict[str, Any]:
         "citation_accurate": score.citation_accurate,
         "refusal_correct": score.refusal_correct,
         "uncited_number_count": score.uncited_number_count,
+        "correct_part": score.correct_part,
+        "unmapped_highlight": score.unmapped_highlight,
     }
     if score.part_id is not None:
         body["part_id"] = score.part_id

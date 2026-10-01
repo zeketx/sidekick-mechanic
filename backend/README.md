@@ -119,6 +119,24 @@ does not, and cited pages are not treated as hits. `python -m eval` passes
 uncited-number total uses the spec guard. `run_harness` without a counter
 still uses `LocalUncitedNumberCounter`.
 
+Highlight metrics use the bay map and a held-out hand-label file. A part is
+mapped when it has a confirmed region. Correct-part rate is the fraction of
+golden questions whose `part_id` is mapped and whose answer highlight names
+that part. Region IoU is the mean intersection-over-union of each hand label
+against the confirmed polygons the highlight renderer draws for that photo
+and part. It does not depend on which questions ran. `python -m eval` exits
+1 when any answer highlights a part that is not mapped. The results file
+still records that count.
+
+Until `eval/hand_labels.json` and `eval/bay_map.json` exist, the run uses
+[`eval/fixtures/fake-hand-labels.json`](eval/fixtures/fake-hand-labels.json)
+and
+[`contracts/fixtures/bay-map/fake-bay-map.json`](contracts/fixtures/bay-map/fake-bay-map.json).
+Those polygons are `fake-*` fixtures, not truck parts. The fixture label
+covers half of the confirmed `fake-part-intake` triangle on
+`fake-bay-photo-wide`, so that synthetic IoU is 0.5. Rings must be convex.
+A concave ring fails the run instead of publishing a wrong IoU.
+
 ## Wiring-diagram spike
 
 Separate from ingestion and from the eval harness. It needs the system

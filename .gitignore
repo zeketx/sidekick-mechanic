@@ -62,6 +62,10 @@ manuals/
 # stand-ins both live here (see docs/vehicle/DAY_ONE.md).
 bay-photos/
 
+# Real highlight-eval inputs. Synthetic fixtures stay committed.
+backend/eval/hand_labels.json
+backend/eval/bay_map.json
+
 # Regenerated ingestion output (see backend/ingest.py)
 backend/.ingest/
 
