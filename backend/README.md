@@ -153,6 +153,24 @@ each file's SHA-256. A photo is accepted only when its license is CC0, CC BY,
 or CC BY-SA and the source's own words name a 2JZ-GE. The committed set is
 short of 10 photos. The `gaps` object says what is missing and what was left out.
 
+## Bay map labels
+
+Label Studio draws the regions. `bay_map_labels.py` turns a JSON export into
+a bay map that `load_bay_map` accepts. Owner photos stay in gitignored
+`bay-photos/day-one/`. Prototype stand-ins stay in `bay-photos/prototype/`.
+The steps, the manifest, and the COCO and YOLO export path for a later
+detector are in [`docs/BAY_MAP.md`](../docs/BAY_MAP.md).
+
+```bash
+python3 bay_map_labels.py \
+  --export /path/to/label-studio.json \
+  --manifest /path/to/manifest.json \
+  --output /path/to/bay-map.json
+```
+
+The committed fixtures under `tests/fixtures/` use `FAKE-*` labels. The script
+does not train a detector.
+
 ## Stack
 
 | Piece | Choice |
@@ -162,6 +180,7 @@ short of 10 photos. The `gaps` object says what is missing and what was left out
 | Server | uvicorn |
 | Answer contract | `jsonschema` against `contracts/answer.schema.json` |
 | Bay map | `jsonschema` plus `bay_map.py` against `contracts/bay_map.schema.json` |
+| Labels | Label Studio JSON via `bay_map_labels.py` |
 | LLM | OpenAI-compatible `POST /chat/completions` over `httpx`, behind `LLMClient` |
 | Tests | pytest + FastAPI `TestClient` |
 | Retrieval | SQLite FTS5 (stdlib `sqlite3`), see `retrieval.py` |
