@@ -8,7 +8,7 @@ spec guard: pass an ``UncitedNumberCounter`` to replace it.
 from __future__ import annotations
 
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol
 
@@ -48,6 +48,27 @@ METRIC_DEFINITIONS: dict[str, str] = {
         "95th percentile of per-question runner time in milliseconds. "
         "Linear index (n - 1) * 0.95."
     ),
+    "correct-part rate": (
+        "Fraction of golden questions whose part_id is a confirmed bay-map "
+        "part and whose answer highlight names that same part_id. Questions "
+        "with no part_id, or a part that has no confirmed region, are left "
+        "out. A missing highlight scores 0."
+    ),
+    "region IoU": (
+        "Mean intersection-over-union of each held-out hand label against "
+        "the confirmed bay-map polygons the highlight renderer draws for "
+        "that photo and part. A label whose pair is not confirmed is left "
+        "out. Null when none resolve. Coordinates are the bay map's "
+        "normalized plane, which the renderer scales to the photo. "
+        "Rings must be convex. "
+        "eval/hand_labels.json is used when that file exists; otherwise "
+        "the synthetic fixture. This score does not depend on which "
+        "golden questions ran."
+    ),
+    "unmapped-highlight count": (
+        "Number of answer highlights whose part_id is not a confirmed "
+        "bay-map part. Must be 0. python -m eval exits 1 when it is not."
+    ),
 }
 
 
@@ -70,6 +91,8 @@ class CaseScore:
     citation_accurate: bool | None
     refusal_correct: bool | None
     uncited_number_count: int
+    correct_part: bool | None
+    unmapped_highlight: int
 
 
 @dataclass(frozen=True)
@@ -80,6 +103,8 @@ class Metrics:
     uncited_number_count: int
     latency_p50_ms: float | None
     latency_p95_ms: float | None
+    correct_part_rate: float | None
+    unmapped_highlight_count: int
 
 
 class LocalUncitedNumberCounter:
@@ -168,6 +193,39 @@ def is_correct_refusal(answer: Mapping[str, Any]) -> bool:
     )
 
 
+def part_is_correct(
+    expected_part_id: str | None,
+    answer: Mapping[str, Any],
+    mapped_part_ids: Collection[str],
+) -> bool | None:
+    """Whether the highlight names the question's mapped part.
+
+    ``None`` when the question does not name a confirmed bay-map part.
+    """
+
+    if expected_part_id is None or expected_part_id not in mapped_part_ids:
+        return None
+    highlight = answer.get("highlight")
+    if not isinstance(highlight, Mapping):
+        return False
+    return highlight.get("part_id") == expected_part_id
+
+
+def count_unmapped_highlight(
+    answer: Mapping[str, Any],
+    mapped_part_ids: Collection[str],
+) -> int:
+    """1 when the answer highlights a part that is not confirmed on the map."""
+
+    highlight = answer.get("highlight")
+    if not isinstance(highlight, Mapping):
+        return 0
+    part_id = highlight.get("part_id")
+    if isinstance(part_id, str) and part_id in mapped_part_ids:
+        return 0
+    return 1
+
+
 def percentile(values: Sequence[float], percent: float) -> float | None:
     """Linear percentile. Index is ``(n - 1) * (percent / 100)``."""
     if not values:
@@ -194,6 +252,7 @@ def score_case(
     latency_ms: float,
     retrieval: Sequence[Page] | None,
     counter: UncitedNumberCounter | None = None,
+    mapped_part_ids: Collection[str] = (),
 ) -> CaseScore:
     if latency_ms < 0:
         raise ValueError(f"{question_id} latency is negative")
@@ -212,6 +271,8 @@ def score_case(
         citation_accurate=citation_is_accurate(expected, answer) if answerable else None,
         refusal_correct=is_correct_refusal(answer) if not answerable else None,
         uncited_number_count=count_uncited_numbers(answer, counter),
+        correct_part=part_is_correct(part_id, answer, mapped_part_ids),
+        unmapped_highlight=count_unmapped_highlight(answer, mapped_part_ids),
     )
 
 
@@ -222,6 +283,9 @@ def aggregate_metrics(cases: Sequence[CaseScore]) -> Metrics:
     ]
     refusals = [case.refusal_correct for case in cases if case.refusal_correct is not None]
     latencies = [case.latency_ms for case in cases]
+    correct_parts = [
+        case.correct_part for case in cases if case.correct_part is not None
+    ]
     return Metrics(
         recall_at_5=_mean(recalls),
         citation_accuracy=_mean([1.0 if hit else 0.0 for hit in citations]),
@@ -229,6 +293,8 @@ def aggregate_metrics(cases: Sequence[CaseScore]) -> Metrics:
         uncited_number_count=sum(case.uncited_number_count for case in cases),
         latency_p50_ms=percentile(latencies, 50),
         latency_p95_ms=percentile(latencies, 95),
+        correct_part_rate=_mean([1.0 if hit else 0.0 for hit in correct_parts]),
+        unmapped_highlight_count=sum(case.unmapped_highlight for case in cases),
     )
 
 

@@ -6,8 +6,15 @@ import argparse
 import sys
 from pathlib import Path
 
+from bay_map import BayMapError
 from eval.golden import RESULTS_DIR, GoldenSetError
-from eval.harness import run_harness
+from eval.harness import (
+    UnmappedHighlightError,
+    require_no_unmapped_highlights,
+    run_harness,
+)
+from eval.iou import IouError
+from eval.labels import HandLabelError
 from eval.report import render_job_summary, write_metrics_document
 from eval.runner import RunnerError
 from spec_guard import SpecGuardUncitedCounter
@@ -57,7 +64,7 @@ def main(argv: list[str] | None = None) -> int:
             date=args.date,
             uncited_counter=SpecGuardUncitedCounter(),
         )
-    except (GoldenSetError, RunnerError) as exc:
+    except (GoldenSetError, RunnerError, HandLabelError, IouError, BayMapError) as exc:
         print(f"eval failed: {exc}", file=sys.stderr)
         return 1
     results_path = args.output_dir / f"{payload['date']}.json"
@@ -69,6 +76,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.metrics:
         destination = write_metrics_document(results_path)
         print(f"Wrote {destination}")
+    try:
+        require_no_unmapped_highlights(payload)
+    except UnmappedHighlightError as exc:
+        print(f"eval failed: {exc}", file=sys.stderr)
+        return 1
     return 0
 
 
