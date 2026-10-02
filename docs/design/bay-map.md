@@ -95,4 +95,4 @@ Changed from Sol's wire, because the duplicate-key hole was blocking. Sol keyed 
 
 ## Next implementation step
 
-#28 converts an existing label export into this JSON. The renderer takes `ConfirmedHighlight.geometry.polygons` in one call, with `photo.imageSize` as the scale.
+#28 converts a Label Studio JSON export into this file. The steps and the command are in [docs/BAY_MAP.md](../BAY_MAP.md). The renderer takes `ConfirmedHighlight.geometry.polygons` in one call, with `photo.imageSize` as the scale.

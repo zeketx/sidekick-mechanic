@@ -1,0 +1,48 @@
+{
+  "source": {
+    "kind": "public_prototype",
+    "reference": "FAKE-SOURCE"
+  },
+  "license": {
+    "name": "FAKE-LICENSE",
+    "reference": "FAKE-LICENSE-REF"
+  },
+  "photos": [
+    {
+      "file": "FAKE-front.jpg",
+      "bay_photo_id": "fake-bay-photo-front",
+      "angle_id": "fake-angle-front"
+    },
+    {
+      "file": "FAKE-side.jpg",
+      "bay_photo_id": "fake-bay-photo-side",
+      "angle_id": "fake-angle-side",
+      "source": {
+        "kind": "owner_observation",
+        "reference": "FAKE-OBS-SIDE"
+      },
+      "license": {
+        "name": "FAKE-LICENSE-SIDE",
+        "reference": "FAKE-LICENSE-SIDE-REF"
+      }
+    }
+  ],
+  "parts": [
+    {
+      "label": "FAKE-PART-INTAKE",
+      "part_id": "fake-part-intake",
+      "display_name": "FAKE-NAME-INTAKE",
+      "aliases": ["FAKE-ALIAS-INTAKE"],
+      "confirmation": {
+        "kind": "confirmed",
+        "confirmed_by": "FAKE-OWNER"
+      }
+    },
+    {
+      "label": "FAKE-PART-HIDDEN",
+      "part_id": "fake-part-hidden",
+      "display_name": "FAKE-NAME-HIDDEN",
+      "aliases": []
+    }
+  ]
+}
