@@ -119,6 +119,24 @@ does not, and cited pages are not treated as hits. `python -m eval` passes
 uncited-number total uses the spec guard. `run_harness` without a counter
 still uses `LocalUncitedNumberCounter`.
 
+Highlight metrics use the bay map and a held-out hand-label file. A part is
+mapped when it has a confirmed region. Correct-part rate is the fraction of
+golden questions whose `part_id` is mapped and whose answer highlight names
+that part. Region IoU is the mean intersection-over-union of each hand label
+against the confirmed polygons the highlight renderer draws for that photo
+and part. It does not depend on which questions ran. `python -m eval` exits
+1 when any answer highlights a part that is not mapped. The results file
+still records that count.
+
+Until `eval/hand_labels.json` and `eval/bay_map.json` exist, the run uses
+[`eval/fixtures/fake-hand-labels.json`](eval/fixtures/fake-hand-labels.json)
+and
+[`contracts/fixtures/bay-map/fake-bay-map.json`](contracts/fixtures/bay-map/fake-bay-map.json).
+Those polygons are `fake-*` fixtures, not truck parts. The fixture label
+covers half of the confirmed `fake-part-intake` triangle on
+`fake-bay-photo-wide`, so that synthetic IoU is 0.5. Rings must be convex.
+A concave ring fails the run instead of publishing a wrong IoU.
+
 ## Wiring-diagram spike
 
 Separate from ingestion and from the eval harness. It needs the system
@@ -153,6 +171,24 @@ each file's SHA-256. A photo is accepted only when its license is CC0, CC BY,
 or CC BY-SA and the source's own words name a 2JZ-GE. The committed set is
 short of 10 photos. The `gaps` object says what is missing and what was left out.
 
+## Bay map labels
+
+Label Studio draws the regions. `bay_map_labels.py` turns a JSON export into
+a bay map that `load_bay_map` accepts. Owner photos stay in gitignored
+`bay-photos/day-one/`. Prototype stand-ins stay in `bay-photos/prototype/`.
+The steps, the manifest, and the COCO and YOLO export path for a later
+detector are in [`docs/BAY_MAP.md`](../docs/BAY_MAP.md).
+
+```bash
+python3 bay_map_labels.py \
+  --export /path/to/label-studio.json \
+  --manifest /path/to/manifest.json \
+  --output /path/to/bay-map.json
+```
+
+The committed fixtures under `tests/fixtures/` use `FAKE-*` labels. The script
+does not train a detector.
+
 ## Stack
 
 | Piece | Choice |
@@ -162,6 +198,7 @@ short of 10 photos. The `gaps` object says what is missing and what was left out
 | Server | uvicorn |
 | Answer contract | `jsonschema` against `contracts/answer.schema.json` |
 | Bay map | `jsonschema` plus `bay_map.py` against `contracts/bay_map.schema.json` |
+| Labels | Label Studio JSON via `bay_map_labels.py` |
 | LLM | OpenAI-compatible `POST /chat/completions` over `httpx`, behind `LLMClient` |
 | Tests | pytest + FastAPI `TestClient` |
 | Retrieval | SQLite FTS5 (stdlib `sqlite3`), see `retrieval.py` |

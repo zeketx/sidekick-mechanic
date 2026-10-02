@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "labels": [
+    {
+      "part_id": "fake-part-intake",
+      "bay_photo_id": "fake-bay-photo-wide",
+      "polygons": [
+        {
+          "points": [
+            { "x": 0, "y": 0 },
+            { "x": 0.5, "y": 0 },
+            { "x": 0.25, "y": 0.25 }
+          ]
+        }
+      ]
+    }
+  ]
+}

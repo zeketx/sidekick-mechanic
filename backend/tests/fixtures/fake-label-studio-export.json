@@ -1,0 +1,120 @@
+[
+  {
+    "id": 1,
+    "data": {
+      "image": "/data/upload/1/abcd1234-FAKE-front.jpg"
+    },
+    "predictions": [
+      {
+        "result": [
+          {
+            "type": "rectanglelabels",
+            "value": {
+              "x": 0,
+              "y": 0,
+              "width": 10,
+              "height": 10,
+              "rotation": 0,
+              "rectanglelabels": ["NOT-A-MANIFEST-LABEL"]
+            }
+          }
+        ]
+      }
+    ],
+    "annotations": [
+      {
+        "id": 10,
+        "was_cancelled": true,
+        "ground_truth": false,
+        "result": [
+          {
+            "type": "polygonlabels",
+            "original_width": 200,
+            "original_height": 100,
+            "image_rotation": 0,
+            "value": {
+              "points": [[0, 0], [10, 0], [10, 10]],
+              "polygonlabels": ["NOT-A-MANIFEST-LABEL"]
+            }
+          }
+        ]
+      },
+      {
+        "id": 11,
+        "was_cancelled": false,
+        "ground_truth": false,
+        "result": [
+          {
+            "type": "polygonlabels",
+            "original_width": 200,
+            "original_height": 100,
+            "image_rotation": 0,
+            "from_name": "polygon",
+            "to_name": "image",
+            "value": {
+              "points": [[0, 0], [50, 0], [50, 50], [0, 0]],
+              "polygonlabels": ["FAKE-PART-INTAKE"]
+            }
+          },
+          {
+            "type": "polygonlabels",
+            "original_width": 200,
+            "original_height": 100,
+            "image_rotation": 0,
+            "from_name": "polygon",
+            "to_name": "image",
+            "value": {
+              "points": [[0, 50], [50, 50], [50, 100]],
+              "polygonlabels": ["FAKE-PART-INTAKE"]
+            }
+          },
+          {
+            "type": "rectanglelabels",
+            "original_width": 200,
+            "original_height": 100,
+            "image_rotation": 0,
+            "from_name": "box",
+            "to_name": "image",
+            "value": {
+              "x": 50,
+              "y": 0,
+              "width": 50,
+              "height": 50,
+              "rotation": 0,
+              "rectanglelabels": ["FAKE-PART-HIDDEN"]
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": 2,
+    "data": {
+      "image": "https://localhost/data/FAKE-side.jpg?token=1"
+    },
+    "annotations": [
+      {
+        "id": 12,
+        "was_cancelled": false,
+        "ground_truth": false,
+        "result": [
+          {
+            "type": "rectanglelabels",
+            "original_width": 400,
+            "original_height": 400,
+            "image_rotation": 0,
+            "value": {
+              "x": 0,
+              "y": 0,
+              "width": 100,
+              "height": 100,
+              "rotation": 0,
+              "rectanglelabels": ["FAKE-PART-INTAKE"]
+            }
+          }
+        ]
+      }
+    ]
+  }
+]
