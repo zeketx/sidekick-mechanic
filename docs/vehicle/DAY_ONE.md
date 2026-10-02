@@ -63,7 +63,7 @@ Keep the phone's original if a rename would throw away the only copy. Write the 
 |---|---|
 | Notes and filenames from this visit | The tables in this file |
 | Donor ECU number, OBD protocol, donor model year, harness notes, dongle compatibility, bay photo angle list, delivery date, truck delivered | [TRUCK.md](TRUCK.md). A row stays `TBD` until that file's evidence rule is met. |
-| OBD-II vs OBD1 decision | [Issue #7](https://github.com/zeketx/sidekick-mechanic/issues/7) ([PR #56](https://github.com/zeketx/sidekick-mechanic/pull/56)). `docs/vehicle/ECU.md` is not on `main` yet. Until it is, leave **OBD protocol** as `TBD`. Recording the decision is [issue #38](https://github.com/zeketx/sidekick-mechanic/issues/38). |
+| OBD-II vs OBD1 decision | [ECU.md](ECU.md) ([issue #7](https://github.com/zeketx/sidekick-mechanic/issues/7)). Leave **OBD protocol** as `TBD` until [issue #38](https://github.com/zeketx/sidekick-mechanic/issues/38) records the live result. |
 | Image files | On your machine, in `bay-photos/day-one/`, next to the repo. Do not `git add` them from this checklist. [Issue #39](https://github.com/zeketx/sidekick-mechanic/issues/39) stores them the way [docs/BAY_MAP.md](../BAY_MAP.md) says. |
 | Part regions on these photos | Draw them later with [docs/BAY_MAP.md](../BAY_MAP.md). [Issue #40](https://github.com/zeketx/sidekick-mechanic/issues/40) is the pass that confirms those regions. The bay map schema is [backend/contracts/bay_map.schema.json](../../backend/contracts/bay_map.schema.json) ([issue #26](https://github.com/zeketx/sidekick-mechanic/issues/26)). The angle id column below is the schema's angle ID, and the `_01` filename is the photo ID. Do not draw regions on delivery day. |
 
@@ -137,7 +137,7 @@ When every row is `yes` and has a filename, set **Bay photo angle list** in [TRU
 
 The box is wherever the swap put it. Location on this truck is `TBD`. Find it by following the engine harness. Do not assume a cabin or engine-bay mount.
 
-[Issue #7](https://github.com/zeketx/sidekick-mechanic/issues/7) ([PR #56](https://github.com/zeketx/sidekick-mechanic/pull/56)) is the identification plan and the OBD decision tree, in `docs/vehicle/ECU.md` once that file is on `main`. It is not on `main` today. This section is the photos and the transcription. It does not decide the protocol.
+The identification plan and OBD decision tree are in [ECU.md](ECU.md). This section is the photos and the transcription. It does not decide the protocol.
 
 - [ ] Photo of the box in place, showing how it is mounted (`ecu-mounted_01`)
 - [ ] Photo of every face of the case, including the underside if you can see it without unbolting (`ecu-case-01_01`, `ecu-case-02_01`, …)
