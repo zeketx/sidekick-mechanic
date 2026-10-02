@@ -171,6 +171,10 @@ each file's SHA-256. A photo is accepted only when its license is CC0, CC BY,
 or CC BY-SA and the source's own words name a 2JZ-GE. The committed set is
 short of 10 photos. The `gaps` object says what is missing and what was left out.
 
+## Highlight style
+
+`HighlightConfig` in [`highlight.py`](highlight.py) is the bakeoff default: an 8 px fuchsia outline, saturation 3.0, and dim factor 1.0. The comparison is [docs/design/highlight-style-bakeoff.md](../docs/design/highlight-style-bakeoff.md).
+
 ## Bay map labels
 
 Label Studio draws the regions. `bay_map_labels.py` turns a JSON export into

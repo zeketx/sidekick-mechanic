@@ -27,7 +27,7 @@ OUTLINE_PIXEL = (60, 20)
 CIRCLE_PIXEL = (104, 40)
 SOURCE_INSIDE = (160, 90, 70)
 SOURCE_OUTSIDE = (40, 50, 60)
-AMBER = (255, 176, 0)
+FUCHSIA = (255, 0, 255)
 
 
 def synthetic_photo() -> Image.Image:
@@ -56,6 +56,17 @@ def write_goldens() -> None:
         rendered.save(FIXTURES / f"{style.value}.png")
 
 
+def test_default_config_is_the_bakeoff_winner() -> None:
+    config = HighlightConfig()
+    assert config.outline_rgb == FUCHSIA
+    assert config.outline_width_px == 8
+    assert config.saturation_factor == 3.0
+    assert config.dim_factor == 1.0
+    assert config.circle_rgb == FUCHSIA
+    assert config.circle_width_px == 4
+    assert config.circle_padding_px == 8
+
+
 def test_pixel_tolerance_rejects_a_three_level_change() -> None:
     base = Image.new("RGB", (2, 2), (10, 20, 30))
     shifted = base.copy()
@@ -78,28 +89,34 @@ def test_outline_strokes_the_boundary_and_leaves_the_interior() -> None:
     rendered = render_highlight(photo, POLYGON, HighlightStyle.OUTLINE)
     assert rendered.mode == "RGB"
     assert rendered.size == photo.size
-    assert rendered.getpixel(OUTLINE_PIXEL) == AMBER
+    assert rendered.getpixel(OUTLINE_PIXEL) == FUCHSIA
     assert rendered.getpixel(INSIDE) == SOURCE_INSIDE
     assert rendered.getpixel(OUTSIDE) == SOURCE_OUTSIDE
 
 
 def test_saturate_boosts_inside_and_leaves_outside() -> None:
     rendered = render_highlight(synthetic_photo(), POLYGON, HighlightStyle.SATURATE)
-    assert rendered.getpixel(INSIDE) == (211, 71, 31)
+    assert rendered.getpixel(INSIDE) == (255, 52, 0)
     assert rendered.getpixel(OUTSIDE) == SOURCE_OUTSIDE
 
 
 def test_circle_marks_the_ring_and_leaves_center_and_corner() -> None:
     rendered = render_highlight(synthetic_photo(), POLYGON, HighlightStyle.CIRCLE)
-    assert rendered.getpixel(CIRCLE_PIXEL) == AMBER
+    assert rendered.getpixel(CIRCLE_PIXEL) == FUCHSIA
     assert rendered.getpixel(INSIDE) == SOURCE_INSIDE
     assert rendered.getpixel(OUTSIDE) == SOURCE_OUTSIDE
 
 
-def test_dim_darkens_outside_and_leaves_inside() -> None:
-    rendered = render_highlight(synthetic_photo(), POLYGON, HighlightStyle.DIM)
-    assert rendered.getpixel(OUTSIDE) == (16, 20, 24)
+def test_dim_default_leaves_the_photo_and_a_lower_factor_darkens() -> None:
+    photo = synthetic_photo()
+    rendered = render_highlight(photo, POLYGON, HighlightStyle.DIM)
+    assert rendered.getpixel(OUTSIDE) == SOURCE_OUTSIDE
     assert rendered.getpixel(INSIDE) == SOURCE_INSIDE
+    dimmed = render_highlight(
+        photo, POLYGON, HighlightStyle.DIM, HighlightConfig(dim_factor=0.4)
+    )
+    assert dimmed.getpixel(OUTSIDE) == (16, 20, 24)
+    assert dimmed.getpixel(INSIDE) == SOURCE_INSIDE
 
 
 def test_config_supplies_colors_and_factors() -> None:
@@ -167,7 +184,7 @@ def test_rgba_photo_renders_rgb() -> None:
     photo = synthetic_photo().convert("RGBA")
     rendered = render_highlight(photo, POLYGON, HighlightStyle.OUTLINE)
     assert rendered.mode == "RGB"
-    assert rendered.getpixel(OUTLINE_PIXEL) == AMBER
+    assert rendered.getpixel(OUTLINE_PIXEL) == FUCHSIA
     assert photo.mode == "RGBA"
 
 
