@@ -2,29 +2,35 @@
 
 **Status:** recommendation + spike plan. No pipeline in this change.
 
-Product Lead decisions in this page are locked (2026-10-03). Docs PR #90 states the product rule (highlight any photo, pixel-precise outline, never a box; tracing optional) and that A and C are unblocked. This page does not rewrite those docs. It assumes that rule and decides how to get a mask.
+Product Lead decisions in this page are locked (2026-10-03), including the v1 highlight UX after recalibration. Docs PR #90 states the product rule (highlight any photo, pixel-precise outline, never a box; tracing optional) and that A and C are unblocked. This page does not rewrite those docs. v1 keeps that promise on **traced** photos; on **untraced** photos the outline is drawn on a traced reference bay, not on the user's frame.
 
 Related code: answer contract (#10), bay map (#26), prototype photos (#27), Python renderer (#29), Swift renderer (#31), part resolver (#32), end-to-end highlight (#33), highlight eval (#34). Follow-on issues: held-out labeled photo set (#84), spike (#85), answer contract v2 (#86), confidence UX (#87), acceptance metrics/eval (#88).
 
 ## Recommendation
 
-Run locate+mask on the **backend**. Keep the traced bay-map path (`method: traced`, `{bay_photo_id, part_id}`) as a **fast lookup**. Contract v2 (#86) does not delete it. For any other photo, locate the named part and cut a mask with **SAM 2**. Convert the mask to the same normalized polygons the renderer already draws. Do not highlight from a bounding box.
+v1 ships **traced-photo outlines** and, for untraced frames, an outline on a **traced reference photo**. It does **not** draw on the user's untraced photo and does **not** show “Is this it?”.
 
-**Spike default and preferred candidate is A: a VLM returns box/points, SAM 2 cuts the mask.** The vision provider is **OpenRouter** (for example `google/gemini-2.5-flash`). **A-open** is Qwen2.5-VL through OpenRouter. **B** (Grounding DINO + SAM 2) stays the open local baseline. **C** (VLM direct segmentation via OpenRouter) stays a candidate. Zeke approved the paid vision API; A and C are unblocked (#90). Cost target stays **≤ $0.03 per photo**.
+**Traced photos** keep the existing bay-map lookup (`method: traced`, `{bay_photo_id, part_id}`). Full fuchsia outline on the user's photo (`target` omitted or `user_photo`). That is the v1 promise.
+
+**Untraced photos** get no highlight on the user's frame. The answer shows the part outlined on the **closest traced reference photo of the same bay** (`target: "reference_photo"`, `bay_photo_id` is that traced photo), copy like “here it is on a reference 2JZ bay”, a pointer to the manual diagram, and a suggestion to retake from one of the standard angles in [TRUCK.md](../vehicle/TRUCK.md) so the photo can match a traced view. The angle list in TRUCK.md is **TBD**; planned ids are in [DAY_ONE.md](../vehicle/DAY_ONE.md).
+
+**Locate+mask stays on the backend**, behind a flag. The hedged / inferred path (`method: located`, including `display: confirm`) keeps running internally and is **logged as eval data**. It is **not user-facing in v1**. It ships to users only after it clears these on human labels (#84): **≥ 80% right among hedged highlights**, and **confident-outline wrong ≤ 5%**. Recalibration found no SAM threshold that holds the 5% bar; the bottleneck is locate. Do not ship a looser user-facing gate.
+
+A **time-boxed follow-up spike** tries a stronger locator (bigger VLM via OpenRouter, still **≤ $0.03 / photo**) plus traced reference crops, scored on zeke's #84 hand labels, not agent judgments. **Finishing the Label Studio queue (15 photos, ~64 polygons) is the gating step.**
+
+Spike default remains **A: a VLM returns box/points, SAM 2 cuts the mask.** The vision provider is **OpenRouter** (for example `google/gemini-2.5-flash`). **A-open** is Qwen2.5-VL through OpenRouter. **B** (Grounding DINO + SAM 2) stays the open local baseline. **C** is dropped (first-pass 46% outline-wrong). Zeke approved the paid vision API; A and C are unblocked (#90). Cost cap stays **≤ $0.03 per photo**.
 
 The spike reads `OPENROUTER_API_KEY` from the environment. The product backend uses a Railway secret. The key is never committed.
 
-Every candidate runs verify-crop. A's and C's crop call goes through OpenRouter. B's gate uses DINO logit, SAM `predicted_iou` / stability, mask sanity, and a local crop check when no OpenRouter call is wanted on that path.
+Every candidate runs verify-crop. A's crop call goes through OpenRouter. B's gate uses DINO logit, SAM `predicted_iou` / stability, mask sanity, and a local crop check when no OpenRouter call is wanted on that path.
 
 Do **not** put open-vocab locate on the iPhone for Phase 1. Apple already publishes Core ML SAM 2, and #31 already renders a polygon. The missing piece is naming a never-seen part. Phase 2's YOLO dry run (#36) is a closed set after labeling; it does not replace this.
 
-**Tap to confirm is in v1**, minimal only. Abstain omits `highlight`. A wrong fuchsia outline is worse than a blank slot. If no pipeline can hold wrong-part ≤ 5% at any threshold, **stop and rethink**. Do not ship a looser gate.
-
-Do not implement the pipeline until the spike picks a winner. Decision this week. The owner's plan ends around 2026-10-12.
+Do not fold locate+mask onto the user's photo until the follow-up spike clears the hedged / confident bars above. The owner's plan ends around 2026-10-12.
 
 ## Options compared
 
-The default and preferred spike run is **A**. **B** is the open baseline. **C** stays a candidate. The other rows stay as context.
+The default and preferred spike run is **A**. **B** is the open baseline. **C** is dropped. The other rows stay as context.
 
 | Option | Locate | Mask | Fits renderer | Fine-grained bay parts | Host | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -33,13 +39,13 @@ The default and preferred spike run is **A**. **B** is the open baseline. **C** 
 | **C. VLM direct masks** | Same OpenRouter VLM | model `mask` | Yes if the contour is real | Same locate risk | OpenRouter | Unblocked. Mask shape varies by upstream endpoint (see first-pass notes). |
 | Florence-2 RES / OV | Phrase or referring | Florence polygon or SAM 2 | Yes | Weaker zero-shot than DINO 1.5 | Local | Not a spike candidate. |
 | On-device VLM + Core ML SAM 2 | Unproven small VLM | Core ML SAM 2 / EdgeSAM | Yes | Unlikely by 2026-10-12 | iPhone | Mask is ready. Locate is not. |
-| Mapped lookup only | Closed `part_id` | Traced polygons | Already | Perfect on mapped photos, zero on new ones | None | Fast path and eval answer key. Fallback if A/B/C fail the wrong-part bar. |
+| Mapped lookup only | Closed `part_id` | Traced polygons | Already | Perfect on mapped photos; v1 draws the closest traced same-bay photo on untraced frames | None | v1 user path. Fast lookup. Eval answer key. |
 
 **Box vs point into SAM (A and B).** Use the box as the default prompt. SAM's `predicted_iou` is usually higher on a tight box than on a single click, and a box stops the mask from jumping to a neighboring hose. Add a positive point when the VLM is more sure of a center than of a box (oil dipstick, oil filler cap). Add a negative point only when the VLM names a neighbor to exclude. One `predict` call, not a refine loop. Enable `multimask_output` and take the top `predicted_iou`; if the top two are close, hedge or abstain.
 
 **Groups.** Coil packs are one highlight: several masks unioned into one region, same as a bay-map region with more than one polygon. Radiator cap + upper hose is the same idea (two named pieces, one region). The renderer strokes polygons, not a box around the group. The resolver today returns one `part_id` ([part-resolver.md](part-resolver.md)); contract v2 (#86) adds optional `part_ids`.
 
-**Bay map as context.** If `bay_photo_id` is in the catalog and the part is confirmed, **do not locate**. Copy the traced polygons. If the photo is new but a traced crop of the same `part_id` exists, the spike may attach that crop as a second image on the VLM call. That is an accuracy boost, not a requirement to highlight.
+**Bay map as context.** If `bay_photo_id` is in the catalog and the part is confirmed, **do not locate**. Copy the traced polygons onto the user's photo. If the photo is new, v1 picks the closest traced reference of the same bay and draws there (`target: reference_photo`). A traced crop of the same `part_id` may still attach as a second image on the follow-up locate spike. That is an accuracy boost for the flag-gated path, not a v1 user highlight on the new frame.
 
 **How the answer already names a part.** `LlmAnswerProducer` writes text, then `part_resolver` asks for one id from the closed list, or null. That `part_id` (plus `display_name` / aliases from the map) is the locate query. If the list has no id, locate may still run on the display phrase, but the gate starts in the hedge/abstain band. Do not scrape a part name out of prose any other way.
 
@@ -47,7 +53,7 @@ The default and preferred spike run is **A**. **B** is the open baseline. **C** 
 
 Today `highlight` is optional on a found answer and is only `{bay_photo_id, part_id}` ([`backend/contracts/answer.schema.json`](../../backend/contracts/answer.schema.json)). The phone looks that pair up in the bay map. An untraced photo has no row, so `resolve` returns nil.
 
-**Keep the existing `{bay_photo_id, part_id}` path.** Contract v2 (#86) names it `method: "traced"` and does not delete it. Add optional fields so a located mask can ride along. Existing fixtures without `method` still validate and still mean traced lookup.
+**Keep the existing `{bay_photo_id, part_id}` path.** Contract v2 (#86) names it `method: "traced"` and does not delete it. Add optional `target` so the phone knows which image to draw on, plus optional fields so a located mask can ride along behind a flag. Existing fixtures without `method` or `target` still validate and still mean traced lookup on the user's photo.
 
 Proposed `$defs.highlight_ref` (proposal only; not applied in this PR):
 
@@ -66,7 +72,8 @@ Proposed `$defs.highlight_ref` (proposal only; not applied in this PR):
       "items": { "type": "string", "minLength": 1 }
     },
     "geometry": { "$ref": "#/$defs/highlight_geometry" },
-    "display": { "enum": ["outline", "confirm"] }
+    "display": { "enum": ["outline", "confirm"] },
+    "target": { "enum": ["user_photo", "reference_photo"] }
   }
 },
 "highlight_geometry": {
@@ -105,9 +112,10 @@ Proposed `$defs.highlight_ref` (proposal only; not applied in this PR):
 Rules:
 
 - `method: "traced"` (or omitted, which means traced) is today's lookup: `bay_photo_id` + `part_id` into the bay map. Do not delete this path.
-- `method: "located"` carries `geometry`. The renderer draws those polygons and **must not** require a confirmed map row. `bay_photo_id` is still the photo handle. A user or session frame gets a session-scoped id in that same field (do not add a second photo object on the first landing).
+- `method: "located"` carries `geometry`. The renderer draws those polygons and **must not** require a confirmed map row. `bay_photo_id` is still the photo handle. A user or session frame gets a session-scoped id in that same field (do not add a second photo object on the first landing). Flag-gated in v1; not user-facing until the #84 bars clear.
 - Existing `{bay_photo_id, part_id}` still validates.
-- `display` omitted means `outline`. `confirm` is the unsure “Is this it?” state. Abstain **omits** `highlight`.
+- `target` omitted means `user_photo` (backward compatible). `target: "reference_photo"` means the highlight is drawn on a traced reference photo, not the user's frame. Then `bay_photo_id` is that traced photo, and the geometry or lookup refers to it.
+- `display` omitted means `outline`. `confirm` stays defined as the unsure “Is this it?” state. It is **flag-gated and not user-facing in v1**. Abstain **omits** `highlight`.
 - `part_ids` is the optional group. `part_id` stays the primary label (coil packs, radiator cap + upper hose).
 - Coordinate space is the bay map's: normalized, origin top left, x right, y down. Gemini's 0–1000 and SAM pixel masks convert at the backend boundary.
 - Wire polygons, not a PNG and not a box. `render_highlight` already takes a pixel polygon ([`backend/highlight.py`](../../backend/highlight.py)). A region with several rings is several calls, or one later union — same as today's multi-polygon bay-map region.
@@ -144,15 +152,16 @@ On-device locate is the right privacy story later. It is not the Phase 1 decisio
 
 ## Confidence and abstain
 
-Three UX states, one wire. **Tap to confirm is in scope**, minimal version only (confidence UX #87). No drag-to-correct.
+Four states on the wire. **Tap to confirm stays defined** (confidence UX #87) but is **flag-gated and not user-facing in v1**. No drag-to-correct. v1 user-facing highlights are outlines only: on the user's photo when traced, on a reference photo when not.
 
-| State | Wire | UI |
+| State | Wire | v1 user-facing UI |
 | --- | --- | --- |
-| Precise outline (confident) | `highlight` + `geometry`, `display` omitted or `outline` | Today's fuchsia outline / saturate |
-| Unsure | `highlight` + `geometry`, `display: confirm` | Softer highlight. Copy: “Is this it?” Buttons: **Yes** / **Not this** |
+| Precise outline (traced user photo) | `method: traced`, `target` omitted or `user_photo` | Today's fuchsia outline / saturate |
+| Reference outline (untraced user photo) | `method: traced`, `target: reference_photo`, `bay_photo_id` = closest traced same-bay photo | Outline on the reference photo. Copy: “here it is on a reference 2JZ bay”. Pointer to the manual diagram. Suggest a retake from a [TRUCK.md](../vehicle/TRUCK.md) / [DAY_ONE.md](../vehicle/DAY_ONE.md) standard angle. **No highlight on the user's photo.** |
+| Unsure (hedged) | `highlight` + `geometry`, `display: confirm` | Flag-gated. Logged as eval. **Not shown in v1.** |
 | Abstain (not found / refuse) | no `highlight` | Answer text only |
 
-**Yes** keeps the outline and treats the case as a confirmed highlight. **Not this** drops the highlight (not-found), and the backend **logs the photo, part, mask, and rejection** as eval data. Do not ask the owner to drag a better outline.
+When the flag is on (eval, and later if the #84 bars clear): **Yes** keeps the outline and treats the case as a confirmed highlight. **Not this** drops the highlight (not-found), and the backend **logs the photo, part, mask, and rejection** as eval data. Do not ask the owner to drag a better outline. In v1 the hedged path still runs internally and writes that same log; the user never sees the confirm chrome.
 
 A missing highlight already scores 0 on the mapped correct-part rate ([docs/METRICS.md](../METRICS.md)). Keep that for the mapped eval. The open-world spike scores confident highlights separately from unsure and from abstain, so a 40% abstain rate is not a failed correct-part score.
 
@@ -180,7 +189,7 @@ If raising the outline threshold is the only way to stay ≤ 5% wrong, raise it.
 
 ## Spike plan (2–3 days)
 
-Throwaway scripts under `backend/spikes/` (spike #85). Do not fold a winner into `/chat` in the spike PR. Held-out labels live with #84. Metrics land in acceptance eval #88. The default and preferred run is **A** via OpenRouter. B stays the open baseline. C stays a candidate.
+Throwaway scripts under `backend/spikes/` (spike #85). Do not fold a winner into `/chat` in the spike PR. Held-out labels live with #84. Metrics land in acceptance eval #88. The default and preferred run is **A** via OpenRouter. B stays the open baseline. C is dropped. The follow-up spike is a stronger locator plus traced reference crops, scored on #84 hand labels.
 
 ### Locked part list
 
@@ -262,7 +271,7 @@ Measured on #84 only.
 3. Prefer **A** (OpenRouter VLM → SAM 2) when it qualifies.
 4. Else prefer **B** (DINO → SAM 2) if it qualifies.
 5. Else prefer **C** if it qualifies **and** the mask is a real contour, not a box and not an unreadable `<seg_*>` string.
-6. Else **mapped lookup only** (`method: traced`) on catalog photos, abstain on untraced ones, and write that open-world highlight is a rethink.
+6. Else **mapped lookup only** (`method: traced`) on catalog photos. Untraced user photos show a **reference-photo outline** (v1), not a located mask on the user's frame. The hedged path stays flag-gated until the #84 bars clear.
 
 Ties among qualifiers: lower wrong-part rate, then higher median IoU, then lower p95, then lower cost.
 
@@ -309,28 +318,38 @@ These numbers are **preliminary**. They are an agent's judgment, not a scored #8
 
 **Decision-rule result:** no pipeline holds ≤ 5% wrong. Per this doc that is **stop and rethink** for confident outlines.
 
-**Candidate rethink directions** for zeke and Product Lead:
+**Candidate rethink directions** (pre-call; direction 3 is superseded by the Product Lead v1 call below):
 
 1. A stronger locator, i.e. a bigger VLM via OpenRouter, still within **≤ $0.03 / photo**.
 2. Traced bay-map reference crops as few-shot context.
-3. v1 ships only the hedged “Is this it?” confirm state (A's confirm band was right **14/22**) plus traced-photo outlines, with **no confident outlines on untraced photos** until hand labels exist.
+3. ~~v1 ships only the hedged “Is this it?” confirm state plus traced-photo outlines.~~ Replaced by the v1 call: no user-facing confirm; untraced frames get a reference-photo outline.
 
-**Hand labels.** A Label Studio queue of **15** photos (~**64** polygons) was prepared for zeke.
+**Hand labels.** A Label Studio queue of **15** photos (~**64** polygons) was prepared for zeke. Finishing it is the gating step for the follow-up spike.
+
+### Product Lead v1 call (locked)
+
+Applied after recalibration. Replaces the earlier confirm-only suggestion.
+
+1. **Traced photos keep full outlines.** That is the v1 promise.
+2. **Untraced photos get no highlight on the user's photo**, and **no user-facing “Is this it?”**. The answer shows the part outlined on the closest traced reference photo of the same bay (“here it is on a reference 2JZ bay”), plus a pointer to the manual diagram, plus a suggestion to retake from one of the standard angles in [TRUCK.md](../vehicle/TRUCK.md) so the photo can match a traced view. The angle list in TRUCK.md is **TBD**; planned ids are in [DAY_ONE.md](../vehicle/DAY_ONE.md).
+3. The hedged / inferred path keeps running internally **behind a flag** and is logged as eval data. It ships to users only after it clears these on human labels (#84): **≥ 80% right among hedged highlights**, and **confident-outline wrong ≤ 5%**.
+4. A time-boxed follow-up spike tries a stronger locator plus traced reference crops, scored on zeke's #84 hand labels, not agent judgments. Finishing the Label Studio queue (15 photos, ~64 polygons) is the gating step.
 
 ### Product decisions (locked)
 
 1. Part list is the ten location queries above (group + small targets included). Locations only.
-2. Ship bar is the confident 85% / 5% / 0.6 IoU / 40% abstain / 8 s / $0.03 set, held-out public photos only. No pipeline at ≤ 5% wrong → stop and rethink.
+2. Ship bar is the confident 85% / 5% / 0.6 IoU / 40% abstain / 8 s / $0.03 set, held-out public photos only. No pipeline at ≤ 5% wrong → stop and rethink for user-facing outlines on the user's untraced photo.
 3. Score ~100–160 photo × part queries with confidence intervals, IoU by size, and true not-visible rows. Latency on GPU.
-4. Tap to confirm is in v1: softer highlight, “Is this it?”, Yes / Not this. Not this → not-found + eval log. No drag-to-correct.
+4. v1 user-facing highlight: traced outline on the user's photo, or a reference-photo outline on untraced frames. **No user-facing “Is this it?”.** `display: confirm` stays defined, flag-gated, logged as eval. No drag-to-correct.
 5. Follow-on issues are #84 (held-out set), #85 (spike), #86 (contract v2), #87 (confidence UX), #88 (eval). This PR does not create issues.
-6. Contract v2 keeps `{bay_photo_id, part_id}` as `method: traced`.
+6. Contract v2 keeps `{bay_photo_id, part_id}` as `method: traced`. Add optional `target` (`user_photo` | `reference_photo`; omit = `user_photo`). When `reference_photo`, `bay_photo_id` and geometry/lookup refer to the traced reference photo.
 7. #27 photos are the tuning/dev split. #84 stays held out.
 8. Eval labels are polygons. The converter rejects brush masks.
-9. Spike default and preferred candidate is A via OpenRouter. B is the open baseline. C stays a candidate. A and C are unblocked (#90).
+9. Spike default and preferred candidate is A via OpenRouter. B is the open baseline. C is dropped. A and C are unblocked (#90). Follow-up spike: stronger locator + traced crops, scored on #84 hand labels.
 10. Paid vision API is OpenRouter. Spike: `OPENROUTER_API_KEY` in env. Product: Railway secret. Never committed. Cost cap stays ≤ $0.03 / photo.
+11. Hedged / inferred path ships to users only after #84 human labels show ≥ 80% right among hedged highlights and confident-outline wrong ≤ 5%.
 
 ### Still needs zeke
 
+- Finish the Label Studio queue (15 photos, ~64 polygons). That gates the follow-up spike.
 - Enough #84 frames to reach ~100–160 queries, or an explicit smaller-N exception.
-- Which rethink direction above (stronger locator, few-shot traced crops, or confirm-only v1). Recalibration did not produce a shippable outline gate.
