@@ -17,7 +17,7 @@ The owner changed the highlight rule, and the product lead and the engineer agre
 - A highlight works on any still photo, including one that has never been traced. The mark is a precise outline of the part, or of a group of parts. A bounding box is never the highlight. Styles stay outline, saturate, circle, and dim the rest. Phase 1 does not track the live camera.
 - The hand-traced bay map is optional. It is an accuracy boost on the owner's reference photos, and the answer key for mask IoU. A confirmed highlight can be saved back as a traced region.
 - The pipeline is not chosen. [Issue #85](https://github.com/zeketx/sidekick-mechanic/issues/85) compares three candidates. A (preferred): a vision model grounds the part, then SAM 2 cuts the mask. B (open baseline): Grounding DINO plus SAM 2. C: a vision model draws the mask directly. Each adds a verify pass that sets confidence.
-- Open decision: whether the product may call a paid vision API. A and C need that call. Until Zeke decides, only B runs, and nothing calls a paid vision API.
+- Zeke approved a paid vision API on 2026-10-02. The provider is OpenRouter. Paths A and C are unblocked for the #85 spike. The cost target is still ≤ $0.03 per photo. The key is a Railway secret for the product and is never committed.
 - Confidence ([issue #87](https://github.com/zeketx/sidekick-mechanic/issues/87)). Confident: a precise outline. Unsure: a softer highlight and "Is this it?" with Yes and Not this, logged as eval data. Not found: no highlight, plus a pointer to the manual diagram. A wrong highlight is worse than none.
 - The answer highlight is still `bay_photo_id` plus `part_id`. The bay-map-only resolver from [issue #32](https://github.com/zeketx/sidekick-mechanic/issues/32) stays in the tree. [Issue #86](https://github.com/zeketx/sidekick-mechanic/issues/86) (contract v2; reopens [issue #9](https://github.com/zeketx/sidekick-mechanic/issues/9) and [issue #10](https://github.com/zeketx/sidekick-mechanic/issues/10)) and [issue #33](https://github.com/zeketx/sidekick-mechanic/issues/33) rework that path. The schema was not edited.
 - Order: [issue #84](https://github.com/zeketx/sidekick-mechanic/issues/84) → #85 → Engineer design PR → #86 → #87 → [issue #31](https://github.com/zeketx/sidekick-mechanic/issues/31) → #33 → [issue #88](https://github.com/zeketx/sidekick-mechanic/issues/88).
@@ -53,7 +53,7 @@ Nothing in the running app. The merged highlight path still requires a confirmed
 ## Next
 
 1. #84 held-out labeled photo set.
-2. #85 spike. Only path B until the paid-API decision.
+2. #85 spike. Paths A and C are unblocked. Provider is OpenRouter.
 3. Engineer design PR.
 4. #86 answer contract v2. Schema stays put until then.
 5. #87 confidence UX, then #31, then #33, then #88.

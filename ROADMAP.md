@@ -96,7 +96,7 @@ The truck delivery date is TBD. M0 through M4 do not need the truck. M5 is the o
   - **A (preferred).** A vision model grounds the part, then SAM 2 cuts the mask.
   - **B (open baseline).** Grounding DINO plus SAM 2.
   - **C.** A vision model draws the mask directly.
-  - Open decision: whether the product may call a paid vision API. A and C need that call. Until Zeke decides, only B runs, and nothing calls a paid vision API.
+  - Zeke approved a paid vision API on 2026-10-02. The provider is OpenRouter. Paths A and C are unblocked for the #85 spike. The cost target is still ≤ $0.03 per photo. The key is a Railway secret for the product and is never committed.
   - If no candidate gets wrong-part ≤ 5%, stop and rethink. Do not ship.
 - Engineer design PR after the spike, before the contract change. It records the pipeline choice, backend vs on-device, and the contract shape.
 - [Issue #86](https://github.com/zeketx/sidekick-mechanic/issues/86). Answer contract v2: photo ref, polygons plus an optional mask, labels, state (`confident`, `unsure`, `not_found`), method (`traced` or `inferred`), and scores. Reopens the highlight shape from [issue #9](https://github.com/zeketx/sidekick-mechanic/issues/9) and [issue #10](https://github.com/zeketx/sidekick-mechanic/issues/10). The schema in the repo stays as it is until this issue.

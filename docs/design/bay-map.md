@@ -14,7 +14,7 @@ How a new photo becomes a mask is [issue #85](https://github.com/zeketx/sidekick
 - **B (open baseline).** Grounding DINO plus SAM 2.
 - **C.** A vision model draws the mask directly.
 
-Whether the product may call a paid vision API is an open decision. A and C need that call. Until Zeke decides, only B runs, and nothing calls a paid vision API. If no candidate gets wrong-part ≤ 5%, stop and rethink. Do not ship.
+Zeke approved a paid vision API on 2026-10-02. The provider is OpenRouter. Paths A and C are unblocked for the #85 spike. The cost target is still ≤ $0.03 per photo. The key is a Railway secret for the product and is never committed. If no candidate gets wrong-part ≤ 5%, stop and rethink. Do not ship.
 
 Confidence is [issue #87](https://github.com/zeketx/sidekick-mechanic/issues/87). Confident means a precise outline. Unsure means a softer highlight and "Is this it?" with Yes and Not this, logged as eval data. Not found means no highlight, plus a pointer to the manual diagram. Thresholds are precision-first. A wrong highlight is worse than none. A confirmed highlight can be saved back as a traced region.
 
@@ -118,7 +118,7 @@ Changed from Sol's wire, because the duplicate-key hole was blocking. Sol keyed 
 - Will a real bracket need a hole in the polygon, or is a second exterior ring enough for the detector?
 - Should owner photos drop the license fields once the owner says their frames are not licensed works?
 - Should `confirmed_by` stay a free string, or become an observation id that `TRUCK.md` must already contain?
-- May the product call a paid vision API? Paths A and C of [issue #85](https://github.com/zeketx/sidekick-mechanic/issues/85) need that. Until Zeke decides, only path B runs.
+- Paid vision API: decided 2026-10-02. Provider is OpenRouter. Paths A and C of [issue #85](https://github.com/zeketx/sidekick-mechanic/issues/85) are unblocked. The key is a Railway secret and is never committed. Cost target stays ≤ $0.03 per photo.
 - Highlight ship targets stay proposed until Zeke confirms them after #85.
 
 ## Next implementation step

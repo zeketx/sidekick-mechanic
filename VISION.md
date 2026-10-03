@@ -47,7 +47,7 @@ Finding the part on a new photo, and cutting a pixel-precise mask, is the spike 
 - **B (open baseline).** Grounding DINO plus SAM 2.
 - **C.** A vision model draws the mask directly.
 
-Whether the product may call a paid vision API is an open decision. Paths A and C need that call. Until it is decided, only B runs, and nothing calls a paid vision API.
+Zeke approved a paid vision API on 2026-10-02. The provider is OpenRouter. Paths A and C are unblocked for the [#85](https://github.com/zeketx/sidekick-mechanic/issues/85) spike. The cost target is still ≤ $0.03 per photo. The key is a Railway secret for the product and is never committed.
 
 Confidence is [issue #87](https://github.com/zeketx/sidekick-mechanic/issues/87). Thresholds are precision-first. A wrong highlight is worse than none.
 
