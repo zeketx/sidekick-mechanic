@@ -291,7 +291,31 @@ The run covered all **15 photos**: the #27 2JZ-GE prototype is the **dev** photo
 - CPU latency p95 per query: **4.1 s (A)**, **8.1 s (B)**, **6.5 s (C)**. These are **not GPU** numbers.
 - Decision-rule result: **insufficient data**, with **A as the only live candidate**.
 
-Do not treat this as the ship-bar result. Recalibrate A's stability bar on the #27 dev photo before another test pass.
+Do not treat the first-pass paragraph as the ship-bar result. Recalibration of A is below.
+
+### Recalibration of A (agent-judged, preliminary)
+
+These numbers are **preliminary**. They are an agent's judgment, not a scored #84 run with an answer key.
+
+**Split.** Tune is the #27 prototype plus **4** test photos chosen by lowest `sha1(photo_id)` before tuning. The other **10** photos are held out.
+
+**Best tune gate:** `predicted_iou` ≥ 0.60, stability ≥ 0.30, top-2 gap ≥ 0.005.
+
+- **Tune:** **12** outlines, **9/9** judged correct (95% CI on wrong **0–30%**).
+- **Frozen on held-out:** **17** outlines, **7/13** judged wrong (**54%**, CI **29–77%**), abstain **83%**.
+- A stricter backup gate (**0.85 / 0.80 / 0.03**) on held-out: **4** outlines, **2/3** wrong.
+
+**Finding.** Wrong held-out outlines often have **high SAM scores** (`predicted_iou` **0.94–0.96**). SAM measures mask cleanliness, not whether the VLM pointed at the right part, so **no SAM threshold fixes wrong-part locates**. The bottleneck is **locate**.
+
+**Decision-rule result:** no pipeline holds ≤ 5% wrong. Per this doc that is **stop and rethink** for confident outlines.
+
+**Candidate rethink directions** for zeke and Product Lead:
+
+1. A stronger locator, i.e. a bigger VLM via OpenRouter, still within **≤ $0.03 / photo**.
+2. Traced bay-map reference crops as few-shot context.
+3. v1 ships only the hedged “Is this it?” confirm state (A's confirm band was right **14/22**) plus traced-photo outlines, with **no confident outlines on untraced photos** until hand labels exist.
+
+**Hand labels.** A Label Studio queue of **15** photos (~**64** polygons) was prepared for zeke.
 
 ### Product decisions (locked)
 
@@ -309,4 +333,4 @@ Do not treat this as the ship-bar result. Recalibrate A's stability bar on the #
 ### Still needs zeke
 
 - Enough #84 frames to reach ~100–160 queries, or an explicit smaller-N exception.
-- Whether to accept A's recalibrated stability bar after a #84-keyed run. The first-pass notes are not that decision.
+- Which rethink direction above (stronger locator, few-shot traced crops, or confirm-only v1). Recalibration did not produce a shippable outline gate.
