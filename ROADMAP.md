@@ -85,24 +85,41 @@ The truck delivery date is TBD. M0 through M4 do not need the truck. M5 is the o
 
 ### M3: Bay map and highlight engine
 
-**Goal.** "Check the intake manifold first" comes with a photo where the intake manifold is clearly lit up. Prototyped on public 2JZ-GE bay photos.
+**Goal.** "Check the intake manifold first" comes with a photo where that part, or that assembly, is clearly lit up. The mark is a precise outline of the actual shape. A bounding box is never the highlight. The person asking does not know engines or part names. Pointing at the right thing is the point. It works on any still photo, including one that has never been traced. Prototyped on public 2JZ-GE bay photos. Phase 1 does not track the live camera.
+
+**Already merged, and slated to be reworked.** The answer highlight is `highlight_ref`: `bay_photo_id` plus `part_id`. The resolver ([issue #32](https://github.com/zeketx/sidekick-mechanic/issues/32), closed) only highlights a part with a confirmed region on the bay map. [Issue #86](https://github.com/zeketx/sidekick-mechanic/issues/86) and [issue #33](https://github.com/zeketx/sidekick-mechanic/issues/33) replace that path. Do not extend the closed vocabulary as the way a new photo gets a highlight.
 
 **Deliverables**
-- Bay map schema designed with `/architect`: camera angles, photos, parts, region polygons, confirmation status, source, license.
-- A small set of public 2JZ-GE bay photos, each with its license and source noted. Prototype use only.
-- Labeling workflow: draw regions in an existing tool, export, convert to the bay map schema with a script.
-- Highlight renderer prototype in Python: outline, saturate, circle, dim the rest. Golden-image tests.
-- Visual style bakeoff with `/arena` to pick the treatment that reads best on a phone.
-- Swift renderer (Core Image) that matches the Python goldens within a pixel tolerance.
-- Part resolver: the LLM picks a part ID from the bay map's closed vocabulary. Unknown part means no highlight, and the answer says so.
-- End-to-end: chat answer shows the highlighted bay photo.
-- Highlight eval: correct-part rate and IoU.
+- Highlight on untraced photos, precise mask. Any still photo, with no prior trace. Styles stay outline, saturate, circle, and dim the rest.
+- [Issue #84](https://github.com/zeketx/sidekick-mechanic/issues/84). Held-out labeled photo set. About 20 public photos, disjoint from the prototype set. About 100–160 photo×part queries, including "not visible". Polygon labels. No boxes for those labels.
+- [Issue #85](https://github.com/zeketx/sidekick-mechanic/issues/85). Spike, time box about 2–3 days. Three pipelines. Each adds a verify pass that sets confidence.
+  - **A (preferred).** A vision model grounds the part, then SAM 2 cuts the mask.
+  - **B (open baseline).** Grounding DINO plus SAM 2.
+  - **C.** A vision model draws the mask directly.
+  - Open decision: whether the product may call a paid vision API. A and C need that call. Until Zeke decides, only B runs, and nothing calls a paid vision API.
+  - If no candidate gets wrong-part ≤ 5%, stop and rethink. Do not ship.
+- Engineer design PR after the spike, before the contract change. It records the pipeline choice, backend vs on-device, and the contract shape.
+- [Issue #86](https://github.com/zeketx/sidekick-mechanic/issues/86). Answer contract v2: photo ref, polygons plus an optional mask, labels, state (`confident`, `unsure`, `not_found`), method (`traced` or `inferred`), and scores. Reopens the highlight shape from [issue #9](https://github.com/zeketx/sidekick-mechanic/issues/9) and [issue #10](https://github.com/zeketx/sidekick-mechanic/issues/10). The schema in the repo stays as it is until this issue.
+- [Issue #87](https://github.com/zeketx/sidekick-mechanic/issues/87). Confidence UX. Confident: a precise outline. Unsure: a softer highlight and "Is this it?" with Yes and Not this, logged as eval data. Not found: no highlight, plus a pointer to the manual diagram. Precision-first. A wrong highlight is worse than none. A confirmed highlight can be saved back as a traced region.
+- Bay map schema: camera angles, photos, parts, region polygons, confirmation, source, license. Optional. An accuracy boost on the owner's reference photos, and the answer key for mask IoU. Not required before a photo can be highlighted.
+- Labeling workflow: draw regions, export, convert to the bay map schema. Used for #84 and for traces the owner confirms. A highlight region follows the part. A box is not a highlight.
+- A small set of public 2JZ-GE bay photos, each with its license and source noted. Prototype use only. The #84 set is disjoint from these.
+- Highlight renderer prototype in Python: outline, saturate, circle, dim the rest, on a precise outline. Golden-image tests. The unsure state gets a softer treatment in #87.
+- Visual style bakeoff with `/arena` to pick the treatment that reads best on a phone. The four treatments stay available.
+- [Issue #31](https://github.com/zeketx/sidekick-mechanic/issues/31). Swift renderer (Core Image) that matches the Python goldens within a pixel tolerance. After #87.
+- [Issue #33](https://github.com/zeketx/sidekick-mechanic/issues/33). End-to-end: the chat answer shows the highlighted photo, including a photo that was not in the bay map.
+- [Issue #88](https://github.com/zeketx/sidekick-mechanic/issues/88). Acceptance eval on the held-out set.
 
-**Exit criteria**
-- [ ] Correct-part rate ≥ 0.90 on golden questions that name a mapped part.
-- [ ] Region IoU ≥ 0.80 against held-out hand labels.
+**Order.** #84 → #85 → Engineer design PR → #86 → #87 → #31 → #33 → #88.
+
+**Exit criteria.** Proposed, pending Zeke's confirmation after #85. [#85](https://github.com/zeketx/sidekick-mechanic/issues/85) and [#88](https://github.com/zeketx/sidekick-mechanic/issues/88) call the two rates wrong-highlight and correct-part. These replace correct-part ≥ 0.90 and region IoU ≥ 0.80.
+
+- [ ] On confident highlights, wrong part ≤ 5% and right part ≥ 85%, on the held-out set.
+- [ ] Median mask IoU ≥ 0.6, reported in part-size buckets (large, medium, small-or-thin).
+- [ ] Abstain (unsure + not found) up to 40% is acceptable for v1.
+- [ ] p95 latency ≤ 8 s end to end on the backend, and ≤ $0.03 per photo.
+- [ ] If no spike candidate gets wrong-part ≤ 5%, stop and rethink. Do not ship.
 - [ ] Swift and Python renderers agree within the chosen tolerance on every golden image.
-- [ ] Zero highlights on parts that are not in the bay map (checked by eval).
 - [ ] Demo clip of the full flow on the phone, in the build log.
 
 ### M4: Pre-delivery groundwork for Phase 2
@@ -121,21 +138,21 @@ The truck delivery date is TBD. M0 through M4 do not need the truck. M5 is the o
 
 ### M5: Truck day one
 
-**Goal.** Turn every TBD that can be resolved in a day into a confirmed fact, and capture the photos the bay map needs.
+**Goal.** Turn every TBD that can be resolved in a day into a confirmed fact, and capture reference photos of the bay. Highlighting those photos does not wait on hand traces.
 
 **Deliverables** (checklist lives in `docs/vehicle/DAY_ONE.md`)
 - Read and photograph the ECU label (89661-xxxxx). Record the full number in `TRUCK.md`. Decide the OBD path.
 - Photograph the bay from the fixed angle list, with the same phone position and lighting notes each time.
 - Photograph the harness and the firewall pass-through.
 - Test the BLE dongle: does it connect, which protocol, any readings.
-- Build bay map v1 from my own photos. The owner confirms each part region.
+- Optional bay map v1 from my own photos. Hand traces are an accuracy boost and the IoU answer key. A highlight I confirm can be saved back as a traced region. [Issue #40](https://github.com/zeketx/sidekick-mechanic/issues/40) is that labeling pass.
 
 **Exit criteria**
 - [ ] ECU number recorded with a photo. OBD1 vs OBD-II decided and written down.
 - [ ] Every angle on the shot list captured.
 - [ ] Dongle result recorded (works, partial, or not compatible).
-- [ ] Bay map v1 covers at least the parts in the golden question set, all confirmed.
-- [ ] Highlight eval re-run on my truck's photos. Numbers in the build log.
+- [ ] Hand labels exist for owner photos that will be scored, or the build log says which parts are still unlabeled. Highlighting the day-one photos does not wait on those labels.
+- [ ] Highlight eval re-run on my truck's photos, against those hand labels. Numbers in the build log.
 
 ### M6: Phase 1 release
 
@@ -147,7 +164,7 @@ The truck delivery date is TBD. M0 through M4 do not need the truck. M5 is the o
 - Demo video and a portfolio write-up linking the build log.
 
 **Exit criteria**
-- [ ] All M2 and M3 metric targets met on my truck's bay map.
+- [ ] All M2 targets met, and the M3 highlight targets (once Zeke confirms them after #85) met on the acceptance eval.
 - [ ] Used for at least one real diagnostic session, logged in the build log.
 - [ ] Demo video under 2 minutes.
 

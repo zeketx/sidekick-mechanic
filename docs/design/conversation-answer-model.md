@@ -80,6 +80,7 @@ Candidate B was a sum type for `Answer` and `Message`, with branded IDs and a re
 - Should `POST /chat` send this `Conversation` JSON as the request body, or a slimmer `{ "messages": [...] }`? #14 can decide without changing `Answer`.
 - Will there be refusal reasons besides `not_found_in_manual`? The type can grow cases. The schema would need a matching change.
 - Should decode fail on unknown JSON keys the way the schema's `additionalProperties: false` does? Swift `Codable` ignores extras today. The Python tests own that check.
+- The highlight on the wire is `bay_photo_id` and `part_id`, resolved against a pre-traced bay map. That was the decision in #9 and #10. [Issue #86](https://github.com/zeketx/sidekick-mechanic/issues/86) reopens it. Contract v2 carries a photo ref, polygons plus an optional mask, labels, state (`confident`, `unsure`, `not_found`), method (`traced` or `inferred`), and scores, so a precise outline can land on a photo that has never been traced. The schema in this repo is unchanged until that issue. The bay-map-only resolver from [issue #32](https://github.com/zeketx/sidekick-mechanic/issues/32) is reworked through #86 and [issue #33](https://github.com/zeketx/sidekick-mechanic/issues/33). See [docs/design/bay-map.md](bay-map.md).
 
 ## Answer card
 

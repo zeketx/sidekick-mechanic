@@ -1,8 +1,34 @@
 # Bay map schema
 
+## Requirement change (2026-10-02)
+
+The owner changed the product rule, and the product lead and the engineer agreed the follow-on work.
+
+A highlight works on any still photo, including one that has never been traced. The mark is a precise outline of the part, or of a group of parts. A bounding box is never the highlight. Styles stay outline, saturate, circle, and dim the rest. Phase 1 does not track the live camera. The person asking knows nothing about engines or part names. Pointing at the right thing is the core of the product.
+
+This bay map is optional. It is an accuracy boost on the owner's reference photos, and the answer key for mask IoU against hand labels. [Issue #84](https://github.com/zeketx/sidekick-mechanic/issues/84) is the held-out labeled set: about 20 public photos, about 100–160 photo×part queries including "not visible", polygon labels.
+
+How a new photo becomes a mask is [issue #85](https://github.com/zeketx/sidekick-mechanic/issues/85), a spike of about 2–3 days. Three pipelines, each with a verify pass that sets confidence. No pick yet.
+
+- **A (preferred).** A vision model grounds the part, then SAM 2 cuts the mask.
+- **B (open baseline).** Grounding DINO plus SAM 2.
+- **C.** A vision model draws the mask directly.
+
+Whether the product may call a paid vision API is an open decision. A and C need that call. Until Zeke decides, only B runs, and nothing calls a paid vision API. If no candidate gets wrong-part ≤ 5%, stop and rethink. Do not ship.
+
+Confidence is [issue #87](https://github.com/zeketx/sidekick-mechanic/issues/87). Confident means a precise outline. Unsure means a softer highlight and "Is this it?" with Yes and Not this, logged as eval data. Not found means no highlight, plus a pointer to the manual diagram. Thresholds are precision-first. A wrong highlight is worse than none. A confirmed highlight can be saved back as a traced region.
+
+The wire highlight is still `{bay_photo_id, part_id}`. [Issue #86](https://github.com/zeketx/sidekick-mechanic/issues/86) is contract v2: a photo ref, polygons plus an optional mask, labels, state (`confident`, `unsure`, `not_found`), method (`traced` or `inferred`), and scores. It reopens [issue #9](https://github.com/zeketx/sidekick-mechanic/issues/9) and [issue #10](https://github.com/zeketx/sidekick-mechanic/issues/10). This page does not change the schema. The bay-map-only resolver from [issue #32](https://github.com/zeketx/sidekick-mechanic/issues/32) is reworked through #86 and [issue #33](https://github.com/zeketx/sidekick-mechanic/issues/33).
+
+Proposed targets, pending Zeke's confirmation after #85, are in [VISION.md](../../VISION.md) and [ROADMAP.md](../../ROADMAP.md). Acceptance eval is [issue #88](https://github.com/zeketx/sidekick-mechanic/issues/88).
+
+Order: #84 → #85 → Engineer design PR → #86 → #87 → [issue #31](https://github.com/zeketx/sidekick-mechanic/issues/31) → #33 → #88.
+
+The sections below describe the schema that is in the repo today.
+
 ## Problem
 
-A highlight on an answer is already `{bay_photo_id, part_id}`. Nothing in the repo can say whether that pair is a real, confirmed region. Labeling (#28), the Python renderer (#29), the Swift renderer (#31), and the part resolver (#32) all need one catalog for angles, photos, parts, polygons, confirmation, source, and license. The answer wire does not change. Real angles and parts stay TBD until the owner photographs the bay.
+A highlight on an answer is already `{bay_photo_id, part_id}`. Nothing in the repo can say whether that pair is a real, confirmed region. Labeling (#28), the Python renderer (#29), the Swift renderer (#31), and the part resolver (#32) all need one catalog for angles, photos, parts, polygons, confirmation, source, and license. The answer wire does not change in this schema. [Issue #86](https://github.com/zeketx/sidekick-mechanic/issues/86) is the later change. Real angles and parts stay TBD until the owner photographs the bay.
 
 ## Usage (caller's view)
 
@@ -47,7 +73,7 @@ A region has one or more polygons. Occlusion is another polygon on the same regi
 
 Validation of shape, ranges, and those `kind` values is the JSON Schema. Uniqueness, alias collisions, positive area, and a polygon that repeats its first point are loader checks, because Draft 2020-12 cannot say them. Swift `Codable` still ignores unknown keys. The Python schema is the strict wire check, same as the answer contract.
 
-`Answer` does not import `BayMap`. `HighlightRef` keys stay `bay_photo_id` and `part_id`.
+`Answer` does not import `BayMap`. `HighlightRef` keys stay `bay_photo_id` and `part_id` until [issue #86](https://github.com/zeketx/sidekick-mechanic/issues/86).
 
 This is the first landing. A later change to these keys runs `/blast-radius` before the edit. This change does not.
 
@@ -85,14 +111,16 @@ Changed from Sol's wire, because the duplicate-key hole was blocking. Sol keyed 
 
 - **ID-keyed JSON objects.** Uniqueness looks structural, and a hand edit that repeats a key silently keeps one region. Arrays plus a loader check hide the same rule behind `BayMap` and fail closed in Swift.
 - **A boolean `confirmed` and an optional `confirmed_by`.** A confirmed region with nobody named, and an unconfirmed region with a name, would both decode. The `kind` sum type removes those two states.
-- **Polygons on `HighlightRef`.** The phone could draw without the map. The answer payload would grow geometry, unconfirmed drafts would have nowhere to live except the answer, and the existing highlight keys would change.
+- **Polygons on `HighlightRef`.** The phone could draw without the map. The answer payload would grow geometry, unconfirmed drafts would have nowhere to live except the answer, and the existing highlight keys would change. Rejected for this schema. [Issue #86](https://github.com/zeketx/sidekick-mechanic/issues/86) reopens it: a precise outline on a photo that is not in the map.
 
 ## Open questions and risks
 
 - Will a real bracket need a hole in the polygon, or is a second exterior ring enough for the detector?
 - Should owner photos drop the license fields once the owner says their frames are not licensed works?
 - Should `confirmed_by` stay a free string, or become an observation id that `TRUCK.md` must already contain?
+- May the product call a paid vision API? Paths A and C of [issue #85](https://github.com/zeketx/sidekick-mechanic/issues/85) need that. Until Zeke decides, only path B runs.
+- Highlight ship targets stay proposed until Zeke confirms them after #85.
 
 ## Next implementation step
 
-#28 converts a Label Studio JSON export into this file. The steps and the command are in [docs/BAY_MAP.md](../BAY_MAP.md). The renderer takes `ConfirmedHighlight.geometry.polygons` in one call, with `photo.imageSize` as the scale.
+#28 converts a Label Studio JSON export into this file. The steps and the command are in [docs/BAY_MAP.md](../BAY_MAP.md). The renderer takes `ConfirmedHighlight.geometry.polygons` in one call, with `photo.imageSize` as the scale. That converter has landed. The next highlight work is the order in the requirement section above.

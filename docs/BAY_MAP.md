@@ -1,6 +1,12 @@
 # Bay map labeling
 
-Draw each part region once. This page turns that drawing into a bay map. The same drawing can feed a Phase 2 detector later.
+Highlighting a photo does not require this map. A highlight is a precise outline of a part, or of a group of parts, on any still photo, including one that has never been traced. A bounding box is never the highlight. Phase 1 does not track the live camera.
+
+This page is how to draw regions when you choose to. The hand-traced map is optional. On the owner's reference photos it is an accuracy boost. It is also the answer key for scoring highlight accuracy: IoU against these hand labels. A highlight the user confirms in the app can be saved back here as a traced region.
+
+[Issue #84](https://github.com/zeketx/sidekick-mechanic/issues/84) uses this same workflow for the held-out set: about 20 public photos, about 100–160 photo×part queries including "not visible", polygon labels only. Those labels are the answer key. They are not a trace the highlighter must have before it can run.
+
+The same drawing can feed a Phase 2 detector later.
 
 ## Tool
 
@@ -45,7 +51,7 @@ In the project labeling config, the `value` strings are the manifest `label` fie
 </View>
 ```
 
-Use the polygon tool when the outline matters. Use the rectangle tool when a box is enough. One label on a region. Keep the shape inside the photo. Leave the photo and the box unrotated. A brush mask is not a bay-map region. A second outline of the same part on the same photo, for a piece hidden behind something else, is another polygon with the same label. The converter stores that as another polygon on one region.
+Use the polygon tool. The outline follows the part or the assembly. The rectangle control is still in the config because the converter can store an axis-aligned box. That box is not a highlight, and it is not an eval label for [issue #84](https://github.com/zeketx/sidekick-mechanic/issues/84). One label on a region. Keep the shape inside the photo. Leave the photo and the box unrotated. A brush mask is not a bay-map region. A second outline of the same part on the same photo, for a piece hidden behind something else, is another polygon with the same label. The converter stores that as another polygon on one region.
 
 Submit the task when the photo is done. A skipped task is ignored. A model prediction is ignored until you submit an annotation.
 
@@ -74,10 +80,10 @@ The export has shapes and labels. The bay map also needs an angle id, a photo id
 | `source.reference` | A pointer you write, for example `owner observation, bay-photos/day-one/YYYY-MM-DD_front_01.jpg`. That pattern is not a file you already shot |
 | `license.name`, `license.reference` | For your own frames, `TBD` until you decide the wording. The schema requires both strings. `TBD` does not invent a license. For a prototype frame, copy the name and reference from `prototype_bay_photos.json` |
 | `label` | The string you clicked in Label Studio |
-| `part_id` | The id a highlight will use. A short id you choose. Not a catalog part number, pin, or connector id |
+| `part_id` | A short id you choose. Not a catalog part number, pin, or connector id. Today's answer highlight names this id. [Issue #86](https://github.com/zeketx/sidekick-mechanic/issues/86) will also carry a mask |
 | `display_name` | Words you want on screen. Not a spec |
 | `aliases` | Other strings for the same part, or `[]` |
-| `confirmation` | Omit it, and the region stays `unconfirmed` (no highlight). After you check the outline, set `kind` to `confirmed` and `confirmed_by` to the name you want stored |
+| `confirmation` | Omit it, and the region stays `unconfirmed`. The current loader will not draw an unconfirmed region as a highlight. After you check the outline, set `kind` to `confirmed` and `confirmed_by` to the name you want stored. A missing trace does not block highlighting the photo. That product rule is ahead of the current answer contract. See [docs/design/bay-map.md](design/bay-map.md) |
 
 Every region of a part gets that part's confirmation. A part you list and never draw is an error. A label you draw that is missing from the manifest is an error.
 

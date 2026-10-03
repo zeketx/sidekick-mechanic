@@ -31,7 +31,35 @@ Sidekick Mechanic fixes this with grounded answers, cited sources, and a picture
 >
 > *[Photo of my engine bay. Intake manifold outlined and saturated. Rest of the bay dimmed.]*
 
-Highlights come from a **bay map**: a set of reference photos of my bay, shot from fixed angles, with each part's region drawn and confirmed by hand. Phase 1 does not track anything live.
+The person asking knows nothing about engines or part names. Pointing at the right thing is the core of the product.
+
+## How it works
+
+The highlight is a precise outline. It follows the part's actual shape, or the shape of a group of parts, such as a whole assembly. A bounding box is never the highlight. The treatments stay the same: outline, saturate, circle, and dim the rest.
+
+Highlighting works on any still photo, including a new photo that has never been traced. Phase 1 does not track anything live.
+
+A hand-traced bay map is optional. It is reference photos of my bay, from fixed angles, with part regions drawn and confirmed by hand. On those photos it is an accuracy boost. It is also the answer key for scoring a highlight: IoU against the hand labels. A highlight does not wait for a trace.
+
+Finding the part on a new photo, and cutting a pixel-precise mask, is the spike in [issue #85](https://github.com/zeketx/sidekick-mechanic/issues/85). It compares three pipelines. Each one ends with a verify pass that sets confidence. No pipeline is chosen yet.
+
+- **A (preferred).** A vision model grounds the part, then SAM 2 cuts the mask.
+- **B (open baseline).** Grounding DINO plus SAM 2.
+- **C.** A vision model draws the mask directly.
+
+Whether the product may call a paid vision API is an open decision. Paths A and C need that call. Until it is decided, only B runs, and nothing calls a paid vision API.
+
+Confidence is [issue #87](https://github.com/zeketx/sidekick-mechanic/issues/87). Thresholds are precision-first. A wrong highlight is worse than none.
+
+- **Confident.** A precise outline.
+- **Unsure.** A softer highlight, and the prompt "Is this it?" with **Yes** and **Not this**. The answer is logged as eval data. Yes keeps the highlight. Not this is treated as not found.
+- **Not found.** No highlight, plus a pointer to the manual diagram.
+
+A highlight the user confirms can be saved back as a traced region, so the app improves on this truck over time.
+
+Today the answer contract's highlight is `bay_photo_id` plus `part_id`, resolved against a pre-traced bay map. [Issue #86](https://github.com/zeketx/sidekick-mechanic/issues/86) replaces that with contract v2: a photo ref, polygons plus an optional mask, labels, a state, a method (`traced` or `inferred`), and scores. That reopens the highlight shape from [issue #9](https://github.com/zeketx/sidekick-mechanic/issues/9) and [issue #10](https://github.com/zeketx/sidekick-mechanic/issues/10). The schema stays as it is until #86. The bay-map-only resolver from [issue #32](https://github.com/zeketx/sidekick-mechanic/issues/32) is reworked through #86 and [issue #33](https://github.com/zeketx/sidekick-mechanic/issues/33).
+
+The work order is [issue #84](https://github.com/zeketx/sidekick-mechanic/issues/84), then #85, then an Engineer design PR, then #86, then #87, then [issue #31](https://github.com/zeketx/sidekick-mechanic/issues/31), then #33, then [issue #88](https://github.com/zeketx/sidekick-mechanic/issues/88).
 
 ## The three phases
 
@@ -39,9 +67,9 @@ Highlights come from a **bay map**: a set of reference photos of my bay, shot fr
 
 - Chat UI on iPhone.
 - Grounded answers over the 2JZ-GE repair manual and the LJ78 wiring docs, with page citations.
-- A bay map of my truck built from fixed-angle reference photos with confirmed part regions.
-- A highlight engine that outlines, saturates, circles, and dims to point at one part.
-- Before delivery, prototype on public 2JZ-GE bay photos. After delivery, switch to my own photos.
+- A highlight engine that outlines, saturates, circles, and dims the rest. The mark is a precise outline of the part or assembly, on any still photo, including one that has never been traced. Phase 1 does not track the live camera.
+- An optional bay map of my truck: fixed-angle reference photos with confirmed part regions. An accuracy boost on those photos, and the hand labels that score mask IoU.
+- Before delivery, prototype on public 2JZ-GE bay photos. After delivery, the same highlighter runs on my own photos, traced or not.
 
 ### Phase 2: Live AR and telemetry
 
@@ -68,6 +96,8 @@ A ceiling-mounted camera and projector over the engine bay. It lights up the par
 
 These are the numbers the build log reports. Targets are starting points, to be revised once a baseline exists.
 
+Highlight rows are **proposed, pending Zeke's confirmation after [#85](https://github.com/zeketx/sidekick-mechanic/issues/85)**. They replace the earlier targets (correct-part ≥ 0.90, region IoU ≥ 0.80). [#85](https://github.com/zeketx/sidekick-mechanic/issues/85) and [#88](https://github.com/zeketx/sidekick-mechanic/issues/88) call the two rates wrong-highlight and correct-part. If no spike candidate gets wrong-part ≤ 5%, stop and rethink. Do not ship.
+
 | Area | Metric | How measured | Initial target |
 |---|---|---|---|
 | RAG | Retrieval recall@5 | Golden question set with known answer pages | ≥ 0.85 |
@@ -75,8 +105,11 @@ These are the numbers the build log reports. Targets are starting points, to be 
 | Safety | Spec refusal correctness | % of unanswerable spec/pinout questions answered "not found" instead of a number | 100% |
 | Safety | Uncited numbers | Count of numeric specs shown without a citation, across the eval set | 0 |
 | Chat | End-to-end latency | p50 / p95 from send to rendered answer | p50 < 4 s, p95 < 8 s |
-| Highlight | Correct-part rate | % of golden questions where the highlighted part is the right one | ≥ 0.90 |
-| Highlight | Region quality | IoU of rendered region vs held-out hand label | ≥ 0.80 |
+| Highlight | Wrong part, confident | Share of confident highlights that name the wrong part, on the held-out set | ≤ 5% (proposed) |
+| Highlight | Right part, confident | Share of confident highlights that name the right part, on the held-out set | ≥ 85% (proposed) |
+| Highlight | Mask quality | Median IoU of the precise outline vs held-out hand labels, reported in part-size buckets (large, medium, small-or-thin) | ≥ 0.6 (proposed) |
+| Highlight | Abstain | Unsure plus not found, as a share of queries. Acceptable for v1, not a goal | up to 40% (proposed) |
+| Highlight | Photo latency and cost | p95 end to end on the backend, and dollars per photo | ≤ 8 s and ≤ $0.03 (proposed) |
 | ML (Phase 2) | Detection quality | mAP50 on a held-out set of my bay | Baseline first |
 | ML (Phase 2) | On-device inference | ms per frame on ANE, sustained FPS | Baseline first |
 | Telemetry (Phase 2) | Read latency and rate | ms per PID read, Hz per signal over BLE | Baseline first |

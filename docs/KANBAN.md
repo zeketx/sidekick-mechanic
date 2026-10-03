@@ -25,14 +25,14 @@ Every issue gets exactly one `phase`, one `type`, one `size`, and one or more `a
 
 | Group | Labels | Meaning |
 |---|---|---|
-| Phase | `phase:1` | Chat sidekick, bay map, grounded answers (current) |
+| Phase | `phase:1` | Chat sidekick, grounded answers, highlights on still photos (current) |
 | | `phase:2` | Live AR, ML detection, telemetry |
 | | `phase:3` | Garage projector moonshot |
 | Area | `area:ios` | SwiftUI app and the `SidekickCore` package |
 | | `area:ml` | Datasets, training, Core ML export |
 | | `area:telemetry` | OBD, BLE, `TelemetrySource`, simulator |
 | | `area:rag` | Backend, ingestion, retrieval, citations, LLM |
-| | `area:highlight` | Bay map and highlight rendering |
+| | `area:highlight` | Highlights on still photos, including untraced ones, and the optional bay map |
 | | `area:docs` | Docs, build log, vehicle facts |
 | Type | `type:feature` | New user-visible behavior |
 | | `type:chore` | Setup, tooling, maintenance |

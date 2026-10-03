@@ -12,11 +12,17 @@ Read [VISION.md](VISION.md) for the why and [ROADMAP.md](ROADMAP.md) for the pla
 
 ## Current phase
 
-**Phase 1: chat sidekick.** Chat UI, grounded answers over the 2JZ-GE repair manual and LJ78 wiring docs, the bay map, and the highlight engine.
+**Phase 1: chat sidekick.** Chat UI, grounded answers over the 2JZ-GE repair manual and LJ78 wiring docs, and the highlight engine. A highlight is a precise outline of the part, or of a group of parts, on any still photo, including one that has never been traced. A bounding box is never the highlight. Styles stay outline, saturate, circle, and dim the rest. Phase 1 does not track the live camera. The hand-traced bay map is optional: an accuracy boost on the owner's reference photos, and the answer key for mask IoU.
+
+The pipeline is not chosen. [Issue #85](https://github.com/zeketx/sidekick-mechanic/issues/85) compares three candidates. A (preferred) is a vision model that grounds the part, then SAM 2 cuts the mask. B (open baseline) is Grounding DINO plus SAM 2. C is a vision model that draws the mask directly. Whether the product may call a paid vision API is open. A and C need that call. Until Zeke decides, only B runs, and nothing in the product calls a paid vision API.
+
+Highlight targets are proposed, pending Zeke's confirmation after #85. On confident highlights: wrong part ≤ 5%, right part ≥ 85%. Median mask IoU ≥ 0.6, reported in part-size buckets. Abstain (unsure + not found) up to 40% is acceptable for v1. p95 ≤ 8 s end to end on the backend, and ≤ $0.03 per photo. If no candidate gets wrong-part ≤ 5%, stop and rethink. Do not ship. [#85](https://github.com/zeketx/sidekick-mechanic/issues/85) and [#88](https://github.com/zeketx/sidekick-mechanic/issues/88) call the two rates wrong-highlight and correct-part.
+
+The answer highlight is still `bay_photo_id` and `part_id`. Contract v2 is [issue #86](https://github.com/zeketx/sidekick-mechanic/issues/86): photo ref, polygons plus an optional mask, labels, state, method (`traced` or `inferred`), and scores. It reopens [issue #9](https://github.com/zeketx/sidekick-mechanic/issues/9) and [issue #10](https://github.com/zeketx/sidekick-mechanic/issues/10). Do not change that schema, or the tests, until #86. The bay-map-only resolver from [issue #32](https://github.com/zeketx/sidekick-mechanic/issues/32) is reworked through #86 and [issue #33](https://github.com/zeketx/sidekick-mechanic/issues/33). Order: [issue #84](https://github.com/zeketx/sidekick-mechanic/issues/84) → #85 → Engineer design PR → #86 → [issue #87](https://github.com/zeketx/sidekick-mechanic/issues/87) → [issue #31](https://github.com/zeketx/sidekick-mechanic/issues/31) → #33 → #88.
 
 Do not start Phase 2 (live camera, YOLO, BLE telemetry) or Phase 3 work unless the issue says so. The M4 groundwork issues (telemetry simulator, ML dry run) are the only Phase 2 exceptions.
 
-**The truck has not been delivered.** The ECU type (OBD1 vs OBD-II), donor year, and harness details are TBD. Before delivery, the highlight engine uses public 2JZ-GE bay photos.
+**The truck has not been delivered.** The ECU type (OBD1 vs OBD-II), donor year, and harness details are TBD. Before delivery, the highlight engine uses public 2JZ-GE bay photos. Those photos do not have to be traced first.
 
 ## Repo layout (proposed)
 
