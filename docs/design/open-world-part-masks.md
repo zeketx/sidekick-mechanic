@@ -280,16 +280,18 @@ Write the numbers into `backend/eval/results/` from the scripts. Do not type the
 
 ### First-pass spike notes (agent-judged, preliminary)
 
-These numbers are **preliminary**. They are an agent's judgment on a first pass, not a scored #84 run. There is **no answer key yet** (main has no traced polygons), so there is **no IoU**. The photos are **mostly 2JZ-GTE**, not the owner's GE bay.
+These numbers are **preliminary**. They are an agent's judgment, not a scored #84 run with an answer key. There is **no IoU**. The photo set is **mostly 2JZ-GTE**. Spike scripts and results are **not committed yet** (pending repo push access).
 
-- **C** was confident on 26 queries and wrong on 13, so it **fails the 5% wrong-part bar**.
-- **A** never reached the outline band, because the SAM stability ≥ 0.95 plus top-2 gap ≥ 0.05 bars rarely held together. Its confirm band was right **11/18**.
-- **Grounding DINO tiny** returned one large box for most parts.
-- The VLM **verify-crop passed many wrong masks**.
-- Gemini **mask output varied by upstream endpoint** (some returned `<seg_*>` tokens).
-- **Cost** was about **$0.001–0.004 per photo**, under the ≤ $0.03 target.
+The run covered all **15 photos**: the #27 2JZ-GE prototype is the **dev** photo; **14 test photos × 10 parts = 140 queries** per pipeline. OpenRouter spend was **$0.20** total.
 
-Do not treat this paragraph as the ship-bar result. Recalibrate the outline bars and the verify-crop after #84 labels exist.
+- **A** (VLM box → SAM 2): **0** outlines, **27** confirms, **113** abstains. Confirm band correct **14/22 (64%)**. Not-visible correct **13/13**. **44 of 46** verify-yes rows failed only SAM stability ≥ 0.95, which suggests that bar is miscalibrated. Next step: recalibrate it on the **dev** split. **$0.0034 / photo**.
+- **B** (DINO → SAM 2): **0** outlines, **6** confirms, **134** abstains. DINO tiny often returns one box covering many parts or the whole frame. **$0.0008 / photo**.
+- **C** (Gemini masks): **38** outlines. Outline wrong **15/33 = 46%** (95% CI **30–62%**). It **fails the 5% bar and is dropped**. **$0.0035 / photo**.
+- All three pipelines are **over the 40% abstain** limit.
+- CPU latency p95 per query: **4.1 s (A)**, **8.1 s (B)**, **6.5 s (C)**. These are **not GPU** numbers.
+- Decision-rule result: **insufficient data**, with **A as the only live candidate**.
+
+Do not treat this as the ship-bar result. Recalibrate A's stability bar on the #27 dev photo before another test pass.
 
 ### Product decisions (locked)
 
@@ -307,4 +309,4 @@ Do not treat this paragraph as the ship-bar result. Recalibrate the outline bars
 ### Still needs zeke
 
 - Enough #84 frames to reach ~100–160 queries, or an explicit smaller-N exception.
-- Whether to loosen A's outline bars (stability / top-2 gap) after a scored #84 run, or keep abstaining. First-pass notes are not that decision.
+- Whether to accept A's recalibrated stability bar after a #84-keyed run. The first-pass notes are not that decision.
