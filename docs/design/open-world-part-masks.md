@@ -2,7 +2,7 @@
 
 **Status:** recommendation + spike plan. No pipeline in this change.
 
-Product Lead decisions in this page are locked (2026-10-03). A parallel docs PR is restating the product rule (highlight any photo, pixel-precise outline, never a box; tracing optional). This page does not rewrite `VISION.md`, `ROADMAP.md`, or `docs/BAY_MAP.md`. It assumes that rule and decides how to get a mask.
+Product Lead decisions in this page are locked (2026-10-03). Docs PR #90 states the product rule (highlight any photo, pixel-precise outline, never a box; tracing optional) and that A and C are unblocked. This page does not rewrite those docs. It assumes that rule and decides how to get a mask.
 
 Related code: answer contract (#10), bay map (#26), prototype photos (#27), Python renderer (#29), Swift renderer (#31), part resolver (#32), end-to-end highlight (#33), highlight eval (#34). Follow-on issues: held-out labeled photo set (#84), spike (#85), answer contract v2 (#86), confidence UX (#87), acceptance metrics/eval (#88).
 
@@ -10,9 +10,11 @@ Related code: answer contract (#10), bay map (#26), prototype photos (#27), Pyth
 
 Run locate+mask on the **backend**. Keep the traced bay-map path (`method: traced`, `{bay_photo_id, part_id}`) as a **fast lookup**. Contract v2 (#86) does not delete it. For any other photo, locate the named part and cut a mask with **SAM 2**. Convert the mask to the same normalized polygons the renderer already draws. Do not highlight from a bounding box.
 
-**Spike default is candidate B: Grounding DINO + SAM 2.** That path must run with **no paid API** (local open weights only). Candidates **A** (Gemini 2.5 Flash box/point → SAM 2; Qwen2.5-VL is the open VLM option) and **C** (Gemini direct segmentation) wait on **zeke's OK and a Gemini API key**. Do not call Gemini from the spike until that lands. Nothing new lands in git.
+**Spike default and preferred candidate is A: a VLM returns box/points, SAM 2 cuts the mask.** The vision provider is **OpenRouter** (for example `google/gemini-2.5-flash`). **A-open** is Qwen2.5-VL through OpenRouter. **B** (Grounding DINO + SAM 2) stays the open local baseline. **C** (VLM direct segmentation via OpenRouter) stays a candidate. Zeke approved the paid vision API; A and C are unblocked (#90). Cost target stays **≤ $0.03 per photo**.
 
-B's 3-state gate uses DINO logit, SAM `predicted_iou` / stability, mask sanity, and a **local** verify-crop (open weights on the same GPU, or SAM+sanity alone if no local yes/no model is on disk). A and C, once unlocked, add a Gemini verify-crop. The gate reads those signals as yes/no, SAM IoU, and sanity.
+The spike reads `OPENROUTER_API_KEY` from the environment. The product backend uses a Railway secret. The key is never committed.
+
+Every candidate runs verify-crop. A's and C's crop call goes through OpenRouter. B's gate uses DINO logit, SAM `predicted_iou` / stability, mask sanity, and a local crop check when no OpenRouter call is wanted on that path.
 
 Do **not** put open-vocab locate on the iPhone for Phase 1. Apple already publishes Core ML SAM 2, and #31 already renders a polygon. The missing piece is naming a never-seen part. Phase 2's YOLO dry run (#36) is a closed set after labeling; it does not replace this.
 
@@ -22,13 +24,13 @@ Do not implement the pipeline until the spike picks a winner. Decision this week
 
 ## Options compared
 
-The default spike run is **B**. **A** and **C** stay in the table and run only after zeke unlocks Gemini. The other rows stay as context.
+The default and preferred spike run is **A**. **B** is the open baseline. **C** stays a candidate. The other rows stay as context.
 
 | Option | Locate | Mask | Fits renderer | Fine-grained bay parts | Host | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
-| **A. Grounding VLM → SAM 2** | Gemini 2.5 Flash box/point (0–1000), or Qwen2.5-VL box | SAM 2 | Yes, after contour | Strong language, unproven on 2JZ clutter | API + GPU SAM | Gated. Gemini needs zeke's OK + key. Do not run in the default spike. |
-| **B. Grounding DINO → SAM 2** | Open-vocab box + logit | SAM 2 | Yes | Weaker on small or grouped parts | Local GPU | **Spike default.** No paid API. Fastest cited path. Strong SAM scores for the gate. |
-| **C. Gemini direct masks** | Same Gemini query | Gemini `mask` | Yes if the contour is real | Same locate risk | API only | Gated. Gemini needs zeke's OK + key. 3.x mask support is inconsistent (see risks). |
+| **A. Grounding VLM → SAM 2** | OpenRouter VLM box/point (e.g. `google/gemini-2.5-flash`), or Qwen2.5-VL via OpenRouter | SAM 2 | Yes, after contour | Strong language, unproven on 2JZ clutter | OpenRouter + GPU SAM | **Spike default and preferred.** Unblocked. |
+| **B. Grounding DINO → SAM 2** | Open-vocab box + logit | SAM 2 | Yes | Weaker on small or grouped parts | Local GPU | Open baseline. No paid API. Strong SAM scores for the gate. |
+| **C. VLM direct masks** | Same OpenRouter VLM | model `mask` | Yes if the contour is real | Same locate risk | OpenRouter | Unblocked. Mask shape varies by upstream endpoint (see first-pass notes). |
 | Florence-2 RES / OV | Phrase or referring | Florence polygon or SAM 2 | Yes | Weaker zero-shot than DINO 1.5 | Local | Not a spike candidate. |
 | On-device VLM + Core ML SAM 2 | Unproven small VLM | Core ML SAM 2 / EdgeSAM | Yes | Unlikely by 2026-10-12 | iPhone | Mask is ready. Locate is not. |
 | Mapped lookup only | Closed `part_id` | Traced polygons | Already | Perfect on mapped photos, zero on new ones | None | Fast path and eval answer key. Fallback if A/B/C fail the wrong-part bar. |
@@ -122,15 +124,15 @@ Figures below are **estimates** unless a source states a measured number. Prices
 | Path | Where | Latency (estimate unless cited) | Cost / photo (estimate) | Sources |
 | --- | --- | --- | --- | --- |
 | Mapped lookup | Backend + phone | under 10 ms lookup + #31 render budget 200 ms | $0 | Existing map / #31 |
-| A. Gemini 2.5 Flash box → SAM 2 | Backend GPU | Gemini short JSON **est. 0.8–3 s** + SAM 2 **55 ms** on A100 (cited) or **est. 0.2–0.8 s** on a small GPU | Gemini 2.5 Flash **est. $0.001–0.01** (258–~1.8k image tokens at $0.30 / 1M in, tiny JSON out at $2.50 / 1M) plus verify-crop. SAM 2 **est. under $0.001** if a GPU is already up. Under the $0.03 bar on paper | [Gemini pricing](https://ai.google.dev/gemini-api/docs/pricing), [token tiling](https://ai.google.dev/gemini-api/docs/tokens), [GD-1.5 + SAM 2.1 = 110+55 ms on A100](https://arxiv.org/html/2603.00184v1) |
-| A-open. Qwen2.5-VL → SAM 2 | Backend GPU | Qwen2.5-VL-7B vLLM TTFT **~4.4–4.8 s** on a VisionArena-style load; smaller images help. Plus SAM | Hosted VL **est. $0.001–0.01** at about $0.20 / 1M in and out (aggregator listings). Self-host = GPU rent | [vLLM Qwen2.5-VL notes](https://github.com/vllm-project/recipes/blob/main/Qwen/Qwen2.5-VL.md), [Qwen2.5-VL 7B price listings](https://pricepertoken.com/pricing-page/model/qwen-qwen-2-5-vl-7b-instruct) |
+| A. OpenRouter VLM box → SAM 2 | Backend GPU | VLM short JSON **est. 0.8–3 s** + SAM 2 **55 ms** on A100 (cited) or **est. 0.2–0.8 s** on a small GPU | OpenRouter `google/gemini-2.5-flash` **est. $0.001–0.01** (258–~1.8k image tokens at $0.30 / 1M in, tiny JSON out at $2.50 / 1M) plus verify-crop. First-pass spike **about $0.001–0.004 / photo** (preliminary). Under the $0.03 bar | [Gemini pricing](https://ai.google.dev/gemini-api/docs/pricing), [token tiling](https://ai.google.dev/gemini-api/docs/tokens), [GD-1.5 + SAM 2.1 = 110+55 ms on A100](https://arxiv.org/html/2603.00184v1) |
+| A-open. Qwen2.5-VL via OpenRouter → SAM 2 | Backend GPU | Hosted VL **est. 1–5 s** plus SAM | OpenRouter list price for the Qwen VL route; keep the **≤ $0.03 / photo** cap | OpenRouter model catalog |
 | B. Grounding DINO → SAM 2 | Backend GPU | **165 ms** (110+55) cited on A100 for DINO 1.5 + SAM 2.1. Open DINO-T **est. 0.3–1.5 s** | Self-host: GPU time only. **est. $20–80 / month** for a small always-on GPU, **under $0.001 / photo** if busy | [Grounded SAM 2](https://github.com/IDEA-Research/Grounded-SAM-2), [2603.00184 latency table](https://arxiv.org/html/2603.00184v1) |
-| C. Gemini native mask | Backend | **est. 1.5–5 s** (larger `mask` payload). No SAM | Same input + larger output + verify-crop. **est. $0.002–0.02**. Thinking must be off | [Gemini 2.5 segmentation blog](https://developers.googleblog.com/en/conversational-image-segmentation-gemini-2-5/), [image understanding (polygon `mask` on current Flash)](https://ai.google.dev/gemini-api/docs/image-understanding) |
+| C. OpenRouter VLM native mask | Backend | **est. 1.5–5 s** (larger `mask` payload). No SAM | Same input + larger output + verify-crop. First-pass **about $0.001–0.004 / photo** (preliminary) | [Gemini 2.5 segmentation blog](https://developers.googleblog.com/en/conversational-image-segmentation-gemini-2-5/), [image understanding (polygon `mask` on current Flash)](https://ai.google.dev/gemini-api/docs/image-understanding) |
 | On-device | iPhone | EdgeSAM encode **26 ms** on iPhone 14 (cited). SAM 2 tiny video path **~1 FPS** on iPhone 15 Pro Max (EdgeTAM paper). Still-image **est. 0.2–1.0 s**. Open-vocab locate on device: unknown | $0 / photo after the model download | [EdgeSAM](https://arxiv.org/html/2312.06660v2), [EdgeTAM](https://ar5iv.labs.arxiv.org/html/2501.07256), [apple/coreml-sam2.1-tiny](https://huggingface.co/apple/coreml-sam2.1-tiny) |
 
-**Gemini 3.8 Flash** (current default Flash on the pricing page) is $0.75 / 1M input and $3.75 / 1M output through 2026-12-31. That is about 2.5× the 2.5 Flash input rate. If A or C is unlocked, they name **2.5 Flash**. Do not silently switch to 3.x.
+A and C call OpenRouter as `google/gemini-2.5-flash` unless a later spike note names another slug. Do not silently switch to a 3.x Flash.
 
-**Fit to the 8 s backend bar.** B on GPU is the default measurement. Sequential A or C plus Gemini verify-crop can land nearer the bar once unlocked. Do this:
+**Fit to the 8 s backend bar.** A on GPU plus verify-crop is the default measurement. Do this:
 
 1. Measure locate+mask (+ verify-crop) p95 on GPU. That number is the ship bar.
 2. Skip locate on a confirmed map row.
@@ -154,10 +156,10 @@ Three UX states, one wire. **Tap to confirm is in scope**, minimal version only 
 
 A missing highlight already scores 0 on the mapped correct-part rate ([docs/METRICS.md](../METRICS.md)). Keep that for the mapped eval. The open-world spike scores confident highlights separately from unsure and from abstain, so a 40% abstain rate is not a failed correct-part score.
 
-Signals that feed the 3-state gate. Any hard fail → abstain. B's default spike runs a **local** verify-crop (no paid API). A and C add a Gemini verify-crop only after zeke's OK + key.
+Signals that feed the 3-state gate. Any hard fail → abstain. A and C run an OpenRouter verify-crop. B can stay local.
 
 1. **Closed name.** `part_id` from the resolver, or a display name / alias from the locked list below. Free prose is not a name.
-2. **Verify-crop (yes/no).** Crop the mask (small pad). **B:** local open yes/no if a local model is on the GPU; otherwise SAM+sanity+DINO logit stand in and the spike writes that down. **A/C (gated):** Gemini “Is this a {display_name}? yes/no.” **No → abstain.** Yes supports outline. Unsure / unparseable → confirm band, not outline.
+2. **Verify-crop (yes/no).** Crop the mask (small pad). **A/C:** OpenRouter VLM “Is this a {display_name}? yes/no.” **B:** local open yes/no, or SAM+sanity+DINO logit if no local crop model is on disk. **No → abstain.** Yes supports outline. Unsure / unparseable → confirm band, not outline. First-pass notes: this check passed many wrong masks; do not trust it alone.
 3. **SAM `predicted_iou`.** Model's own mask quality. Automatic mask gen defaults filter below **0.8**. Candidate C has no SAM score; the gate then leans on verify-crop and sanity.
 4. **SAM `stability_score`** (A/B). IoU of the mask at two binarization thresholds. Automatic mask gen defaults keep **≥ 0.95**.
 5. **Top-2 gap** (A/B). If `multimask_output` returns two masks whose `predicted_iou` differs by less than 0.05, hedge or abstain.
@@ -178,7 +180,7 @@ If raising the outline threshold is the only way to stay ≤ 5% wrong, raise it.
 
 ## Spike plan (2–3 days)
 
-Throwaway scripts under `backend/spikes/` (spike #85). Do not fold a winner into `/chat` in the spike PR. Held-out labels live with #84. Metrics land in acceptance eval #88. The default run is **B only**, no paid API.
+Throwaway scripts under `backend/spikes/` (spike #85). Do not fold a winner into `/chat` in the spike PR. Held-out labels live with #84. Metrics land in acceptance eval #88. The default and preferred run is **A** via OpenRouter. B stays the open baseline. C stays a candidate.
 
 ### Locked part list
 
@@ -245,23 +247,21 @@ The mapped-eval targets in [VISION.md](../../VISION.md) (correct-part ≥ 0.90, 
 
 ### Pipelines to run
 
-The default spike run is **B only**, fully local, no paid API. A and C wait on zeke's OK + Gemini key. Do not start them in the same job.
+1. **A (default, preferred).** OpenRouter VLM (`google/gemini-2.5-flash`) `box_2d` or points → SAM 2. OpenRouter verify-crop. **A-open** is Qwen2.5-VL via OpenRouter.
+2. **B (open baseline).** Grounding DINO (open Tiny; 1.5 only if a free local weight is already on disk) → SAM 2. Local verify-crop / SAM+sanity gate. No paid API.
+3. **C (candidate).** OpenRouter VLM direct `mask`. No SAM. Print the raw `mask` field; some upstream endpoints return `<seg_*>` tokens.
 
-1. **B (default).** Grounding DINO (open Tiny; 1.5 only if a free local weight is already on disk) → SAM 2. Local verify-crop / SAM+sanity gate. This must finish without an API key.
-2. **A (gated).** Gemini 2.5 Flash `box_2d` or points (thinking off) → SAM 2. Gemini verify-crop. Qwen2.5-VL is the open VLM stand-in only if it is self-hosted; a paid Qwen API is not the no-key default.
-3. **C (gated).** Gemini direct `mask` (2.5 Flash thinking off). No SAM. If the `mask` field is not a usable contour in an hour, record the failure and do not invent a fourth candidate.
-
-Optional extra, not a fourth pipeline: attach a traced crop of the same `part_id` from the #27 split to B (or to A once unlocked) and report the delta. Never use a #84 crop for that.
+Optional extra, not a fourth pipeline: attach a traced crop of the same `part_id` from the #27 split to A (or B) and report the delta. Never use a #84 crop for that.
 
 ### Decision rule
 
 Measured on #84 only.
 
-1. Drop any candidate whose **confident wrong-part** cannot be brought **≤ 5%** at any threshold. If every **run** candidate fails that, **stop and rethink**. Do not ship. (A and C not having run yet does not count as a fail; only B is required without a key.)
+1. Drop any candidate whose **confident wrong-part** cannot be brought **≤ 5%** at any threshold. If every run candidate fails that, **stop and rethink**. Do not ship.
 2. Among candidates that pass the 5% wrong-part cut, keep those that also meet correct ≥ 85%, median IoU ≥ 0.6, abstain ≤ 40%, GPU p95 ≤ 8 s, and cost ≤ $0.03 / photo.
-3. Prefer **B** (DINO → SAM 2) when it qualifies: no paid API, spike default.
-4. Else, if zeke unlocked Gemini, prefer **A** when it qualifies.
-5. Else prefer **C** if it was unlocked, qualifies, **and** the mask is a real contour, not a box and not an unreadable `<seg_*>` string.
+3. Prefer **A** (OpenRouter VLM → SAM 2) when it qualifies.
+4. Else prefer **B** (DINO → SAM 2) if it qualifies.
+5. Else prefer **C** if it qualifies **and** the mask is a real contour, not a box and not an unreadable `<seg_*>` string.
 6. Else **mapped lookup only** (`method: traced`) on catalog photos, abstain on untraced ones, and write that open-world highlight is a rethink.
 
 Ties among qualifiers: lower wrong-part rate, then higher median IoU, then lower p95, then lower cost.
@@ -270,15 +270,26 @@ Write the numbers into `backend/eval/results/` from the scripts. Do not type the
 
 ## Risks and open questions
 
-- **Gemini needs zeke's OK and an API key** before A or C run, in the spike or in product. B does not. A paid Qwen API is also not the no-key path.
-- **Gemini segmentation is in flux.** Google's 2.5 blog (2025-07-21) recommends `gemini-2.5-flash`, `thinkingBudget=0`, and a PNG probability map. Current image-understanding docs show polygon `mask` on `gemini-3.8-flash`. A 2026 forum thread says 3.x dropped segmentation and that 2.5 sometimes emits `<start_of_mask><seg_*>`. The spike must print the raw `mask` field before anyone trusts C.
-- **2.5 access.** Google has steered new projects off 2.5 toward current Flash. If 2.5 is gated, do not silently switch C to 3.x.
+- **OpenRouter key.** The spike reads `OPENROUTER_API_KEY` from env. Product uses a Railway secret. Never commit the key.
+- **Gemini segmentation is in flux.** Google's 2.5 blog (2025-07-21) recommends `gemini-2.5-flash`, `thinkingBudget=0`, and a PNG probability map. Current image-understanding docs show polygon `mask` on later Flash. A 2026 forum thread says some endpoints emit `<start_of_mask><seg_*>`. The spike must print the raw `mask` field before anyone trusts C.
 - **#27 vs #84.** #27 is a small licensed set (one verified 2JZ-GE bay frame today). It is tune/dev only. The 100–160 query count is #84's problem, not a reason to score #27.
 - **Convex IoU in the harness.** Shipping pixel-IoU into `eval/iou.py` is a later change (#88). The spike stays separate.
 - **Session `bay_photo_id` lifecycle** (how long the phone keeps the bytes) is an app decision. The schema only needs a stable handle for one answer.
 - **Renderer is one polygon per call.** Groups (coil packs, radiator cap + upper hose) need several rings. That is an applicator change, not a new style.
 - **On-device later.** Core ML SAM 2 is real. Open-vocab locate on ANE is not in this plan. Do not block Phase 1 on it.
-- **Keys.** No new provider key lands in git. Spike reads env, same as `.env.example`.
+
+### First-pass spike notes (agent-judged, preliminary)
+
+These numbers are **preliminary**. They are an agent's judgment on a first pass, not a scored #84 run. There is **no answer key yet** (main has no traced polygons), so there is **no IoU**. The photos are **mostly 2JZ-GTE**, not the owner's GE bay.
+
+- **C** was confident on 26 queries and wrong on 13, so it **fails the 5% wrong-part bar**.
+- **A** never reached the outline band, because the SAM stability ≥ 0.95 plus top-2 gap ≥ 0.05 bars rarely held together. Its confirm band was right **11/18**.
+- **Grounding DINO tiny** returned one large box for most parts.
+- The VLM **verify-crop passed many wrong masks**.
+- Gemini **mask output varied by upstream endpoint** (some returned `<seg_*>` tokens).
+- **Cost** was about **$0.001–0.004 per photo**, under the ≤ $0.03 target.
+
+Do not treat this paragraph as the ship-bar result. Recalibrate the outline bars and the verify-crop after #84 labels exist.
 
 ### Product decisions (locked)
 
@@ -290,9 +301,10 @@ Write the numbers into `backend/eval/results/` from the scripts. Do not type the
 6. Contract v2 keeps `{bay_photo_id, part_id}` as `method: traced`.
 7. #27 photos are the tuning/dev split. #84 stays held out.
 8. Eval labels are polygons. The converter rejects brush masks.
-9. Spike default is B, no paid API. Gemini waits on zeke.
+9. Spike default and preferred candidate is A via OpenRouter. B is the open baseline. C stays a candidate. A and C are unblocked (#90).
+10. Paid vision API is OpenRouter. Spike: `OPENROUTER_API_KEY` in env. Product: Railway secret. Never committed. Cost cap stays ≤ $0.03 / photo.
 
 ### Still needs zeke
 
-- OK and a Gemini API key before anyone runs A or C (spike or product).
 - Enough #84 frames to reach ~100–160 queries, or an explicit smaller-N exception.
+- Whether to loosen A's outline bars (stability / top-2 gap) after a scored #84 run, or keep abstaining. First-pass notes are not that decision.
