@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="892" height="1816" viewBox="0 0 446 908" role="img">
+<rect width="446" height="908" fill="#fafafa"/>
+<rect x="28.0" y="28.0" width="390.0" height="844.0" rx="48.0" fill="#1a1a1a" stroke="none"/>
+<rect x="38.0" y="38.0" width="370.0" height="824.0" rx="40.0" fill="#f4f4f4" stroke="none"/>
+<clipPath id="screen"><rect x="38.0" y="38.0" width="370.0" height="824.0" rx="40"/></clipPath>
+<g clip-path="url(#screen)">
+<text x="56.0" y="52.0" fill="#222222" font-size="12" font-weight="600" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="start" dominant-baseline="middle">9:41</text>
+<text x="390.0" y="52.0" fill="#6e6e6e" font-size="11" font-weight="400" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="end" dominant-baseline="middle">lll</text>
+<text x="223.0" y="82.0" fill="#222222" font-size="16" font-weight="700" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="middle" dominant-baseline="middle">Sidekick</text>
+<text x="392.0" y="82.0" fill="#6e6e6e" font-size="13" font-weight="400" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="end" dominant-baseline="middle">Skip</text>
+<rect x="62.0" y="110.0" width="322.0" height="220.0" rx="10.0" fill="#cfcfcf" stroke="none"/>
+<rect x="87.8" y="127.6" width="270.5" height="26.4" rx="4.0" fill="#e8e8e8" stroke="#b4b4b4" stroke-width="1"/>
+<text x="223.0" y="140.8" fill="#6e6e6e" font-size="9" font-weight="400" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="middle" dominant-baseline="middle">radiator area</text>
+<rect x="120.0" y="171.6" width="206.1" height="101.2" rx="6.0" fill="#d4d4d4" stroke="#b4b4b4" stroke-width="1"/>
+<rect x="152.2" y="180.4" width="141.7" height="35.2" rx="5.0" fill="#eeeeee" stroke="#b4b4b4" stroke-width="1"/>
+<text x="223.0" y="198.0" fill="#6e6e6e" font-size="10" font-weight="400" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="middle" dominant-baseline="middle">air box</text>
+<rect x="87.8" y="268.4" width="58.0" height="35.2" rx="4.0" fill="#e8e8e8" stroke="#b4b4b4" stroke-width="1"/>
+<rect x="300.3" y="264.0" width="51.5" height="39.6" rx="4.0" fill="#e8e8e8" stroke="#b4b4b4" stroke-width="1"/>
+<rect x="149.2" y="177.4" width="147.7" height="41.2" rx="7" fill="none" stroke="#222222" stroke-width="2.4"/>
+<text x="66.0" y="360.0" fill="#222222" font-size="22" font-weight="700" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="start" dominant-baseline="middle">Your mechanic. One truck.</text>
+<text x="66.0" y="390.0" fill="#6e6e6e" font-size="14" font-weight="400" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="start" dominant-baseline="middle">Ask about a problem in chat. Sidekick</text>
+<text x="66.0" y="408.9" fill="#6e6e6e" font-size="14" font-weight="400" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="start" dominant-baseline="middle">answers from the manuals, with the page,</text>
+<text x="66.0" y="427.8" fill="#6e6e6e" font-size="14" font-weight="400" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="start" dominant-baseline="middle">and shows the part on a photo.</text>
+<rect x="62.0" y="468.0" width="322.0" height="64.0" rx="12.0" fill="#ffffff" stroke="#b4b4b4" stroke-width="1"/>
+<text x="78.0" y="490.0" fill="#222222" font-size="13" font-weight="600" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="start" dominant-baseline="middle">1990 Land Cruiser LJ78</text>
+<text x="78.0" y="510.0" fill="#6e6e6e" font-size="12" font-weight="400" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="start" dominant-baseline="middle">2JZ-GE swap · no turbo · donor year TBD</text>
+<circle cx="213.0" cy="776.0" r="3.2" fill="#222222"/>
+<circle cx="223.0" cy="776.0" r="3.2" fill="#b4b4b4"/>
+<circle cx="233.0" cy="776.0" r="3.2" fill="#b4b4b4"/>
+<rect x="62.0" y="790.0" width="322.0" height="44.0" rx="12.0" fill="#222222" stroke="none"/>
+<text x="223.0" y="812.0" fill="#ffffff" font-size="15" font-weight="600" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="middle" dominant-baseline="middle">Next</text>
+</g>
+<rect x="175.0" y="44.0" width="96.0" height="26.0" rx="13.0" fill="#1a1a1a" stroke="none"/>
+<rect x="169.0" y="850.0" width="108.0" height="5.0" rx="2.5" fill="#222222" stroke="none" opacity="0.25"/>
+</svg>

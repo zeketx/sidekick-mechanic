@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="892" height="1816" viewBox="0 0 446 908" role="img">
+<rect width="446" height="908" fill="#fafafa"/>
+<rect x="28.0" y="28.0" width="390.0" height="844.0" rx="48.0" fill="#1a1a1a" stroke="none"/>
+<rect x="38.0" y="38.0" width="370.0" height="824.0" rx="40.0" fill="#f4f4f4" stroke="none"/>
+<clipPath id="screen"><rect x="38.0" y="38.0" width="370.0" height="824.0" rx="40"/></clipPath>
+<g clip-path="url(#screen)">
+<text x="56.0" y="52.0" fill="#222222" font-size="12" font-weight="600" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="start" dominant-baseline="middle">9:41</text>
+<text x="390.0" y="52.0" fill="#6e6e6e" font-size="11" font-weight="400" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="end" dominant-baseline="middle">lll</text>
+<text x="223.0" y="82.0" fill="#222222" font-size="16" font-weight="700" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="middle" dominant-baseline="middle">How it works</text>
+<text x="392.0" y="82.0" fill="#6e6e6e" font-size="13" font-weight="400" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="end" dominant-baseline="middle">Skip</text>
+<text x="66.0" y="116.0" fill="#222222" font-size="20" font-weight="700" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="start" dominant-baseline="middle">Three things, every time</text>
+<rect x="62.0" y="146.0" width="322.0" height="112.0" rx="14.0" fill="#ffffff" stroke="#b4b4b4" stroke-width="1"/>
+<text x="80.0" y="174.0" fill="#222222" font-size="15" font-weight="700" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="start" dominant-baseline="middle">1. Chat</text>
+<text x="80.0" y="198.0" fill="#6e6e6e" font-size="13" font-weight="400" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="start" dominant-baseline="middle">Describe the problem in your own words.</text>
+<text x="80.0" y="215.6" fill="#6e6e6e" font-size="13" font-weight="400" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="start" dominant-baseline="middle">You do not need part names.</text>
+<rect x="62.0" y="270.0" width="322.0" height="112.0" rx="14.0" fill="#ffffff" stroke="#b4b4b4" stroke-width="1"/>
+<text x="80.0" y="298.0" fill="#222222" font-size="15" font-weight="700" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="start" dominant-baseline="middle">2. Cited answer</text>
+<text x="80.0" y="322.0" fill="#6e6e6e" font-size="13" font-weight="400" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="start" dominant-baseline="middle">A short reply plus a chip like</text>
+<text x="80.0" y="339.6" fill="#6e6e6e" font-size="13" font-weight="400" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="start" dominant-baseline="middle">FAKE-DOC-2JZ · p. 999. Tap it to see that</text>
+<text x="80.0" y="357.1" fill="#6e6e6e" font-size="13" font-weight="400" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="start" dominant-baseline="middle">page.</text>
+<rect x="62.0" y="394.0" width="322.0" height="112.0" rx="14.0" fill="#ffffff" stroke="#b4b4b4" stroke-width="1"/>
+<text x="80.0" y="422.0" fill="#222222" font-size="15" font-weight="700" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="start" dominant-baseline="middle">3. Outline on a photo</text>
+<text x="80.0" y="446.0" fill="#6e6e6e" font-size="13" font-weight="400" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="start" dominant-baseline="middle">A line around the part. If your photo is</text>
+<text x="80.0" y="463.6" fill="#6e6e6e" font-size="13" font-weight="400" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="start" dominant-baseline="middle">new, the line goes on a labeled reference</text>
+<text x="80.0" y="481.1" fill="#6e6e6e" font-size="13" font-weight="400" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="start" dominant-baseline="middle">photo instead.</text>
+<circle cx="213.0" cy="776.0" r="3.2" fill="#b4b4b4"/>
+<circle cx="223.0" cy="776.0" r="3.2" fill="#222222"/>
+<circle cx="233.0" cy="776.0" r="3.2" fill="#b4b4b4"/>
+<rect x="62.0" y="790.0" width="322.0" height="44.0" rx="12.0" fill="#222222" stroke="none"/>
+<text x="223.0" y="812.0" fill="#ffffff" font-size="15" font-weight="600" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="middle" dominant-baseline="middle">Next</text>
+</g>
+<rect x="175.0" y="44.0" width="96.0" height="26.0" rx="13.0" fill="#1a1a1a" stroke="none"/>
+<rect x="169.0" y="850.0" width="108.0" height="5.0" rx="2.5" fill="#222222" stroke="none" opacity="0.25"/>
+</svg>

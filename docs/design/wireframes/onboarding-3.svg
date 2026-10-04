@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="892" height="1816" viewBox="0 0 446 908" role="img">
+<rect width="446" height="908" fill="#fafafa"/>
+<rect x="28.0" y="28.0" width="390.0" height="844.0" rx="48.0" fill="#1a1a1a" stroke="none"/>
+<rect x="38.0" y="38.0" width="370.0" height="824.0" rx="40.0" fill="#f4f4f4" stroke="none"/>
+<clipPath id="screen"><rect x="38.0" y="38.0" width="370.0" height="824.0" rx="40"/></clipPath>
+<g clip-path="url(#screen)">
+<text x="56.0" y="52.0" fill="#222222" font-size="12" font-weight="600" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="start" dominant-baseline="middle">9:41</text>
+<text x="390.0" y="52.0" fill="#6e6e6e" font-size="11" font-weight="400" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="end" dominant-baseline="middle">lll</text>
+<text x="223.0" y="82.0" fill="#222222" font-size="16" font-weight="700" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="middle" dominant-baseline="middle">Your garage</text>
+<text x="392.0" y="82.0" fill="#6e6e6e" font-size="13" font-weight="400" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="end" dominant-baseline="middle">Skip</text>
+<text x="66.0" y="116.0" fill="#222222" font-size="20" font-weight="700" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="start" dominant-baseline="middle">Known facts only</text>
+<text x="66.0" y="144.0" fill="#6e6e6e" font-size="13" font-weight="400" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="start" dominant-baseline="middle">Nothing is filled in from memory. TBD stays</text>
+<text x="66.0" y="161.6" fill="#6e6e6e" font-size="13" font-weight="400" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="start" dominant-baseline="middle">TBD until it is confirmed in TRUCK.md.</text>
+<text x="66.0" y="206.0" fill="#6e6e6e" font-size="12" font-weight="700" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="start" dominant-baseline="middle">Confirmed</text>
+<rect x="62.0" y="222.0" width="322.0" height="44.0" rx="10.0" fill="#ffffff" stroke="#b4b4b4" stroke-width="1"/>
+<text x="78.0" y="244.0" fill="#6e6e6e" font-size="13" font-weight="400" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="start" dominant-baseline="middle">Chassis</text>
+<text x="368.0" y="244.0" fill="#222222" font-size="13" font-weight="600" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="end" dominant-baseline="middle">1990 Land Cruiser LJ78</text>
+<rect x="62.0" y="272.0" width="322.0" height="44.0" rx="10.0" fill="#ffffff" stroke="#b4b4b4" stroke-width="1"/>
+<text x="78.0" y="294.0" fill="#6e6e6e" font-size="13" font-weight="400" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="start" dominant-baseline="middle">Engine</text>
+<text x="368.0" y="294.0" fill="#222222" font-size="13" font-weight="600" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="end" dominant-baseline="middle">2JZ-GE swap</text>
+<rect x="62.0" y="322.0" width="322.0" height="44.0" rx="10.0" fill="#ffffff" stroke="#b4b4b4" stroke-width="1"/>
+<text x="78.0" y="344.0" fill="#6e6e6e" font-size="13" font-weight="400" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="start" dominant-baseline="middle">Donor ECU</text>
+<text x="368.0" y="344.0" fill="#222222" font-size="13" font-weight="600" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="end" dominant-baseline="middle">Lexus · year TBD</text>
+<text x="66.0" y="382.0" fill="#6e6e6e" font-size="12" font-weight="700" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="start" dominant-baseline="middle">Still TBD</text>
+<rect x="62.0" y="398.0" width="322.0" height="44.0" rx="10.0" fill="#e8e8e8" stroke="none"/>
+<text x="78.0" y="420.0" fill="#6e6e6e" font-size="13" font-weight="400" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="start" dominant-baseline="middle">OBD type</text>
+<text x="368.0" y="420.0" fill="#6e6e6e" font-size="13" font-weight="700" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="end" dominant-baseline="middle">TBD</text>
+<rect x="62.0" y="448.0" width="322.0" height="44.0" rx="10.0" fill="#e8e8e8" stroke="none"/>
+<text x="78.0" y="470.0" fill="#6e6e6e" font-size="13" font-weight="400" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="start" dominant-baseline="middle">Harness</text>
+<text x="368.0" y="470.0" fill="#6e6e6e" font-size="13" font-weight="700" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="end" dominant-baseline="middle">TBD</text>
+<rect x="62.0" y="498.0" width="322.0" height="44.0" rx="10.0" fill="#e8e8e8" stroke="none"/>
+<text x="78.0" y="520.0" fill="#6e6e6e" font-size="13" font-weight="400" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="start" dominant-baseline="middle">Photo angles</text>
+<text x="368.0" y="520.0" fill="#6e6e6e" font-size="13" font-weight="700" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="end" dominant-baseline="middle">TBD</text>
+<circle cx="213.0" cy="776.0" r="3.2" fill="#b4b4b4"/>
+<circle cx="223.0" cy="776.0" r="3.2" fill="#b4b4b4"/>
+<circle cx="233.0" cy="776.0" r="3.2" fill="#222222"/>
+<rect x="62.0" y="790.0" width="322.0" height="44.0" rx="12.0" fill="#222222" stroke="none"/>
+<text x="223.0" y="812.0" fill="#ffffff" font-size="15" font-weight="600" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="middle" dominant-baseline="middle">Start chatting</text>
+</g>
+<rect x="175.0" y="44.0" width="96.0" height="26.0" rx="13.0" fill="#1a1a1a" stroke="none"/>
+<rect x="169.0" y="850.0" width="108.0" height="5.0" rx="2.5" fill="#222222" stroke="none" opacity="0.25"/>
+</svg>

@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="892" height="1816" viewBox="0 0 446 908" role="img">
+<rect width="446" height="908" fill="#fafafa"/>
+<rect x="28.0" y="28.0" width="390.0" height="844.0" rx="48.0" fill="#1a1a1a" stroke="none"/>
+<rect x="38.0" y="38.0" width="370.0" height="824.0" rx="40.0" fill="#f4f4f4" stroke="none"/>
+<clipPath id="screen"><rect x="38.0" y="38.0" width="370.0" height="824.0" rx="40"/></clipPath>
+<g clip-path="url(#screen)">
+<text x="56.0" y="52.0" fill="#222222" font-size="12" font-weight="600" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="start" dominant-baseline="middle">9:41</text>
+<text x="390.0" y="52.0" fill="#6e6e6e" font-size="11" font-weight="400" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="end" dominant-baseline="middle">lll</text>
+<text x="223.0" y="82.0" fill="#222222" font-size="16" font-weight="700" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="middle" dominant-baseline="middle">Sidekick</text>
+<rect x="124.0" y="110.0" width="260.0" height="48.0" rx="16.0" fill="#222222" stroke="none"/>
+<text x="140.0" y="126.0" fill="#ffffff" font-size="12" font-weight="400" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="start" dominant-baseline="middle">Rough idle after a cold start</text>
+<rect x="54.0" y="170.0" width="298.0" height="118.0" rx="16.0" fill="#ffffff" stroke="#b4b4b4" stroke-width="1"/>
+<text x="70.0" y="190.0" fill="#222222" font-size="13" font-weight="400" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="start" dominant-baseline="middle">Start with the air box on top of the</text>
+<text x="70.0" y="207.6" fill="#222222" font-size="13" font-weight="400" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="start" dominant-baseline="middle">engine. FAKE-DOC-2JZ p. 999 points</text>
+<text x="70.0" y="225.1" fill="#222222" font-size="13" font-weight="400" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="start" dominant-baseline="middle">there first.</text>
+<rect x="70.0" y="252.0" width="167.2" height="22.0" rx="11.0" fill="#ffffff" stroke="#b4b4b4" stroke-width="1"/>
+<text x="153.6" y="263.0" fill="#222222" font-size="11" font-weight="400" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="middle" dominant-baseline="middle">FAKE-DOC-2JZ · p. 999</text>
+<rect x="54.0" y="678.0" width="290.0" height="40.0" rx="20.0" fill="#ffffff" stroke="#b4b4b4" stroke-width="1"/>
+<text x="70.0" y="698.0" fill="#6e6e6e" font-size="13" font-weight="400" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="start" dominant-baseline="middle">Describe the problem</text>
+<rect x="352.0" y="680.0" width="36.0" height="36.0" rx="18.0" fill="#222222" stroke="none"/>
+<path d="M370.0,690.0 L360.0,706.0 L380.0,706.0 Z" fill="#ffffff"/>
+<rect x="38.0" y="730.0" width="370.0" height="156.0" rx="18.0" fill="#ffffff" stroke="#b4b4b4" stroke-width="1"/>
+<rect x="205.0" y="740.0" width="36.0" height="5.0" rx="2.5" fill="#b4b4b4" stroke="none"/>
+<text x="58.0" y="766.0" fill="#222222" font-size="15" font-weight="700" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="start" dominant-baseline="middle">Job · Cold idle</text>
+<text x="388.0" y="766.0" fill="#6e6e6e" font-size="13" font-weight="400" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="end" dominant-baseline="middle">Open</text>
+<rect x="58.0" y="786.0" width="48.0" height="48.0" rx="8.0" fill="#cfcfcf" stroke="none"/>
+<text x="118.0" y="802.0" fill="#6e6e6e" font-size="12" font-weight="400" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="start" dominant-baseline="middle">Photo + outline sit here</text>
+<rect x="118.0" y="816.0" width="59.2" height="22.0" rx="11.0" fill="#ffffff" stroke="#b4b4b4" stroke-width="1"/>
+<text x="147.6" y="827.0" fill="#222222" font-size="11" font-weight="400" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="middle" dominant-baseline="middle">intake</text>
+</g>
+<rect x="175.0" y="44.0" width="96.0" height="26.0" rx="13.0" fill="#1a1a1a" stroke="none"/>
+<rect x="169.0" y="850.0" width="108.0" height="5.0" rx="2.5" fill="#222222" stroke="none" opacity="0.25"/>
+</svg>

@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="892" height="1816" viewBox="0 0 446 908" role="img">
+<rect width="446" height="908" fill="#fafafa"/>
+<rect x="28.0" y="28.0" width="390.0" height="844.0" rx="48.0" fill="#1a1a1a" stroke="none"/>
+<rect x="38.0" y="38.0" width="370.0" height="824.0" rx="40.0" fill="#f4f4f4" stroke="none"/>
+<clipPath id="screen"><rect x="38.0" y="38.0" width="370.0" height="824.0" rx="40"/></clipPath>
+<g clip-path="url(#screen)">
+<rect x="38.0" y="38.0" width="370.0" height="824.0" rx="0.0" fill="#f4f4f4" stroke="none"/>
+<rect x="60.0" y="126.0" width="326.0" height="584.0" rx="18.0" fill="#e8e8e8" stroke="#b4b4b4" stroke-width="1"/>
+<rect x="50.0" y="116.0" width="346.0" height="592.0" rx="18.0" fill="#cfcfcf" stroke="none"/>
+<rect x="58.0" y="124.0" width="330.0" height="576.0" rx="10.0" fill="#cfcfcf" stroke="none"/>
+<rect x="84.4" y="170.1" width="277.2" height="69.1" rx="4.0" fill="#e8e8e8" stroke="#b4b4b4" stroke-width="1"/>
+<text x="223.0" y="204.6" fill="#6e6e6e" font-size="9" font-weight="400" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="middle" dominant-baseline="middle">radiator area</text>
+<rect x="117.4" y="285.3" width="211.2" height="265.0" rx="6.0" fill="#d4d4d4" stroke="#b4b4b4" stroke-width="1"/>
+<rect x="150.4" y="308.3" width="145.2" height="92.2" rx="5.0" fill="#eeeeee" stroke="#b4b4b4" stroke-width="1"/>
+<text x="223.0" y="354.4" fill="#6e6e6e" font-size="10" font-weight="400" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="middle" dominant-baseline="middle">air box</text>
+<rect x="84.4" y="538.7" width="59.4" height="92.2" rx="4.0" fill="#e8e8e8" stroke="#b4b4b4" stroke-width="1"/>
+<rect x="302.2" y="527.2" width="52.8" height="103.7" rx="4.0" fill="#e8e8e8" stroke="#b4b4b4" stroke-width="1"/>
+<rect x="147.4" y="305.3" width="151.2" height="98.2" rx="7" fill="none" stroke="#222222" stroke-width="2.0" stroke-dasharray="6 5"/>
+<circle cx="364" cy="672" r="16" fill="#ffffff" fill-opacity="0.92" stroke="#222222" stroke-width="1"/>
+<circle cx="362" cy="670" r="6" fill="none" stroke="#222222" stroke-width="1.5"/>
+<line x1="366.2" y1="674.2" x2="371" y2="679" stroke="#222222" stroke-width="1.6" stroke-linecap="round"/>
+<text x="364.0" y="696.0" fill="#222222" font-size="9" font-weight="400" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="middle" dominant-baseline="middle">pinch</text>
+<text x="58.0" y="74.0" fill="#222222" font-size="13" font-weight="400" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="start" dominant-baseline="middle">Close</text>
+<text x="223.0" y="74.0" fill="#6e6e6e" font-size="13" font-weight="700" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="middle" dominant-baseline="middle">Unsure</text>
+<rect x="54.0" y="86.0" width="338.0" height="22.0" rx="8.0" fill="#222222" stroke="none"/>
+<text x="223.0" y="97.0" fill="#ffffff" font-size="11" font-weight="600" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="middle" dominant-baseline="middle">Internal only · flag off in v1</text>
+<rect x="54.0" y="714.0" width="59.2" height="22.0" rx="11.0" fill="#ffffff" stroke="#b4b4b4" stroke-width="1"/>
+<text x="83.6" y="725.0" fill="#222222" font-size="11" font-weight="400" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="middle" dominant-baseline="middle">intake</text>
+<text x="223.0" y="756.0" fill="#222222" font-size="18" font-weight="700" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="middle" dominant-baseline="middle">Is this it?</text>
+<rect x="54.0" y="774.0" width="163.0" height="44.0" rx="12.0" fill="#222222" stroke="none"/>
+<text x="135.5" y="796.0" fill="#ffffff" font-size="15" font-weight="600" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="middle" dominant-baseline="middle">Yes</text>
+<rect x="229.0" y="774.0" width="163.0" height="44.0" rx="12.0" fill="#ffffff" stroke="#222222" stroke-width="1.2"/>
+<text x="310.5" y="796.0" fill="#222222" font-size="15" font-weight="600" font-family="-apple-system, Helvetica, Arial, sans-serif" text-anchor="middle" dominant-baseline="middle">Not this</text>
+</g>
+<rect x="175.0" y="44.0" width="96.0" height="26.0" rx="13.0" fill="#1a1a1a" stroke="none"/>
+<rect x="169.0" y="850.0" width="108.0" height="5.0" rx="2.5" fill="#222222" stroke="none" opacity="0.25"/>
+</svg>
