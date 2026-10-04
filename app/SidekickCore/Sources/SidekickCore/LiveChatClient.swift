@@ -28,15 +28,25 @@ struct URLSessionHTTP: HTTPPerforming {
 
 /// Body for `POST /chat`. Matches `backend/chat_models.py`: `{ messages: [{ role, text }] }`.
 /// Conversation and message IDs stay on the domain model; the backend forbids extras.
+/// `demo` is omitted on the normal path.
 struct ChatHTTPBody: Encodable, Equatable {
     var messages: [Item]
+    var demo: Demo?
 
     struct Item: Encodable, Equatable {
         var role: String
         var text: String
     }
 
-    init(_ conversation: Conversation) {
+    struct Demo: Encodable, Equatable {
+        var photoID: String
+
+        enum CodingKeys: String, CodingKey {
+            case photoID = "photo_id"
+        }
+    }
+
+    init(_ conversation: Conversation, demoPhotoID: String? = nil) {
         messages = conversation.messages.map { message in
             switch message {
             case let .user(user):
@@ -45,6 +55,22 @@ struct ChatHTTPBody: Encodable, Equatable {
                 Item(role: "assistant", text: assistant.answer.text)
             }
         }
+        if let demoPhotoID, !demoPhotoID.isEmpty {
+            demo = Demo(photoID: demoPhotoID)
+        } else {
+            demo = nil
+        }
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case messages
+        case demo
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(messages, forKey: .messages)
+        try container.encodeIfPresent(demo, forKey: .demo)
     }
 }
 
@@ -62,13 +88,15 @@ public struct LiveChatClient: ChatClient, Sendable {
         self.http = http
     }
 
-    public func send(_ conversation: Conversation) async throws -> Answer {
+    public func send(_ conversation: Conversation, demoPhotoID: String? = nil) async throws -> Answer {
         var urlRequest = URLRequest(url: configuration.chatURL)
         urlRequest.httpMethod = "POST"
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         urlRequest.setValue("application/json", forHTTPHeaderField: "Accept")
         urlRequest.timeoutInterval = configuration.requestTimeout
-        urlRequest.httpBody = try JSONEncoder().encode(ChatHTTPBody(conversation))
+        urlRequest.httpBody = try JSONEncoder().encode(
+            ChatHTTPBody(conversation, demoPhotoID: demoPhotoID)
+        )
 
         let data: Data
         let response: URLResponse

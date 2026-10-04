@@ -1,8 +1,16 @@
 import Foundation
 
 /// Sends a `Conversation` to the backend and returns the shared `Answer` model.
+///
+/// `demoPhotoID` is demo-mode only. Pass `nil` on the normal path.
 public protocol ChatClient: Sendable {
-    func send(_ conversation: Conversation) async throws -> Answer
+    func send(_ conversation: Conversation, demoPhotoID: String?) async throws -> Answer
+}
+
+extension ChatClient {
+    public func send(_ conversation: Conversation) async throws -> Answer {
+        try await send(conversation, demoPhotoID: nil)
+    }
 }
 
 public enum ChatClientKind: String, Equatable, Sendable {

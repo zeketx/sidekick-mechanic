@@ -134,6 +134,51 @@ final class AnswerTests: XCTestCase {
         XCTAssertEqual(object["part_id"] as? String, "fake-part-intake")
         XCTAssertNil(object["bayPhotoId"])
         XCTAssertNil(object["partId"])
+        XCTAssertNil(object["demo"])
+        XCTAssertNil(object["display"])
+        XCTAssertNil(object["geometry"])
+    }
+
+    func testDemoHighlightDecodesOptionalFields() throws {
+        let json = Data(
+            #"""
+            {
+              "kind": "answer",
+              "text": "Demo throttle body on the stand-in photo.",
+              "citations": [],
+              "highlight": {
+                "bay_photo_id": "hrymx-2jz-ge-25308847029",
+                "part_id": "throttle-body",
+                "display": "confirm",
+                "demo": true,
+                "geometry": {
+                  "polygons": [
+                    {
+                      "points": [
+                        {"x": 0.1, "y": 0.2},
+                        {"x": 0.3, "y": 0.2},
+                        {"x": 0.3, "y": 0.4}
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+            """#.utf8
+        )
+        let answer = try JSONDecoder().decode(Answer.self, from: json)
+        guard case let .found(found) = answer, let highlight = found.highlight else {
+            return XCTFail("expected a demo highlight")
+        }
+        XCTAssertEqual(highlight.bayPhotoID.rawValue, "hrymx-2jz-ge-25308847029")
+        XCTAssertEqual(highlight.partID.rawValue, "throttle-body")
+        XCTAssertEqual(highlight.display, .confirm)
+        XCTAssertTrue(highlight.isDemo)
+        XCTAssertEqual(highlight.geometry?.polygons.count, 1)
+        XCTAssertEqual(highlight.geometry?.polygons[0].points[0].x, 0.1)
+        let encoded = try encodeObject(highlight)
+        XCTAssertEqual(encoded["demo"] as? Bool, true)
+        XCTAssertEqual(encoded["display"] as? String, "confirm")
     }
 
     func testCitationWithoutPageFailsToDecode() {
