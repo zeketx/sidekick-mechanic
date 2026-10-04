@@ -37,16 +37,70 @@ struct DemoModeChrome: View {
     @Bindable var model: ChatViewModel
     var store: DemoImageStore
     var configuration: ChatClientConfiguration
+    @State private var isExpanded = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 0) {
+            compactBar
+            if isExpanded {
+                expandedBody
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(.systemBackground))
+        .task(id: model.isDemoMode) {
+            guard model.isDemoMode else { return }
+            if store.catalog == nil {
+                await store.load(from: configuration)
+            }
+            if model.selectedDemoPhotoID == nil {
+                model.selectedDemoPhotoID = store.catalog?.defaultPhotoID
+                    ?? DemoLaunchOptions.defaultPhotoID
+            }
+        }
+    }
+
+    private var selectedPhoto: DemoPhotoInfo? {
+        store.catalog?.photos.first { $0.photoID == model.selectedDemoPhotoID }
+    }
+
+    private var compactBar: some View {
+        Button {
+            isExpanded.toggle()
+        } label: {
             HStack(spacing: 8) {
                 DemoDataBadge()
-                Text("Highlights are scripted. Not your truck.")
-                    .font(.footnote)
+                Text(selectedPhoto?.thumbnailLabel ?? "Demo")
+                    .font(.subheadline)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                Text(model.highlightStyle.pickerLabel)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                Spacer(minLength: 8)
+                Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                    .font(.caption.weight(.semibold))
                     .foregroundStyle(.secondary)
             }
-            .accessibilityIdentifier("demo.banner")
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("demo.banner")
+        .accessibilityLabel(
+            isExpanded
+                ? "Hide demo options"
+                : "Show demo options. \(selectedPhoto?.thumbnailLabel ?? "Demo"). \(model.highlightStyle.pickerLabel)."
+        )
+    }
+
+    private var expandedBody: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Highlights are scripted. Not your truck.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
 
             if let loadError = store.loadError {
                 Text(loadError)
@@ -65,22 +119,7 @@ struct DemoModeChrome: View {
             }
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.yellow.opacity(0.12))
-        .task(id: model.isDemoMode) {
-            guard model.isDemoMode else { return }
-            if store.catalog == nil {
-                await store.load(from: configuration)
-            }
-            if model.selectedDemoPhotoID == nil {
-                model.selectedDemoPhotoID = store.catalog?.photos.first?.photoID
-            }
-        }
-    }
-
-    private var selectedPhoto: DemoPhotoInfo? {
-        store.catalog?.photos.first { $0.photoID == model.selectedDemoPhotoID }
+        .padding(.bottom, 10)
     }
 
     private var photoPicker: some View {
@@ -101,9 +140,9 @@ struct DemoModeChrome: View {
                                 Color.secondary.opacity(0.2)
                                     .frame(width: 88, height: 60)
                             }
-                            Text(photo.photoID)
+                            Text(photo.thumbnailLabel)
                                 .font(.caption2)
-                                .lineLimit(1)
+                                .lineLimit(2)
                                 .frame(width: 88, alignment: .leading)
                         }
                         .padding(4)
@@ -119,7 +158,7 @@ struct DemoModeChrome: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("demo.photo.\(photo.photoID)")
-                    .accessibilityLabel("Demo photo \(photo.photoID)")
+                    .accessibilityLabel("Demo photo \(photo.thumbnailLabel)")
                 }
             }
         }
@@ -155,6 +194,7 @@ struct DemoConfirmBar: View {
             }
         }
         .padding(.top, 4)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("demo.confirmBar")
     }
 }

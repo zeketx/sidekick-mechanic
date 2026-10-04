@@ -3,10 +3,19 @@ import SwiftUI
 
 @main
 struct SidekickMechanicApp: App {
-    @State private var chatModel = ChatViewModel(
-        conversationID: ConversationID(rawValue: UUID().uuidString)!,
-        client: LiveChatClient(configuration: ChatClientConfiguration(baseURL: AppConfig.backendURL))
-    )
+    @State private var chatModel = SidekickMechanicApp.makeChatModel()
+
+    private static func makeChatModel() -> ChatViewModel {
+        let launch = DemoLaunchOptions.parse()
+        return ChatViewModel(
+            conversationID: ConversationID(rawValue: UUID().uuidString)!,
+            composerText: launch.enablesDemoMode ? launch.cannedQuestion : "",
+            isDemoMode: launch.enablesDemoMode,
+            selectedDemoPhotoID: launch.enablesDemoMode ? launch.resolvedPhotoID : nil,
+            highlightStyle: launch.style ?? .outline,
+            client: LiveChatClient(configuration: ChatClientConfiguration(baseURL: AppConfig.backendURL))
+        )
+    }
 
     var body: some Scene {
         WindowGroup {

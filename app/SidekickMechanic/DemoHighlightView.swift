@@ -22,10 +22,6 @@ struct DemoHighlightView: View {
                     .interpolation(.medium)
                     .overlay { styleOverlay }
             }
-            .overlay(alignment: .topLeading) {
-                DemoDataBadge()
-                    .padding(8)
-            }
             .overlay(alignment: .bottomLeading) {
                 Text(attributionLine)
                     .font(.caption2)
@@ -41,9 +37,9 @@ struct DemoHighlightView: View {
 
     private var attributionLine: String {
         if shareAlike {
-            return "Demo data · CC BY-SA. \(attribution)"
+            return "CC BY-SA. \(attribution)"
         }
-        return "Demo data. \(attribution)"
+        return attribution
     }
 
     private var accessibilityText: String {
@@ -85,7 +81,7 @@ struct DemoHighlightView: View {
                     .mask { polygonFill(rings) }
                     .allowsHitTesting(false)
             case .dim:
-                Color.black.opacity(confirm ? 0.30 : 0.55)
+                Color.black.opacity(confirm ? 0.55 : 0.62)
                     .mask { inverseFill(rings) }
                     .allowsHitTesting(false)
             }
@@ -134,10 +130,13 @@ struct DemoHighlightView: View {
         let points = rings.flatMap(\.points)
         guard !points.isEmpty else { return nil }
         let mapped = points.map { CGPoint(x: $0.x * size.width, y: $0.y * size.height) }
-        let cx = mapped.map(\.x).reduce(0, +) / CGFloat(mapped.count)
-        let cy = mapped.map(\.y).reduce(0, +) / CGFloat(mapped.count)
-        let reach = mapped.map { hypot($0.x - cx, $0.y - cy) }.max() ?? 0
-        let radius = reach + padding
+        let minX = mapped.map(\.x).min() ?? 0
+        let maxX = mapped.map(\.x).max() ?? 0
+        let minY = mapped.map(\.y).min() ?? 0
+        let maxY = mapped.map(\.y).max() ?? 0
+        let cx = (minX + maxX) / 2
+        let cy = (minY + maxY) / 2
+        let radius = hypot((maxX - minX) / 2, (maxY - minY) / 2) + padding
         return CGRect(x: cx - radius, y: cy - radius, width: radius * 2, height: radius * 2)
     }
 }

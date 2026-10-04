@@ -28,12 +28,14 @@ public struct DemoCatalog: Hashable, Sendable, Codable {
     public let demo: Bool
     public let label: String
     public let attributionURL: String
+    public let defaultPhotoID: String?
     public let photos: [DemoPhotoInfo]
 
     enum CodingKeys: String, CodingKey {
         case demo
         case label
         case attributionURL = "attribution_url"
+        case defaultPhotoID = "default_photo_id"
         case photos
     }
 }
@@ -41,6 +43,7 @@ public struct DemoCatalog: Hashable, Sendable, Codable {
 public struct DemoPhotoInfo: Hashable, Sendable, Codable, Identifiable {
     public var id: String { photoID }
     public let photoID: String
+    public let shortName: String?
     public let imageURL: String
     public let attribution: String
     public let author: String
@@ -55,6 +58,7 @@ public struct DemoPhotoInfo: Hashable, Sendable, Codable, Identifiable {
 
     enum CodingKeys: String, CodingKey {
         case photoID = "photo_id"
+        case shortName = "short_name"
         case imageURL = "image_url"
         case attribution
         case author
@@ -66,6 +70,11 @@ public struct DemoPhotoInfo: Hashable, Sendable, Codable, Identifiable {
         case width
         case height
         case parts
+    }
+
+    public var thumbnailLabel: String {
+        if let shortName, !shortName.isEmpty { return shortName }
+        return DemoLaunchOptions.shortName(for: photoID)
     }
 }
 
@@ -118,5 +127,114 @@ extension ChatClientConfiguration {
             .appendingPathComponent("photos")
             .appendingPathComponent(photoID)
             .appendingPathComponent("image")
+    }
+}
+
+/// Launch arguments and env hooks for screenshot runs. No typing required.
+///
+/// `-demoPhoto <id> -demoPart <part_id> -demoState outline|confirm|not_found -demoStyle outline|saturate|circle|dim`
+/// Env: `SIDEKICK_DEMO_PHOTO`, `SIDEKICK_DEMO_PART`, `SIDEKICK_DEMO_STATE`, `SIDEKICK_DEMO_STYLE`.
+public struct DemoLaunchOptions: Equatable, Sendable {
+    public static let defaultPhotoID = "commons-hilux-2jz"
+
+    public var photoID: String?
+    public var partID: String?
+    public var state: String?
+    public var style: DemoHighlightStyle?
+
+    public var enablesDemoMode: Bool {
+        photoID != nil || partID != nil || state != nil || style != nil
+    }
+
+    public var resolvedPhotoID: String {
+        photoID ?? Self.defaultPhotoID
+    }
+
+    public var cannedQuestion: String {
+        Self.question(partID: partID, state: state, photoID: resolvedPhotoID)
+    }
+
+    public init(
+        photoID: String? = nil,
+        partID: String? = nil,
+        state: String? = nil,
+        style: DemoHighlightStyle? = nil
+    ) {
+        self.photoID = photoID.map(Self.resolvePhotoID)
+        self.partID = partID
+        self.state = state
+        self.style = style
+    }
+
+    public static func parse(
+        arguments: [String] = ProcessInfo.processInfo.arguments,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> DemoLaunchOptions {
+        DemoLaunchOptions(
+            photoID: flag(arguments, "-demoPhoto") ?? environment["SIDEKICK_DEMO_PHOTO"],
+            partID: flag(arguments, "-demoPart") ?? environment["SIDEKICK_DEMO_PART"],
+            state: flag(arguments, "-demoState") ?? environment["SIDEKICK_DEMO_STATE"],
+            style: DemoHighlightStyle(
+                rawValue: flag(arguments, "-demoStyle")
+                    ?? environment["SIDEKICK_DEMO_STYLE"]
+                    ?? ""
+            )
+        )
+    }
+
+    public static func shortName(for photoID: String) -> String {
+        switch resolvePhotoID(photoID) {
+        case "hrymx-2jz-ge-25308847029": "2JZ-GE prototype"
+        case "commons-hilux-2jz": "Hilux"
+        case "commons-supra-n5abh": "Supra (2JZ-GTE)"
+        case "flickr-robmarson-6763892857": "2JZ bay"
+        default: photoID
+        }
+    }
+
+    public static func question(partID: String?, state: String?, photoID: String) -> String {
+        if let partID {
+            return question(forPart: partID)
+        }
+        switch state {
+        case "confirm":
+            return "where's the intake plenum?"
+        case "not_found":
+            return "where are the coil packs?"
+        default:
+            return photoID == defaultPhotoID || photoID == "commons-hilux-2jz"
+                ? "where's the fuse box?"
+                : "where's the throttle body?"
+        }
+    }
+
+    public static func question(forPart partID: String) -> String {
+        switch partID {
+        case "throttle-body": "where's the throttle body?"
+        case "intake-plenum": "where's the intake plenum?"
+        case "coil-packs": "where are the coil packs?"
+        case "fuse-relay-box": "where's the fuse box?"
+        case "radiator-cap-upper-hose": "where's the radiator cap?"
+        case "battery-terminals": "where are the battery terminals?"
+        default: "where's the \(partID.replacingOccurrences(of: "-", with: " "))?"
+        }
+    }
+
+    public static func resolvePhotoID(_ raw: String) -> String {
+        switch raw {
+        case "hilux": "commons-hilux-2jz"
+        case "supra": "commons-supra-n5abh"
+        case "prototype", "hrymx": "hrymx-2jz-ge-25308847029"
+        case "flickr": "flickr-robmarson-6763892857"
+        default: raw
+        }
+    }
+
+    private static func flag(_ arguments: [String], _ name: String) -> String? {
+        guard let index = arguments.firstIndex(of: name) else { return nil }
+        let next = arguments.index(after: index)
+        guard next < arguments.endIndex else { return nil }
+        let value = arguments[next]
+        return value.hasPrefix("-") ? nil : value
     }
 }

@@ -10,10 +10,6 @@ struct AnswerCardView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            if demoContext?.isDemoMode == true {
-                DemoDataBadge()
-            }
-
             if let statusTitle = content.statusTitle {
                 Label(statusTitle, systemImage: "book.closed")
                     .font(.subheadline.weight(.semibold))
@@ -89,12 +85,6 @@ struct AnswerCardView: View {
             )
             if demo.display == .confirm, let onYes = demo.onYes, let onNotThis = demo.onNotThis {
                 DemoConfirmBar(onYes: onYes, onNotThis: onNotThis)
-            }
-            if demo.highlight == nil || hidden {
-                Text("See the manual diagram (placeholder): 2JZ-GE repair manual, page TBD.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .accessibilityIdentifier("demo.diagramPointer")
             }
         }
     }
