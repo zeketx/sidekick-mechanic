@@ -93,6 +93,28 @@ final class ChatClientTests: XCTestCase {
             object["messages"] as? [[String: String]],
             [["role": "user", "text": "hello"]]
         )
+        XCTAssertNil(object["demo"])
+    }
+
+    func testLivePostsDemoPhotoIDWhenProvided() async throws {
+        let http = FakeHTTP(result: .success((
+            Data(#"""
+            {"kind":"answer","text":"Demo reply.","citations":[]}
+            """#.utf8),
+            httpResponse(200)
+        )))
+        let client = LiveChatClient(
+            configuration: ChatClientConfiguration(baseURL: URL(string: "http://example.test:9")!),
+            http: http
+        )
+        _ = try await client.send(
+            try conversation("where's the throttle body?"),
+            demoPhotoID: "hrymx-2jz-ge-25308847029"
+        )
+        let body = try JSONSerialization.jsonObject(with: XCTUnwrap(http.requests[0].httpBody))
+        let object = try XCTUnwrap(body as? [String: Any])
+        let demo = try XCTUnwrap(object["demo"] as? [String: String])
+        XCTAssertEqual(demo["photo_id"], "hrymx-2jz-ge-25308847029")
     }
 
     func testLiveErrorsMapToUserMessages() async throws {

@@ -11,6 +11,10 @@ public final class ChatViewModel {
     public var composerText: String
     public private(set) var isLoading: Bool
     public private(set) var errorMessage: String?
+    public var isDemoMode: Bool
+    public var selectedDemoPhotoID: String?
+    public var highlightStyle: DemoHighlightStyle
+    public private(set) var confirmDecisions: [String: DemoConfirmDecision]
 
     @ObservationIgnored private let client: any ChatClient
     @ObservationIgnored private let makeMessageID: @Sendable () -> MessageID
@@ -18,7 +22,15 @@ public final class ChatViewModel {
     public var messages: [Message] { conversation.messages }
 
     public var canSend: Bool {
-        !isLoading && !composerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let hasText = !isLoading && !composerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        if isDemoMode {
+            return hasText && selectedDemoPhotoID != nil
+        }
+        return hasText
+    }
+
+    public var activeDemoPhotoID: String? {
+        isDemoMode ? selectedDemoPhotoID : nil
     }
 
     public init(
@@ -27,6 +39,9 @@ public final class ChatViewModel {
         composerText: String = "",
         isLoading: Bool = false,
         errorMessage: String? = nil,
+        isDemoMode: Bool = false,
+        selectedDemoPhotoID: String? = nil,
+        highlightStyle: DemoHighlightStyle = .outline,
         client: any ChatClient,
         makeMessageID: @escaping @Sendable () -> MessageID = ChatViewModel.makeUUIDMessageID
     ) {
@@ -34,6 +49,10 @@ public final class ChatViewModel {
         self.composerText = composerText
         self.isLoading = isLoading
         self.errorMessage = errorMessage
+        self.isDemoMode = isDemoMode
+        self.selectedDemoPhotoID = selectedDemoPhotoID
+        self.highlightStyle = highlightStyle
+        self.confirmDecisions = [:]
         self.client = client
         self.makeMessageID = makeMessageID
     }
@@ -62,7 +81,7 @@ public final class ChatViewModel {
         let outgoing = conversation
 
         do {
-            let answer = try await client.send(outgoing)
+            let answer = try await client.send(outgoing, demoPhotoID: activeDemoPhotoID)
             let assistant = AssistantMessage(id: makeMessageID(), answer: answer)
             conversation = conversation.appending(.assistant(assistant))
             isLoading = false
@@ -75,6 +94,22 @@ public final class ChatViewModel {
             errorMessage = Self.unknownFailureMessage
             isLoading = false
         }
+    }
+
+    public func applyDemoConfirm(messageID: MessageID, decision: DemoConfirmDecision) {
+        confirmDecisions[messageID.rawValue] = decision
+    }
+
+    public func effectiveDisplay(for messageID: MessageID, highlight: HighlightRef?) -> HighlightDisplay? {
+        if let decision = confirmDecisions[messageID.rawValue] {
+            switch decision {
+            case .yes:
+                return .outline
+            case .notThis:
+                return nil
+            }
+        }
+        return highlight?.display ?? (highlight == nil ? nil : .outline)
     }
 
     static let unknownFailureMessage = "Something went wrong. Try again."
