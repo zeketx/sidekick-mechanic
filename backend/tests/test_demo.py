@@ -11,17 +11,23 @@ from app import create_app
 from chat_models import Conversation, DemoRequest, Message
 from contract import validate_answer
 from demo import (
+    DEMO_DEFAULT_PHOTO_ID,
     DEMO_DIAGRAM_POINTER,
+    DEMO_DIM_FACTOR,
     DEMO_LABEL,
+    DEMO_SYSTEM_PROMPT,
+    DEMO_VEHICLE,
     apply_demo_resolution,
     bay_map_view_for_photo,
     catalog_public,
+    confirm_highlight_config,
     has_photo,
     load_catalog,
     log_demo_feedback,
+    match_part_from_question,
     resolve_demo_answer,
 )
-from llm import ChatTurn, LLMError, LLMResult
+from llm import ChatTurn, LLMResult
 from part_resolver import Resolution, ResolutionKind
 from producer import LlmAnswerProducer, SYSTEM_PROMPT
 
@@ -66,6 +72,14 @@ def _result(text: str) -> LLMResult:
     return LLMResult(text=text, model="fake", usage=None)
 
 
+def test_confirm_dim_is_in_the_visible_band() -> None:
+    config = confirm_highlight_config()
+    assert config.dim_factor == DEMO_DIM_FACTOR
+    assert 0.35 <= config.dim_factor <= 0.45
+    assert config.outline_width_px == 4
+    assert config.saturation_factor == 2.0
+
+
 def test_catalog_loads_four_photos_and_attribution() -> None:
     catalog = load_catalog()
     ids = catalog.photo_ids()
@@ -83,7 +97,11 @@ def test_catalog_loads_four_photos_and_attribution() -> None:
     public = catalog_public()
     assert public["demo"] is True
     assert public["label"] == DEMO_LABEL
+    assert public["default_photo_id"] == DEMO_DEFAULT_PHOTO_ID
     assert public["photos"][1]["share_alike"] is True
+    assert public["photos"][1]["short_name"] == "Hilux"
+    assert public["photos"][0]["short_name"] == "2JZ-GE prototype"
+    assert public["photos"][2]["short_name"] == "Supra (2JZ-GTE)"
     assert has_photo(HRYMX) is True
     assert has_photo("missing-photo") is False
 
@@ -112,6 +130,9 @@ def test_outline_state_returns_demo_geometry() -> None:
         "y": 0.46413,
     }
     assert DEMO_DIAGRAM_POINTER not in payload["text"]
+    assert payload["text"].startswith("Here it is.")
+    assert "throttle body" in payload["text"]
+    assert DEMO_VEHICLE in payload["text"]
     assert payload["citations"][0]["page"] == 999
 
 
@@ -126,6 +147,8 @@ def test_confirm_state_returns_softer_display() -> None:
     assert payload["highlight"]["demo"] is True
     assert payload["highlight"]["part_id"] == "intake-plenum"
     assert payload["highlight"]["geometry"]["polygons"][0]["points"][0]["x"] == 0.53125
+    assert payload["text"].startswith("I think this is the intake plenum")
+    assert DEMO_VEHICLE in payload["text"]
 
 
 def test_not_found_state_omits_highlight_and_points_at_diagram() -> None:
@@ -133,7 +156,9 @@ def test_not_found_state_omits_highlight_and_points_at_diagram() -> None:
     payload = resolve_demo_answer(original, _selection("coil-packs"), HRYMX)
     validate_answer(payload)
     assert "highlight" not in payload
-    assert payload["text"] == f"{original['text']} {DEMO_DIAGRAM_POINTER}"
+    assert payload["text"].startswith("coil packs — not visible in this photo.")
+    assert payload["text"].endswith(DEMO_DIAGRAM_POINTER)
+    assert original["text"] not in payload["text"]
 
 
 def test_part_absent_from_photo_is_not_found() -> None:
@@ -144,6 +169,7 @@ def test_part_absent_from_photo_is_not_found() -> None:
     )
     validate_answer(payload)
     assert "highlight" not in payload
+    assert "not visible in this photo" in payload["text"]
     assert payload["text"].endswith(DEMO_DIAGRAM_POINTER)
 
 
@@ -247,33 +273,26 @@ def _demo_body(text: str, photo_id: str = HRYMX) -> dict[str, Any]:
 
 
 @pytest.mark.parametrize(
-    ("question", "answer_text", "part_id", "display"),
+    ("question", "part_id", "display", "needle"),
     [
-        (
-            "where's the throttle body?",
-            "The throttle body is on the intake side of this demo photo.",
-            "throttle-body",
-            "outline",
-        ),
+        ("where's the throttle body?", "throttle-body", "outline", "Here it is."),
+        ("where is the throttle body", "throttle-body", "outline", "Here it is."),
         (
             "show me the intake plenum",
-            "The intake plenum is the large chamber on this demo photo.",
             "intake-plenum",
             "confirm",
+            "I think this is the intake plenum",
         ),
     ],
 )
-def test_scripted_chat_returns_each_highlight_state(
+def test_scripted_chat_resolves_plain_question_not_reply(
     question: str,
-    answer_text: str,
     part_id: str,
     display: str,
+    needle: str,
 ) -> None:
-    client = _demo_client(
-        LlmAnswerProducer(
-            _ScriptedLLM([_result(answer_text), _result(_selection(part_id))])
-        )
-    )
+    fake = _ScriptedLLM([_result("I do not know the make or model of this engine.")])
+    client = _demo_client(LlmAnswerProducer(fake))
     response = client.post("/chat", json=_demo_body(question))
     assert response.status_code == 200
     payload = response.json()
@@ -282,25 +301,24 @@ def test_scripted_chat_returns_each_highlight_state(
     assert payload["highlight"]["part_id"] == part_id
     assert payload["highlight"]["demo"] is True
     assert payload["highlight"]["geometry"]["polygons"]
+    assert needle in payload["text"]
+    assert DEMO_VEHICLE in payload["text"]
+    assert "I do not know the make or model" not in payload["text"]
+    assert len(fake.calls) == 1
+    assert fake.calls[0][0].content == DEMO_SYSTEM_PROMPT
 
 
 def test_scripted_chat_not_found_omits_highlight() -> None:
-    client = _demo_client(
-        LlmAnswerProducer(
-            _ScriptedLLM(
-                [
-                    _result("Coil packs sit on the valve cover of this engine."),
-                    _result(_selection("coil-packs")),
-                ]
-            )
-        )
-    )
+    fake = _ScriptedLLM([_result("I do not know the make or model of this engine.")])
+    client = _demo_client(LlmAnswerProducer(fake))
     response = client.post("/chat", json=_demo_body("where are the coil packs?"))
     assert response.status_code == 200
     payload = response.json()
     validate_answer(payload)
     assert "highlight" not in payload
+    assert "not visible in this photo" in payload["text"]
     assert DEMO_DIAGRAM_POINTER in payload["text"]
+    assert len(fake.calls) == 1
 
 
 def test_chat_without_demo_does_not_select_a_demo_part() -> None:
@@ -361,13 +379,8 @@ def test_demo_feedback_route(caplog: pytest.LogCaptureFixture) -> None:
     assert bad.status_code == 422
 
 
-def test_producer_demo_map_lists_only_photo_parts() -> None:
-    scripted = _ScriptedLLM(
-        [
-            _result("The throttle body is on this demo photo."),
-            _result(_selection("throttle-body")),
-        ]
-    )
+def test_producer_resolves_from_question_without_a_second_llm_call() -> None:
+    scripted = _ScriptedLLM([_result("I do not know the make or model.")])
     payload = LlmAnswerProducer(scripted).produce(
         Conversation(
             messages=[Message(role="user", text="where's the throttle body?")],
@@ -376,29 +389,46 @@ def test_producer_demo_map_lists_only_photo_parts() -> None:
     )
     validate_answer(payload)
     assert payload["highlight"]["part_id"] == "throttle-body"
-    closed = scripted.calls[1][1].content
-    assert "throttle-body" in closed
-    assert "fuse-relay-box" not in closed
+    assert payload["text"].startswith("Here it is.")
+    assert len(scripted.calls) == 1
+    assert scripted.calls[0][0].content == DEMO_SYSTEM_PROMPT
 
 
-def test_demo_selection_failure_omits_highlight(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    caplog.set_level("WARNING")
+def test_unmatched_question_leaves_llm_text_and_omits_highlight() -> None:
     payload = LlmAnswerProducer(
-        _ScriptedLLM(
-            [
-                _result("The throttle body is on this demo photo."),
-                LLMError("selection timed out"),
-            ]
-        )
+        _ScriptedLLM([_result("FAKE reply with no specs.")])
     ).produce(
         Conversation(
-            messages=[Message(role="user", text="where's the throttle body?")],
+            messages=[Message(role="user", text="why is it hard to start?")],
             demo=DemoRequest(photo_id=HRYMX),
         )
     )
     validate_answer(payload)
     assert "highlight" not in payload
+    assert payload["text"] == "FAKE reply with no specs."
     assert DEMO_DIAGRAM_POINTER not in payload["text"]
-    assert "part selection failed" in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("question", "part_id"),
+    [
+        ("where's the throttle body?", "throttle-body"),
+        ("where is the throttle body", "throttle-body"),
+        ("show me the intake plenum", "intake-plenum"),
+        ("where are the coil packs?", "coil-packs"),
+        ("where's the fuse box?", "fuse-relay-box"),
+    ],
+)
+def test_plain_phrasing_matches_the_photo_part(question: str, part_id: str) -> None:
+    photo_id = HILUX if part_id == "fuse-relay-box" else HRYMX
+    photo = load_catalog().photo(photo_id)
+    assert photo is not None
+    matched = match_part_from_question(question, photo)
+    assert matched is not None
+    assert matched.part_id == part_id
+
+
+def test_fuse_box_on_hrymx_does_not_match() -> None:
+    photo = load_catalog().photo(HRYMX)
+    assert photo is not None
+    assert match_part_from_question("where's the fuse box?", photo) is None

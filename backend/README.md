@@ -322,8 +322,10 @@ CC BY-SA 3.0 (share-alike). Polygons and `demo_state` are scripted, not
 measured. Same `SIDEKICK_LLM_*` config as the normal path. No keys in git.
 
 Send `demo: {"photo_id": "<id>"}` on `POST /chat`. The producer still calls
-the model, then the existing part resolver, constrained to that photo's
-part list. The highlight follows that part's `demo_state`:
+the model (with the confirmed LJ78 / 2JZ-GE swap as context; VVT-i is TBD).
+The part is resolved from the **user's question**, constrained to that
+photo's part list — not from the reply wording. The highlight follows that
+part's `demo_state`, and the answer text agrees with that state:
 
 | State | Wire |
 | --- | --- |

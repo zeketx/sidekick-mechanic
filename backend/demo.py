@@ -35,8 +35,30 @@ DEMO_DIAGRAM_POINTER = (
     "This part is not on this demo photo. "
     "See the manual diagram (placeholder): 2JZ-GE repair manual, page TBD."
 )
+# Confirmed in docs/vehicle/TRUCK.md. VVT-i and donor year stay TBD.
+DEMO_VEHICLE = "1990 Toyota Land Cruiser LJ78 with a 2JZ-GE swap"
+DEMO_VEHICLE_CONTEXT = (
+    f"The owner's truck is a {DEMO_VEHICLE}. "
+    "Demo photos are stand-in 2JZ bays, not the truck. "
+    "Donor year, VVT-i, and ECU details are TBD. Do not invent them."
+)
+DEMO_SYSTEM_PROMPT = (
+    "You are Sidekick Mechanic. Answer the owner's question. "
+    f"{DEMO_VEHICLE_CONTEXT} "
+    "Do not invent torque values, part numbers, pinouts, wire colors, or other specs. "
+    "If you do not know a spec, say so."
+)
+DEMO_DEFAULT_PHOTO_ID = "commons-hilux-2jz"
+DEMO_SHORT_NAMES = {
+    "hrymx-2jz-ge-25308847029": "2JZ-GE prototype",
+    "commons-hilux-2jz": "Hilux",
+    "commons-supra-n5abh": "Supra (2JZ-GTE)",
+    "flickr-robmarson-6763892857": "2JZ bay",
+}
 DEMO_ANGLE_ID = "demo"
 DEMO_STATES = frozenset({"outline", "confirm", "not_found"})
+# Brightness left after dim. 0.40 ≈ 60% dim, inside the 55–65% band.
+DEMO_DIM_FACTOR = 0.40
 LOGGER = logging.getLogger("sidekick.demo")
 
 DemoState = Literal["outline", "confirm", "not_found"]
@@ -90,6 +112,10 @@ class DemoPhoto:
     def share_alike(self) -> bool:
         return self.license.startswith("CC BY-SA")
 
+    @property
+    def short_name(self) -> str:
+        return DEMO_SHORT_NAMES.get(self.photo_id, self.photo_id)
+
 
 @dataclass(frozen=True)
 class DemoCatalog:
@@ -141,6 +167,7 @@ def catalog_public() -> dict[str, Any]:
         "demo": True,
         "label": DEMO_LABEL,
         "attribution_url": "/demo/attribution",
+        "default_photo_id": DEMO_DEFAULT_PHOTO_ID,
         "photos": [_public_photo(photo) for photo in catalog.photos],
     }
 
@@ -157,12 +184,42 @@ def resolve_demo_answer(
     selection_text: str,
     photo_id: str,
 ) -> dict[str, Any]:
-    """Apply the existing resolver, then the photo's scripted demo_state."""
+    """Resolve a part from the user's question (or a JSON selection), then demo_state."""
     return apply_demo_resolution(
         answer,
-        resolve_part(selection_text, bay_map_view_for_photo(photo_id)),
+        resolution_from_user_text(selection_text, photo_id),
         photo_id,
     )
+
+
+def resolution_from_user_text(text: str, photo_id: str) -> Resolution:
+    """Prefer a JSON ``{"part_id": ...}`` selection; otherwise match the question."""
+    photo = load_catalog().photo(photo_id)
+    if photo is None:
+        raise DemoCatalogError(f"unknown demo photo: {photo_id}")
+    bay_map = bay_map_view_for_photo(photo_id)
+    stripped = text.strip()
+    if stripped.startswith("{"):
+        return resolve_part(stripped, bay_map)
+    matched = match_part_from_question(stripped, photo)
+    if matched is None:
+        return Resolution(kind=ResolutionKind.NONE)
+    return resolve_part(json.dumps({"part_id": matched.part_id}), bay_map)
+
+
+def match_part_from_question(question: str, photo: DemoPhoto) -> DemoPart | None:
+    """Pick the one catalog part whose name appears in the question, or none.
+
+    Constrained to this photo's parts. Does not read the model reply.
+    """
+    haystack = _normalize_phrase(question)
+    hits: list[DemoPart] = []
+    for part in photo.parts:
+        if any(alias in haystack for alias in _part_aliases(part)):
+            hits.append(part)
+    if len(hits) == 1:
+        return hits[0]
+    return None
 
 
 def apply_demo_resolution(
@@ -198,10 +255,11 @@ def apply_demo_resolution(
                 "geometry": _geometry_payload(part),
                 "demo": True,
             }
+            payload["text"] = _located_text(part)
             return payload
 
     if resolution.kind in {ResolutionKind.NOT_MAPPED, ResolutionKind.HIGHLIGHT}:
-        payload["text"] = _with_diagram_pointer(str(payload["text"]))
+        payload["text"] = _not_visible_text(photo, resolution.part_id)
     return payload
 
 
@@ -221,13 +279,18 @@ def log_demo_feedback(
 
 
 def confirm_highlight_config() -> HighlightConfig:
-    """Softer ink for the unsure 'Is this it?' state."""
+    """Softer ink for the unsure 'Is this it?' state.
+
+    Dim stays in the 55–65% band (same strength as the outline proofs).
+    Confirm reads softer via a thinner stroke and lower saturation, not a
+    weaker dim — 30% dim was invisible on these photos.
+    """
     return HighlightConfig(
         outline_width_px=4,
         saturation_factor=2.0,
         circle_width_px=2,
         circle_padding_px=16,
-        dim_factor=0.7,
+        dim_factor=DEMO_DIM_FACTOR,
     )
 
 
@@ -243,6 +306,7 @@ def pixel_rings(part: DemoPart, width: int, height: int) -> list[list[tuple[floa
 def _public_photo(photo: DemoPhoto) -> dict[str, Any]:
     return {
         "photo_id": photo.photo_id,
+        "short_name": photo.short_name,
         "image_url": f"/demo/photos/{photo.photo_id}/image",
         "attribution": photo.attribution,
         "author": photo.author,
@@ -417,12 +481,41 @@ def _geometry_payload(part: DemoPart) -> dict[str, Any]:
     }
 
 
-def _with_diagram_pointer(text: str) -> str:
-    if DEMO_DIAGRAM_POINTER in text:
-        return text
-    if not text or text.endswith((" ", "\n")):
-        return f"{text}{DEMO_DIAGRAM_POINTER}"
-    return f"{text} {DEMO_DIAGRAM_POINTER}"
+def _located_text(part: DemoPart) -> str:
+    if part.demo_state == "confirm":
+        return (
+            f"I think this is the {part.display_name} on this demo photo "
+            f"of a {DEMO_VEHICLE}."
+        )
+    return (
+        f"Here it is. The {part.display_name} is marked on this demo photo "
+        f"of a {DEMO_VEHICLE}."
+    )
+
+
+def _not_visible_text(photo: DemoPhoto, part_id: str | None) -> str:
+    part = photo.part(part_id) if part_id else None
+    name = part.display_name if part is not None else "that part"
+    return f"{name} — not visible in this photo. {DEMO_DIAGRAM_POINTER}"
+
+
+def _part_aliases(part: DemoPart) -> tuple[str, ...]:
+    phrases = {
+        _normalize_phrase(part.display_name),
+        _normalize_phrase(part.part_id.replace("-", " ")),
+        _normalize_phrase(part.display_name.replace("/", " ")),
+        _normalize_phrase(part.display_name.replace("+", " ")),
+    }
+    if "fuse" in part.part_id and "box" in part.part_id:
+        phrases.add("fuse box")
+    if part.display_name.endswith("s"):
+        phrases.add(_normalize_phrase(part.display_name[:-1]))
+    return tuple(p for p in phrases if p)
+
+
+def _normalize_phrase(value: str) -> str:
+    raw = "".join(ch.lower() if ch.isalnum() else " " for ch in value)
+    return " ".join(raw.split())
 
 
 def _positive_int(item: dict[str, object], key: str, photo_id: str) -> int:

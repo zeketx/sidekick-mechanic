@@ -16,6 +16,7 @@ from highlight import (
     GOLDEN_PIXEL_TOLERANCE,
     HighlightConfig,
     HighlightStyle,
+    _circle_box,
     render_highlight,
 )
 
@@ -203,6 +204,20 @@ def test_polygon_lists_and_whole_floats_match_int_tuples() -> None:
     expected = render_highlight(photo, POLYGON, HighlightStyle.OUTLINE)
     assert listed.tobytes() == expected.tobytes()
     assert floated.tobytes() == expected.tobytes()
+
+
+def test_circle_uses_bounding_box_center_not_vertex_mean() -> None:
+    # Dense left edge + one far-right point: the vertex mean sits left of
+    # the bounding-box center. The ring must sit on the box, not the mean.
+    points = ((10, 10), (12, 10), (12, 50), (10, 50), (90, 30))
+    box = _circle_box(points, padding=0)
+    cx = (box[0] + box[2]) / 2
+    cy = (box[1] + box[3]) / 2
+    assert cx == 50.0
+    assert cy == 30.0
+    mean_x = sum(point[0] for point in points) / len(points)
+    assert mean_x == pytest.approx(26.8)
+    assert cx != mean_x
 
 
 def test_circle_padding_moves_the_ring() -> None:

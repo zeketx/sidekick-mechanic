@@ -13,6 +13,7 @@ from pathlib import Path
 from PIL import Image
 
 from demo import (
+    DEMO_DIM_FACTOR,
     DEMO_LABEL,
     confirm_highlight_config,
     load_catalog,
@@ -52,9 +53,9 @@ def render_proofs(dest: Path) -> list[Path]:
             if state == "confirm":
                 config = confirm_highlight_config()
             elif style is HighlightStyle.DIM:
-                # Bakeoff default dim_factor is 1.0 (no-op). Proofs use 0.45
-                # so the dim style is visible when someone picks it.
-                config = HighlightConfig(dim_factor=0.45)
+                # Bakeoff default dim_factor is 1.0 (no-op). Proofs use the
+                # same 55–65% dim as the demo overlay (~0.40 brightness).
+                config = HighlightConfig(dim_factor=DEMO_DIM_FACTOR)
             else:
                 config = HighlightConfig()
             rendered = source.copy()
@@ -65,9 +66,10 @@ def render_proofs(dest: Path) -> list[Path]:
             written.append(path)
     notes.append(
         "Styles: outline, saturate, circle, dim. "
-        "Confirm uses a thinner stroke, saturation 2.0, and dim 0.7. "
-        "Outline-row dim uses dim_factor 0.45 so the style is visible; "
-        "the bakeoff default is 1.0 (no dim)."
+        "Confirm uses a thinner stroke and saturation 2.0. "
+        f"Dim uses dim_factor {DEMO_DIM_FACTOR} (~60% darken) for both rows; "
+        "confirm stays softer via stroke and saturation, not a weaker dim. "
+        "Circle uses the bounding-box center. The bakeoff default dim is 1.0."
     )
     (dest / "README.txt").write_text("\n".join(notes) + "\n", encoding="utf-8")
     return written

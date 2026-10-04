@@ -26,7 +26,7 @@ from llm import (
     TokenUsage,
     build_llm_client,
 )
-from demo import bay_map_view_for_photo, resolve_demo_answer
+from demo import DEMO_SYSTEM_PROMPT, resolve_demo_answer
 from part_resolver import BayMapView, complete_selection, resolve_answer
 from retrieval import (
     DEFAULT_K,
@@ -152,7 +152,7 @@ class LlmAnswerProducer:
             return dict(NOT_FOUND_REFUSAL)
 
         text = self._complete(
-            _chat_messages(conversation, _grounded_system_prompt(hits))
+            _chat_messages(conversation, _grounded_system_prompt(hits, conversation))
         )
         if text is None:
             return dict(UNAVAILABLE_ANSWER)
@@ -180,7 +180,10 @@ class LlmAnswerProducer:
         return tuple(hit.text for hit in hits)
 
     def _ungrounded(self, conversation: Conversation) -> dict[str, Any]:
-        text = self._complete(_chat_messages(conversation, SYSTEM_PROMPT))
+        system = (
+            DEMO_SYSTEM_PROMPT if conversation.demo is not None else SYSTEM_PROMPT
+        )
+        text = self._complete(_chat_messages(conversation, system))
         if text is None:
             return dict(UNAVAILABLE_ANSWER)
         return self._with_part_highlight(
@@ -219,9 +222,11 @@ class LlmAnswerProducer:
         demo_photo_id = (
             conversation.demo.photo_id if conversation.demo is not None else None
         )
-        bay_map = (
-            _demo_bay_map(demo_photo_id) if demo_photo_id is not None else self._bay_map
-        )
+        if demo_photo_id is not None:
+            return resolve_demo_answer(
+                payload, _last_user_text(conversation), demo_photo_id
+            )
+        bay_map = self._bay_map
         if bay_map is None or not bay_map.parts:
             return payload
         try:
@@ -233,8 +238,6 @@ class LlmAnswerProducer:
         except LLMError:
             LOGGER.warning("part selection failed; answer has no highlight")
             return payload
-        if demo_photo_id is not None:
-            return resolve_demo_answer(payload, selection_text, demo_photo_id)
         return resolve_answer(payload, selection_text, bay_map)
 
 
@@ -272,10 +275,6 @@ def _chat_messages(conversation: Conversation, system: str) -> list[ChatTurn]:
     return messages
 
 
-def _demo_bay_map(photo_id: str) -> BayMapView:
-    return bay_map_view_for_photo(photo_id)
-
-
 def _last_user_text(conversation: Conversation) -> str:
     for message in reversed(conversation.messages):
         if message.role == "user":
@@ -283,11 +282,19 @@ def _last_user_text(conversation: Conversation) -> str:
     return ""
 
 
-def _grounded_system_prompt(hits: Sequence[_RetrievedPage]) -> str:
+def _grounded_system_prompt(
+    hits: Sequence[_RetrievedPage],
+    conversation: Conversation | None = None,
+) -> str:
     pages = [{"doc_id": hit.doc_id, "page": hit.page, "text": hit.text} for hit in hits]
     rendered = json.dumps(pages, ensure_ascii=False)
+    preamble = (
+        DEMO_SYSTEM_PROMPT
+        if conversation is not None and conversation.demo is not None
+        else _GROUNDED_PREAMBLE
+    )
     return (
-        f"{_GROUNDED_PREAMBLE}\n\n{_GROUNDED_INSTRUCTIONS}\n\n"
+        f"{preamble}\n\n{_GROUNDED_INSTRUCTIONS}\n\n"
         f"{RETRIEVED_PAGES_HEADER}{rendered}"
     )
 
