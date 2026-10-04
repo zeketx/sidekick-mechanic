@@ -315,7 +315,7 @@ private struct IdleChatClient: ChatClient {
     ChatScreen(
         model: ChatScreenPreview.conversation(
             isDemoMode: true,
-            selectedDemoPhotoID: "hrymx-2jz-ge-25308847029"
+            selectedDemoPhotoID: DemoLaunchOptions.defaultPhotoID
         )
     )
     .preferredColorScheme(.light)
