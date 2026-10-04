@@ -26,6 +26,7 @@ from llm import (
     TokenUsage,
     build_llm_client,
 )
+from demo import bay_map_view_for_photo, resolve_demo_answer
 from part_resolver import BayMapView, complete_selection, resolve_answer
 from retrieval import (
     DEFAULT_K,
@@ -164,7 +165,8 @@ class LlmAnswerProducer:
         if not citations:
             return dict(UNAVAILABLE_ANSWER)
         return self._with_part_highlight(
-            {"kind": "answer", "text": parsed.text, "citations": citations}
+            {"kind": "answer", "text": parsed.text, "citations": citations},
+            conversation,
         )
 
     def cited_chunk_texts(self, conversation: Conversation) -> tuple[str, ...]:
@@ -182,7 +184,8 @@ class LlmAnswerProducer:
         if text is None:
             return dict(UNAVAILABLE_ANSWER)
         return self._with_part_highlight(
-            {"kind": "answer", "text": text, "citations": []}
+            {"kind": "answer", "text": text, "citations": []},
+            conversation,
         )
 
     def _complete(self, messages: list[ChatTurn]) -> str | None:
@@ -208,8 +211,17 @@ class LlmAnswerProducer:
             return None
         return text
 
-    def _with_part_highlight(self, payload: dict[str, Any]) -> dict[str, Any]:
-        bay_map = self._bay_map
+    def _with_part_highlight(
+        self,
+        payload: dict[str, Any],
+        conversation: Conversation,
+    ) -> dict[str, Any]:
+        demo_photo_id = (
+            conversation.demo.photo_id if conversation.demo is not None else None
+        )
+        bay_map = (
+            _demo_bay_map(demo_photo_id) if demo_photo_id is not None else self._bay_map
+        )
         if bay_map is None or not bay_map.parts:
             return payload
         try:
@@ -221,6 +233,8 @@ class LlmAnswerProducer:
         except LLMError:
             LOGGER.warning("part selection failed; answer has no highlight")
             return payload
+        if demo_photo_id is not None:
+            return resolve_demo_answer(payload, selection_text, demo_photo_id)
         return resolve_answer(payload, selection_text, bay_map)
 
 
@@ -256,6 +270,10 @@ def _chat_messages(conversation: Conversation, system: str) -> list[ChatTurn]:
         for message in conversation.messages
     )
     return messages
+
+
+def _demo_bay_map(photo_id: str) -> BayMapView:
+    return bay_map_view_for_photo(photo_id)
 
 
 def _last_user_text(conversation: Conversation) -> str:
