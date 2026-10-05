@@ -108,6 +108,7 @@ rebuilds the doc from the latest results file without re-running questions.
 The sample set is fake (`FAKE-*` document ids, page 999) so the harness and CI
 have rows before the real golden set exists. Do not put real manual pages in
 the sample. The golden-set issue owns `eval/golden.jsonl`.
+See [`eval/GOLDEN.md`](eval/GOLDEN.md) for the fields and the note that the manual PDFs live outside git.
 
 Each JSONL row matches [`eval/golden.schema.json`](eval/golden.schema.json):
 `id`, `question`, `answerable`, `expected` (`doc_id` and `page`), optional
