@@ -44,7 +44,7 @@ YYYY-MM-DD_<id>_<nn>.ext
 
 Lowercase, hyphens inside an id, no spaces. The underscore separates `<id>` from `<nn>` only.
 
-Highlight ids have no number of their own: `front`, `overhead`, `vehicle-left`, `vehicle-right`, `firewall`. Frame `01` is the one the bay map uses. A blurry spare of the same angle is frame `02`. Log frame `01`.
+Highlight ids have no number of their own: `front`, `overhead`, `vehicle-left`, `vehicle-right`, `firewall`. Frame `01` is the one the optional bay map uses. A blurry spare of the same angle is frame `02`. Log frame `01`. Highlighting does not require these frames to be traced first.
 
 Everything else puts the subject number in the id, and uses `<nn>` as the frame: `ecu-case-01`, `ecu-connector-01`, `diag-plug-01`, `harness-run-01`, `firewall-passthrough-01`. A second firewall opening is a new id (`firewall-passthrough-02`), not frame `03` of the first.
 
@@ -65,13 +65,13 @@ Keep the phone's original if a rename would throw away the only copy. Write the 
 | Donor ECU number, OBD protocol, donor model year, harness notes, dongle compatibility, bay photo angle list, delivery date, truck delivered | [TRUCK.md](TRUCK.md). A row stays `TBD` until that file's evidence rule is met. |
 | OBD-II vs OBD1 decision | [ECU.md](ECU.md) ([issue #7](https://github.com/zeketx/sidekick-mechanic/issues/7)). Leave **OBD protocol** as `TBD` until [issue #38](https://github.com/zeketx/sidekick-mechanic/issues/38) records the live result. |
 | Image files | On your machine, in `bay-photos/day-one/`, next to the repo. Do not `git add` them from this checklist. [Issue #39](https://github.com/zeketx/sidekick-mechanic/issues/39) stores them the way [docs/BAY_MAP.md](../BAY_MAP.md) says. |
-| Part regions on these photos | Draw them later with [docs/BAY_MAP.md](../BAY_MAP.md). [Issue #40](https://github.com/zeketx/sidekick-mechanic/issues/40) is the pass that confirms those regions. The bay map schema is [backend/contracts/bay_map.schema.json](../../backend/contracts/bay_map.schema.json) ([issue #26](https://github.com/zeketx/sidekick-mechanic/issues/26)). The angle id column below is the schema's angle ID, and the `_01` filename is the photo ID. Do not draw regions on delivery day. |
+| Part regions on these photos | Optional. Draw them later with [docs/BAY_MAP.md](../BAY_MAP.md) when you want an accuracy boost on these reference photos, or hand labels to score highlight IoU. Highlighting does not wait on the drawing. A highlight you confirm in the app can be saved back as a traced region. [Issue #40](https://github.com/zeketx/sidekick-mechanic/issues/40) is the pass that confirms those regions. The bay map schema is [backend/contracts/bay_map.schema.json](../../backend/contracts/bay_map.schema.json) ([issue #26](https://github.com/zeketx/sidekick-mechanic/issues/26)). The angle id column below is the schema's angle ID, and the `_01` filename is the photo ID. Do not draw regions on delivery day. |
 
 Public prototype bay photos ([issue #27](https://github.com/zeketx/sidekick-mechanic/issues/27)) are a different set. Keep them out of `bay-photos/day-one/`. Their manifest is [`backend/data/prototype_bay_photos.json`](../../backend/data/prototype_bay_photos.json). From `backend/`, `python3 prototype_photos.py fetch` writes them into `bay-photos/prototype/`. That directory is gitignored. Every file in it is a prototype stand-in, not this truck, and is replaced in M5.
 
 ## Fixed-angle bay photos
 
-Five angles. These are the highlight set for [issue #39](https://github.com/zeketx/sidekick-mechanic/issues/39) and [issue #40](https://github.com/zeketx/sidekick-mechanic/issues/40). Harness close-ups are later in this page and are not extra angles.
+Five angles. These are the reference photos for the optional bay map ([issue #39](https://github.com/zeketx/sidekick-mechanic/issues/39) and [issue #40](https://github.com/zeketx/sidekick-mechanic/issues/40)). A highlight can also land on a photo that is not in this set. Harness close-ups are later in this page and are not extra angles.
 
 Same phone for every angle. Hood fully open and propped. Landscape. Rear camera only.
 
@@ -168,7 +168,7 @@ Diagnostic plugs, if you see any: photograph each one (`diag-plug-01_01`, …). 
 
 ## Harness and firewall pass-throughs
 
-These photos feed harness notes ([issue #39](https://github.com/zeketx/sidekick-mechanic/issues/39)). They are not highlight angles. Do not cut tape, unplug connectors, or pull a grommet.
+These photos feed harness notes ([issue #39](https://github.com/zeketx/sidekick-mechanic/issues/39)). They are not extra angles in the reference set. Do not cut tape, unplug connectors, or pull a grommet.
 
 Walk the visible harness from the ECU toward the engine, and from the engine toward the firewall. Each time the path turns, goes under a cover, or crosses a panel, take one photo (`harness-run-01_01`, …).
 

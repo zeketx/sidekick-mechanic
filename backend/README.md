@@ -27,7 +27,11 @@ Design: [`docs/design/retrieval-index.md`](../docs/design/retrieval-index.md).
 The bay map is a separate contract,
 [`contracts/bay_map.schema.json`](contracts/bay_map.schema.json). `load_bay_map`
 in `bay_map.py` is the Python loader. A highlight on an answer is still only
-`bay_photo_id` and `part_id`. See [`docs/design/bay-map.md`](../docs/design/bay-map.md).
+`bay_photo_id` and `part_id`. That pair is the current contract. The product
+requirement is a precise outline on any still photo, including one that has
+never been traced. [Issue #86](https://github.com/zeketx/sidekick-mechanic/issues/86)
+will carry an arbitrary photo plus a mask or outline. The schema is unchanged
+until then. See [`docs/design/bay-map.md`](../docs/design/bay-map.md).
 
 ## Run locally
 
@@ -128,6 +132,16 @@ against the confirmed polygons the highlight renderer draws for that photo
 and part. It does not depend on which questions ran. `python -m eval` exits
 1 when any answer highlights a part that is not mapped. The results file
 still records that count.
+
+That is the current harness. It still scores confirmed bay-map polygons.
+Hand labels stay the answer key. The living targets are the proposed ones in
+[VISION.md](../VISION.md), pending Zeke's confirmation after
+[issue #85](https://github.com/zeketx/sidekick-mechanic/issues/85). They
+replace correct-part ≥ 0.90 and region IoU ≥ 0.80.
+[Issue #88](https://github.com/zeketx/sidekick-mechanic/issues/88) is the
+acceptance eval for highlights on photos that were never traced.
+[`docs/METRICS.md`](../docs/METRICS.md) is generated from this harness. Do not
+hand-edit it to paste the proposed targets.
 
 Until `eval/hand_labels.json` and `eval/bay_map.json` exist, the run uses
 [`eval/fixtures/fake-hand-labels.json`](eval/fixtures/fake-hand-labels.json)
@@ -292,7 +306,13 @@ Environment variables (see `.env.example`):
 ## Part resolver
 
 `part_resolver.resolve_answer` sets the answer contract's optional `highlight`
-from a model selection, or leaves the highlight off.
+from a model selection, or leaves the highlight off. This is the merged
+behavior from
+[issue #32](https://github.com/zeketx/sidekick-mechanic/issues/32). It only
+highlights a confirmed bay-map region. [Issue #86](https://github.com/zeketx/sidekick-mechanic/issues/86)
+and [issue #33](https://github.com/zeketx/sidekick-mechanic/issues/33) rework
+that path so a photo with no trace can still carry a precise outline. Do not
+change the schema in the meantime.
 
 The model must return `{"part_id": "<id>"}` or `{"part_id": null}`. The id
 has to be one of `BayMapView.part_ids()`. `as_bay_map_view` builds that view
@@ -321,7 +341,8 @@ answer without a highlight.
 Widths, colors, and factors live on one `HighlightConfig`.
 
 The polygon is `(x, y)` pixels of the photo, origin top left. Callers pass
-the points. The bay map schema (#26) still owns how regions are stored.
+the points. The product highlight is that precise outline, never a bounding
+box. The bay map schema (#26) still owns how traced regions are stored.
 `part_resolver.BayMapView` carries photo and part ids. Pass the polygon into
 `render_highlight` directly.
 

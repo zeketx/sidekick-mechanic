@@ -62,11 +62,15 @@ All of these are invoked explicitly (they set `disable-model-invocation: true`).
 - Citation viewer: small UI work.
 
 ### M3: Bay map and highlight engine
-- ★ Bay map schema: `/architect` before labeling any photos. Any later schema change runs `/blast-radius`, since the schema feeds the renderer, the resolver, the eval, and the Phase 2 detector.
-- ★ Highlight engine module (renderer interface and part resolver): `/architect`. Prototype the renderer in Python so agents can run golden-image tests on Linux.
+- Highlight on an untraced photo is the product rule. The mark is a precise outline, never a bounding box. Phase 1 does not track the live camera. The hand-traced bay map is optional: an accuracy boost and the IoU answer key.
+- Order: [issue #84](https://github.com/zeketx/sidekick-mechanic/issues/84) → [issue #85](https://github.com/zeketx/sidekick-mechanic/issues/85) → Engineer design PR → [issue #86](https://github.com/zeketx/sidekick-mechanic/issues/86) → [issue #87](https://github.com/zeketx/sidekick-mechanic/issues/87) → [issue #31](https://github.com/zeketx/sidekick-mechanic/issues/31) → [issue #33](https://github.com/zeketx/sidekick-mechanic/issues/33) → [issue #88](https://github.com/zeketx/sidekick-mechanic/issues/88).
+- ★ [Issue #85](https://github.com/zeketx/sidekick-mechanic/issues/85) is the spike. A (preferred) is a vision model that grounds the part, then SAM 2. B (open baseline) is Grounding DINO plus SAM 2. C is a vision model that draws the mask. Do not pick a winner in an implementation PR before the spike and the Engineer design PR. Zeke approved a paid vision API on 2026-10-02. The provider is OpenRouter. Paths A and C are unblocked for the #85 spike. The cost target is still ≤ $0.03 per photo. The key is a Railway secret for the product and is never committed. Proposed targets are pending Zeke's confirmation after this spike. If no candidate gets wrong-part ≤ 5%, stop and rethink. Do not ship.
+- ★ Answer contract v2 ([issue #86](https://github.com/zeketx/sidekick-mechanic/issues/86)) reopens #9 and #10. It replaces `highlight_ref` (`bay_photo_id` + `part_id`) and the bay-map-only resolver from #32, together with #33. Run `/blast-radius` before that schema edit, then `/interrogate`.
+- ★ Bay map schema: already designed. Optional for highlighting. Any later schema change runs `/blast-radius`, since the schema feeds the renderer, the resolver, the eval, and the Phase 2 detector.
+- Highlight renderer: prototype in Python so agents can run golden-image tests on Linux. The part resolver from #32 stays until #86 and #33 rework it.
 - Highlight visual style: `/arena` with at least three style candidates. Rubric: part obvious within one second on a phone, context still readable, works on dark and bright bays.
-- Swift port of the renderer: `/poteto-mode` Feature playbook. The owner verifies on the Mac with `verify-ios`.
-- End-to-end wiring: Feature playbook, then `/interrogate` on the PR.
+- Swift port of the renderer ([issue #31](https://github.com/zeketx/sidekick-mechanic/issues/31)): `/poteto-mode` Feature playbook, after #87. The owner verifies on the Mac with `verify-ios`.
+- End-to-end wiring ([issue #33](https://github.com/zeketx/sidekick-mechanic/issues/33)): Feature playbook, then `/interrogate` on the PR. After #31.
 - After M3: `/maintain-verification-skill` to add bay map and highlight to the feature map. `/automate-me` to draft `zeke-mode` from the sessions so far.
 
 ### M4: Pre-delivery groundwork

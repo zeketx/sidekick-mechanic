@@ -1,5 +1,7 @@
 # Part resolver
 
+This page describes the resolver that merged in [issue #32](https://github.com/zeketx/sidekick-mechanic/issues/32). It is slated to be reworked. The product rule is a precise outline on any still photo, including one that has never been traced. A bounding box is never the highlight. Confident, unsure ("Is this it?"), and not-found behavior is [issue #87](https://github.com/zeketx/sidekick-mechanic/issues/87). The pipeline spike is [issue #85](https://github.com/zeketx/sidekick-mechanic/issues/85). [Issue #86](https://github.com/zeketx/sidekick-mechanic/issues/86) and [issue #33](https://github.com/zeketx/sidekick-mechanic/issues/33) replace this path. Until then, this resolver still emits only `bay_photo_id` and `part_id`, and only for a confirmed region. Do not treat that limit as the product rule, and do not change the schema here.
+
 The answer can point at one bay-map part. The highlight is that part on the photo where its confirmed region is largest. An unsure, unknown, or unmapped choice highlights nothing.
 
 `BayMapView` in `backend/part_resolver.py` is the view the resolver reads. `as_bay_map_view` in `backend/bay_map.py` builds it from the bay map schema. Polygons, image size, display names, aliases, license, and source stay in that schema.
@@ -36,7 +38,7 @@ One surrounding Markdown code fence is stripped, so a fenced JSON object still c
 
 A refusal is returned without a highlight and without that sentence. The sentence is not added twice.
 
-Usable regions are `confirmed` and `area_px` > 0. Unconfirmed regions never win, including when their area is larger. That flag is the local stand-in for #26's rule that an unconfirmed region cannot be highlighted.
+Usable regions are `confirmed` and `area_px` > 0. Unconfirmed regions never win, including when their area is larger. That flag is how this resolver follows the shipped bay-map rule. The product rule is the note at the top of this page: a missing trace does not block a highlight.
 
 The winning region is the maximum `area_px`. The #26 adapter must pass areas on one scale (same image size, or one normalized unit). Equal areas break ties by `bay_photo_id`, then `angle_id`, so the choice does not move between runs.
 
