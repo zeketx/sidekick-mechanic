@@ -60,7 +60,8 @@ final class HighlightViewerTests: XCTestCase {
         XCTAssertEqual(shown.banner, "Internal only · flag off in v1")
         XCTAssertEqual(shown.footer, "")
         XCTAssertEqual(shown.partID, "radiator-cap-upper-hose")
-        XCTAssertEqual(shown.body, "The radiator cap + upper hose on this demo photo.")
+        XCTAssertEqual(shown.body, "The radiator cap on this demo photo.")
+        XCTAssertFalse(shown.body.contains("upper hose"))
         XCTAssertEqual(HighlightViewerCopy.unsurePrompt, "Is this it?")
     }
 
@@ -142,18 +143,17 @@ final class HighlightViewerTests: XCTestCase {
         )
 
         XCTAssertEqual(hiluxFuse.polygons.count, 1)
-        XCTAssertEqual(hiluxFuse.polygons[0].points.count, 26)
-        XCTAssertEqual(hiluxFuse.polygons[0].points[0].x, 0.12207)
-        XCTAssertEqual(hiluxFuse.polygons[0].points[0].y, 0.44706)
+        XCTAssertGreaterThanOrEqual(hiluxFuse.polygons[0].points.count, 5)
+        XCTAssertLessThan(hiluxFuse.polygons[0].points.map(\.x).min() ?? 1, 0.2)
 
-        XCTAssertEqual(supraFuse.polygons[0].points.count, 15)
-        XCTAssertEqual(supraFuse.polygons[0].points[0].x, 0.89746)
-        XCTAssertEqual(supraFuse.polygons[0].points[0].y, 0.56662)
+        XCTAssertEqual(supraFuse.polygons.count, 1)
+        XCTAssertGreaterThanOrEqual(supraFuse.polygons[0].points.count, 5)
+        XCTAssertGreaterThan(supraFuse.polygons[0].points.map(\.x).min() ?? 0, 0.7)
         XCTAssertNotEqual(hiluxFuse, supraFuse)
 
-        XCTAssertEqual(hrymxThrottle.polygons[0].points.count, 34)
-        XCTAssertEqual(hrymxThrottle.polygons[0].points[0].x, 0.75586)
-        XCTAssertEqual(flickrThrottle.polygons[0].points.count, 36)
+        XCTAssertGreaterThanOrEqual(hrymxThrottle.polygons[0].points.count, 5)
+        XCTAssertLessThan(hrymxThrottle.polygons[0].points.map(\.x).max() ?? 1, 0.99)
+        XCTAssertGreaterThanOrEqual(flickrThrottle.polygons[0].points.count, 5)
         XCTAssertNotEqual(hrymxThrottle, flickrThrottle)
 
         XCTAssertNil(DemoOutlineCatalog.geometry(photoID: "hilux", partID: "coil-packs"))
@@ -185,7 +185,7 @@ final class HighlightViewerTests: XCTestCase {
         )
         XCTAssertEqual(named.partID, "intake-plenum")
         XCTAssertEqual(named.displayName, "intake plenum")
-        XCTAssertEqual(named.geometry?.polygons[0].points.count, 21)
+        XCTAssertGreaterThanOrEqual(named.geometry?.polygons[0].points.count ?? 0, 5)
 
         let shown = HighlightViewerPresentation.resolve(
             source: .confident,
@@ -225,6 +225,17 @@ final class HighlightViewerTests: XCTestCase {
         let center = HighlightOutlineLayout.map(HighlightPoint(x: 0.5, y: 0.5), in: fitted)
         XCTAssertEqual(center.x, 100)
         XCTAssertEqual(center.y, 50)
+
+        let filled = HighlightOutlineLayout.aspectFill(
+            imageWidth: 200,
+            imageHeight: 100,
+            boundsWidth: 100,
+            boundsHeight: 100
+        )
+        XCTAssertEqual(filled.x, -50)
+        XCTAssertEqual(filled.y, 0)
+        XCTAssertEqual(filled.width, 200)
+        XCTAssertEqual(filled.height, 100)
 
         let cubics = HighlightOutlineCurve.closedCubics(points: [
             HighlightPoint(x: 0.2, y: 0.2),
@@ -307,5 +318,85 @@ final class HighlightViewerTests: XCTestCase {
         )
         XCTAssertEqual(reference.screen, .reference)
         XCTAssertEqual(reference.cannedQuestion, "where's the fuse box?")
+    }
+
+    func testUnsureCopyMatchesOutlinedRings() {
+        let hilux = HighlightViewerPresentation.resolve(
+            source: .unsure,
+            flags: FeatureFlags(unsureHighlight: true),
+            photoID: "hilux"
+        )
+        XCTAssertEqual(hilux.partDisplayName, "radiator cap")
+        XCTAssertEqual(hilux.body, "The radiator cap on this demo photo.")
+        XCTAssertEqual(hilux.partID, "radiator-cap-upper-hose")
+        XCTAssertEqual(
+            DemoOutlineCatalog.geometry(photoID: "hilux", partID: "radiator-cap-upper-hose")?.polygons.count,
+            1
+        )
+
+        let supra = HighlightViewerPresentation.resolve(
+            source: .unsure,
+            flags: FeatureFlags(unsureHighlight: true),
+            photoID: "supra"
+        )
+        XCTAssertEqual(supra.partDisplayName, "radiator cap + upper hose")
+        XCTAssertEqual(supra.body, "The radiator cap + upper hose on this demo photo.")
+        XCTAssertEqual(
+            DemoOutlineCatalog.geometry(photoID: "supra", partID: "radiator-cap-upper-hose")?.polygons.count,
+            2
+        )
+    }
+
+    func testCleanupDropsTinyRingsAndBorderSpurs() throws {
+        let tiny = HighlightPolygon(points: [
+            HighlightPoint(x: 0.50, y: 0.50),
+            HighlightPoint(x: 0.501, y: 0.50),
+            HighlightPoint(x: 0.50, y: 0.501),
+        ])
+        let body = HighlightPolygon(points: [
+            HighlightPoint(x: 0.20, y: 0.20),
+            HighlightPoint(x: 0.80, y: 0.22),
+            HighlightPoint(x: 0.78, y: 0.80),
+            HighlightPoint(x: 0.22, y: 0.78),
+            HighlightPoint(x: 0.18, y: 0.50),
+        ])
+        let cleaned = try XCTUnwrap(
+            HighlightOutlineCleanup.cleaned(
+                HighlightGeometry(polygons: [body, tiny])
+            )
+        )
+        XCTAssertEqual(cleaned.polygons.count, 1)
+        XCTAssertGreaterThanOrEqual(cleaned.polygons[0].points.count, 5)
+
+        let spurred = [
+            HighlightPoint(x: 0.30, y: 0.30),
+            HighlightPoint(x: 0.70, y: 0.30),
+            HighlightPoint(x: 0.70, y: 0.70),
+            HighlightPoint(x: 0.999, y: 0.55),
+            HighlightPoint(x: 0.68, y: 0.72),
+            HighlightPoint(x: 0.30, y: 0.70),
+        ]
+        let trimmed = HighlightOutlineCleanup.cleaned(points: spurred)
+        XCTAssertLessThan(trimmed.map(\.x).max() ?? 1, 0.99)
+        XCTAssertGreaterThanOrEqual(trimmed.count, 5)
+        XCTAssertFalse(HighlightOutlineCurve.isAxisAlignedRectangle(trimmed))
+
+        let hrymx = try XCTUnwrap(
+            DemoOutlineCatalog.geometry(photoID: "hrymx", partID: "throttle-body")
+        )
+        XCTAssertLessThan(hrymx.polygons[0].points.map(\.x).max() ?? 1, 0.99)
+        XCTAssertGreaterThan(HighlightOutlineCleanup.area(hrymx.polygons[0].points), 0.01)
+    }
+
+    func testOutlineInkThinsForThumbnails() {
+        let card = HighlightOutlineInk.scaled(renderedWidth: 200)
+        let thumb = HighlightOutlineInk.scaled(renderedWidth: 80)
+        XCTAssertEqual(card.strokeWidth, 6, accuracy: 0.01)
+        XCTAssertEqual(card.fillOpacity, 0.22, accuracy: 0.001)
+        XCTAssertLessThan(thumb.strokeWidth, 4)
+        XCTAssertLessThan(thumb.fillOpacity, 0.16)
+        XCTAssertGreaterThan(thumb.strokeWidth, 1)
+        XCTAssertEqual(HighlightOutlineInk.scaled(renderedWidth: 40).strokeWidth, 1.25, accuracy: 0.05)
+        XCTAssertEqual(HighlightOutlineInk.scaled(renderedWidth: 40).fillOpacity, 0.06, accuracy: 0.005)
     }
 }

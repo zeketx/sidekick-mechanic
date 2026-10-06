@@ -49,7 +49,7 @@ public enum DemoOutlineCatalog {
     }
 
     public static func geometry(photoID: String, partID: String) -> HighlightGeometry? {
-        part(photoID: photoID, partID: partID)?.geometry
+        part(photoID: photoID, partID: partID)?.geometry.flatMap(HighlightOutlineCleanup.cleaned)
     }
 
     /// Featured part for a card. Honors an explicit `partID` when that part exists.
@@ -61,14 +61,15 @@ public enum DemoOutlineCatalog {
         let resolvedPhoto = DemoLaunchOptions.resolvePhotoID(photoID)
         let photo = self.photo(id: resolvedPhoto)
         let picked = pickPart(on: photo, requested: partID, state: state)
-        let displayName = picked?.displayName ?? fallbackName(partID)
+        let geometry = picked?.geometry.flatMap(HighlightOutlineCleanup.cleaned)
+        let displayName = nameMatching(partID: picked?.partID ?? partID, catalogName: picked?.displayName, geometry: geometry)
         let resolvedPartID = picked?.partID ?? partID ?? fallbackPartID(for: resolvedPhoto, state: state)
         return DemoOutlineSelection(
             photoID: resolvedPhoto,
             partID: resolvedPartID,
             displayName: displayName,
-            geometry: picked?.geometry,
-            tags: tags(partID: resolvedPartID, hasOutline: picked?.hasOutline == true),
+            geometry: geometry,
+            tags: tags(partID: resolvedPartID, hasOutline: geometry != nil),
             referencePhotoID: standInPhotoID(for: resolvedPhoto, partID: resolvedPartID),
             imageWidth: photo?.width ?? 1,
             imageHeight: photo?.height ?? 1
@@ -105,6 +106,17 @@ public enum DemoOutlineCatalog {
             return [shortTag(partID: partID), "inspected"]
         }
         return [shortTag(partID: partID)]
+    }
+
+    static func nameMatching(partID: String?, catalogName: String?, geometry: HighlightGeometry?) -> String {
+        if partID == "radiator-cap-upper-hose" {
+            let rings = geometry?.polygons.count ?? 0
+            return rings >= 2 ? "radiator cap + upper hose" : "radiator cap"
+        }
+        if let catalogName, !catalogName.isEmpty {
+            return catalogName
+        }
+        return fallbackName(partID)
     }
 
     /// Another catalog photo that already has rings for this part.

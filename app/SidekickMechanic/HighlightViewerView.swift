@@ -39,35 +39,32 @@ struct HighlightViewerView: View {
         self.onNotThis = onNotThis
     }
 
+    private var cardFill: Color {
+        Color(red: 244 / 255, green: 244 / 255, blue: 244 / 255)
+    }
+
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
-                ScrollView {
-                    photos
+                if let banner = presentation.banner {
+                    bannerPill(banner)
                 }
+                photos
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 footer
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            .background(Color(.systemGroupedBackground))
-            .safeAreaInset(edge: .top, spacing: 0) {
-                if let banner = presentation.banner {
-                    Text(banner)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(presentation.kind == .unsure ? .white : .primary)
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
-                        .padding(.horizontal, 16)
-                        .background(presentation.kind == .unsure ? Color.black : Color.yellow.opacity(0.35))
-                        .accessibilityIdentifier("highlightViewer.banner")
-                }
-            }
+            .background(cardFill)
             .navigationTitle(presentation.title)
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(cardFill, for: .navigationBar)
             .toolbarBackground(.visible, for: .navigationBar)
+            .toolbarColorScheme(.light, for: .navigationBar)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
+                ToolbarItem(placement: .topBarLeading) {
                     Button("Close") { dismiss() }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.primary)
                         .accessibilityIdentifier("highlightViewer.close")
                 }
             }
@@ -75,8 +72,26 @@ struct HighlightViewerView: View {
         }
     }
 
+    private func bannerPill(_ text: String) -> some View {
+        Text(text)
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(presentation.kind == .unsure ? .white : .primary)
+            .multilineTextAlignment(.center)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 8)
+            .padding(.horizontal, 16)
+            .background(
+                presentation.kind == .unsure ? Color.black : Color.yellow.opacity(0.35),
+                in: Capsule()
+            )
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+            .padding(.bottom, 4)
+            .accessibilityIdentifier("highlightViewer.banner")
+    }
+
     private var photos: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 8) {
             if presentation.kind == .reference {
                 photoCard(
                     image: image,
@@ -84,12 +99,14 @@ struct HighlightViewerView: View {
                     inFrameBanner: presentation.userPhotoBanner,
                     zoomable: false
                 )
+                .frame(maxHeight: .infinity)
                 photoCard(
                     image: referenceImage ?? image,
                     geometry: presentation.showsOutlineOnReferencePhoto ? outlineGeometry : nil,
                     inFrameBanner: nil,
                     zoomable: true
                 )
+                .frame(maxHeight: .infinity)
             } else {
                 photoCard(
                     image: image,
@@ -97,14 +114,15 @@ struct HighlightViewerView: View {
                     inFrameBanner: nil,
                     zoomable: true
                 )
+                .frame(maxHeight: .infinity)
             }
-            HStack(alignment: .top, spacing: 8) {
+            HStack(alignment: .center, spacing: 8) {
                 chipRow
                 pinchControl
             }
         }
         .padding(.horizontal, 16)
-        .padding(.top, 12)
+        .padding(.top, 4)
     }
 
     private var outlineGeometry: HighlightGeometry? {
@@ -130,10 +148,11 @@ struct HighlightViewerView: View {
             attribution: attribution,
             shareAlike: shareAlike,
             notFound: geometry == nil,
-            cornerRadius: 0
+            cornerRadius: 0,
+            fillsContainer: true
         )
         return Color.clear
-            .aspectRatio(image.size, contentMode: .fit)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .overlay {
                 Group {
                     if zoomable {
@@ -316,7 +335,7 @@ struct HighlightViewerView: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
-        .background(.bar)
+        .background(cardFill)
     }
 
     private func toggleZoom() {
