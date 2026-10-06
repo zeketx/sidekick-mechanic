@@ -81,7 +81,10 @@ struct AnswerCardView: View {
                 DemoHighlightView(
                     image: image,
                     geometry: presentation.showsOutline
-                        ? (demo.highlight?.geometry ?? HighlightViewerScript.airBoxGeometry)
+                        ? (demo.highlight?.geometry ?? DemoOutlineCatalog.geometry(
+                            photoID: presentation.photoID,
+                            partID: presentation.partID
+                        ))
                         : nil,
                     style: demo.style,
                     confirm: presentation.outlineStroke == .dashed,
@@ -184,7 +187,9 @@ struct DemoAnswerContext {
     var viewerPresentation: HighlightViewerPresentation {
         HighlightViewerPresentation.resolve(
             source: HighlightViewerState.fromDemo(display: display, highlight: highlight),
-            flags: flags
+            flags: flags,
+            photoID: highlight?.bayPhotoID.rawValue ?? DemoLaunchOptions.defaultPhotoID,
+            partID: highlight?.partID.rawValue
         )
     }
 }

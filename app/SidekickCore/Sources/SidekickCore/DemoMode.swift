@@ -239,7 +239,7 @@ public struct DemoLaunchOptions: Equatable, Sendable {
         case "not_found":
             return "where are the coil packs?"
         case "reference":
-            return "where's the air box?"
+            return "where's the fuse box?"
         default:
             return photoID == defaultPhotoID || photoID == "commons-hilux-2jz"
                 ? "where's the fuse box?"
