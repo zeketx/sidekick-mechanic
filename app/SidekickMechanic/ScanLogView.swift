@@ -4,6 +4,7 @@ import UIKit
 
 /// Scan log grid from the approved Figma frame. Outlines use #112's public renderer.
 struct ScanLogView: View {
+    @Environment(\.dismiss) private var dismiss
     @Bindable var store: DemoImageStore
     var configuration: ChatClientConfiguration
     var flags: FeatureFlags = .v1
@@ -23,7 +24,7 @@ struct ScanLogView: View {
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("scanLog.subtitle")
                 chipRow
-                LazyVGrid(columns: columns, spacing: 20) {
+                LazyVGrid(columns: columns, spacing: 12) {
                     ForEach(ScanLogScript.entries) { entry in
                         Button {
                             onOpenCell(entry)
@@ -40,8 +41,15 @@ struct ScanLogView: View {
         }
         .background(JobSheetChrome.screen)
         .toolbar(.hidden, for: .tabBar)
-        .navigationTitle(ScanLogCopy.title)
-        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .navigationBar)
+        .navigationBarBackButtonHidden(true)
+        .safeAreaInset(edge: .top, spacing: 0) {
+            LookBackPaperHeader(
+                title: ScanLogCopy.title,
+                showScanLog: false,
+                onBack: { dismiss() }
+            )
+        }
         .task {
             if store.catalog == nil {
                 await store.load(from: configuration)
@@ -51,11 +59,7 @@ struct ScanLogView: View {
     }
 
     private var chipRow: some View {
-        LazyVGrid(
-            columns: [GridItem(.adaptive(minimum: 72), spacing: 6, alignment: .leading)],
-            alignment: .leading,
-            spacing: 6
-        ) {
+        WrappingHStack(spacing: 6, lineSpacing: 6) {
             ForEach(ScanLogCopy.chips, id: \.self) { chip in
                 let selected = chip == ScanLogCopy.selectedChip
                 Text(chip)
@@ -69,10 +73,12 @@ struct ScanLogView: View {
                             Capsule().strokeBorder(Color.secondary.opacity(0.35))
                         }
                     }
+                    .fixedSize()
                     .accessibilityIdentifier("scanLog.chip.\(chip)")
                     .accessibilityAddTraits(selected ? .isSelected : [])
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityIdentifier("scanLog.chips")
     }
 
@@ -81,36 +87,83 @@ struct ScanLogView: View {
         let thumbPhotoID = presentation.showsOutline ? presentation.outlinePhotoID : entry.photoID
         return VStack(alignment: .leading, spacing: 6) {
             ZStack(alignment: .top) {
-                DemoHighlightView(
+                LookBackThumb(
                     image: store.images[thumbPhotoID] ?? HighlightPlaceholderImage.make(),
                     geometry: entry.geometry(flags: flags),
-                    style: .outline,
                     confirm: presentation.outlineStroke == .dashed,
-                    dashed: presentation.outlineStroke == .dashed,
-                    attribution: "Demo data. Not Zeke's truck.",
-                    shareAlike: false,
                     notFound: !presentation.showsOutline,
                     cornerRadius: 10
                 )
-                .frame(maxWidth: .infinity)
-                .aspectRatio(1, contentMode: .fit)
-                .clipped()
-                if let banner = presentation.banner {
+                if let banner = entry.cellBanner(flags: flags) {
                     Text(banner)
                         .font(.caption2.weight(.semibold))
                         .foregroundStyle(.primary)
                         .multilineTextAlignment(.center)
-                        .padding(.horizontal, 6)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.7)
+                        .padding(.horizontal, 4)
                         .padding(.vertical, 4)
                         .frame(maxWidth: .infinity)
                         .background(JobSheetChrome.paper.opacity(0.94))
-                        .padding(6)
+                        .padding(4)
                         .accessibilityIdentifier("scanLog.referenceBanner")
                 }
             }
+            .aspectRatio(1, contentMode: .fit)
+            .frame(maxWidth: .infinity)
+            .clipped()
             Text(entry.tagLabel)
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// Intrinsic-width chips that wrap, instead of equal-width grid columns.
+private struct WrappingHStack: Layout {
+    var spacing: CGFloat
+    var lineSpacing: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let maxWidth = proposal.width ?? .infinity
+        var x: CGFloat = 0
+        var y: CGFloat = 0
+        var rowHeight: CGFloat = 0
+        var usedWidth: CGFloat = 0
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x > 0, x + size.width > maxWidth {
+                y += rowHeight + lineSpacing
+                x = 0
+                rowHeight = 0
+            }
+            x += size.width + spacing
+            usedWidth = max(usedWidth, x - spacing)
+            rowHeight = max(rowHeight, size.height)
+        }
+        let height = y + rowHeight
+        let width = maxWidth.isFinite ? maxWidth : usedWidth
+        return CGSize(width: width, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var x = bounds.minX
+        var y = bounds.minY
+        var rowHeight: CGFloat = 0
+        for subview in subviews {
+            let size = subview.sizeThatFits(.unspecified)
+            if x > bounds.minX, x + size.width > bounds.maxX {
+                y += rowHeight + lineSpacing
+                x = bounds.minX
+                rowHeight = 0
+            }
+            subview.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
         }
     }
 }
