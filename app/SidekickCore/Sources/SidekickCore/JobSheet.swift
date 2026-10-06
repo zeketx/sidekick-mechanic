@@ -135,13 +135,18 @@ public enum JobSheetCopy {
     }
 }
 
-/// Sheet height vs the window. Full sits below the status-bar safe area plus a gap.
+/// Sheet height vs the window. Full meets the status-bar band and covers the nav / Jobs header.
 public enum JobSheetLayout {
     public static let collapsedHeight: Double = 128
-    public static let halfMaxHeight: Double = 360
-    public static let halfHeightFraction: Double = 0.40
+    public static let halfMaxHeight: Double = 400
+    public static let halfHeightFraction: Double = 0.46
+    public static let halfPhotoHeight: Double = 84
+    public static let fullPhotoHeight: Double = 200
     public static let fallbackTopSafeArea: Double = 59
-    public static let fullTopGap: Double = 8
+    /// Full sheet meets the status-bar band so the nav / Jobs header cannot peek.
+    public static let fullTopGap: Double = 0
+    /// Paper Jobs / Scan log header under the status bar. Full must cover this.
+    public static let navigationBarHeight: Double = 44
     /// Gap so top corners sit on the scrim, not the display edge.
     public static let horizontalInset: Double = 8
     public static let topCornerRadius: Double = 24
@@ -152,10 +157,10 @@ public enum JobSheetLayout {
         raw > 0 ? raw : fallbackTopSafeArea
     }
 
-    /// Darkens chat behind the sheet. Half/full stay in the 0.25…0.40 band.
+    /// Darkens chat behind the sheet. Collapsed is undimmed. Half/full stay in the 0.25…0.40 band.
     public static func scrimOpacity(detent: JobSheetDetent) -> Double {
         return switch detent {
-        case .collapsed: 0.12
+        case .collapsed: 0
         case .half: 0.30
         case .full: 0.40
         }
@@ -172,6 +177,8 @@ public enum JobSheetLayout {
         case .half:
             min(screenHeight * halfHeightFraction, halfMaxHeight)
         case .full:
+            // Uncovered top is the status-bar inset only. A gap below it showed
+            // the Jobs / Scan log header letters above the sheet edge.
             max(screenHeight - resolvedTopSafeArea(topSafeArea) - fullTopGap, 240)
         }
     }

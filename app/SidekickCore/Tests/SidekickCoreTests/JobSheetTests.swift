@@ -199,35 +199,47 @@ final class JobSheetTests: XCTestCase {
         )
         XCTAssertEqual(
             JobSheetLayout.height(detent: .full, screenHeight: 874, topSafeArea: 62),
-            804
+            812
         )
         XCTAssertEqual(JobSheetLayout.height(detent: .collapsed, screenHeight: 874, topSafeArea: 62), 128)
         XCTAssertLessThan(
             JobSheetLayout.height(detent: .half, screenHeight: 874, topSafeArea: 62),
             874 - 62
         )
+        XCTAssertEqual(JobSheetLayout.halfPhotoHeight, 84)
+        XCTAssertGreaterThanOrEqual(
+            JobSheetLayout.height(detent: .half, screenHeight: 844, topSafeArea: 59),
+            380
+        )
         XCTAssertEqual(JobSheetLayout.horizontalInset, 8)
         XCTAssertEqual(JobSheetLayout.topCornerRadius, 24)
     }
 
-    func testFullHeightLeavesTopSafeAreaPlusGap() {
+    func testFullHeightCoversNavHeaderBelowStatusBar() {
         let screen = 874.0
         let top = 62.0
         let full = JobSheetLayout.height(detent: .full, screenHeight: screen, topSafeArea: top)
-        XCTAssertLessThanOrEqual(full, screen - top - 8)
-        XCTAssertEqual(full, screen - top - 8)
+        let uncovered = screen - full
+        XCTAssertEqual(uncovered, top)
+        XCTAssertEqual(full, screen - top)
+        XCTAssertLessThanOrEqual(uncovered, top + JobSheetLayout.fullTopGap)
+        XCTAssertGreaterThanOrEqual(full, screen - top)
+        XCTAssertGreaterThan(
+            full,
+            screen - top - JobSheetLayout.navigationBarHeight
+        )
 
         let zeroTop = JobSheetLayout.height(detent: .full, screenHeight: screen, topSafeArea: 0)
         XCTAssertEqual(JobSheetLayout.resolvedTopSafeArea(0), 59)
-        XCTAssertLessThanOrEqual(zeroTop, screen - 59 - 8)
-        XCTAssertEqual(zeroTop, screen - 59 - 8)
+        XCTAssertEqual(zeroTop, screen - 59)
+        XCTAssertEqual(screen - zeroTop, 59)
     }
 
     func testScrimOpacityIsMonotonicAndBounded() {
         let collapsed = JobSheetLayout.scrimOpacity(detent: .collapsed)
         let half = JobSheetLayout.scrimOpacity(detent: .half)
         let full = JobSheetLayout.scrimOpacity(detent: .full)
-        XCTAssertEqual(collapsed, 0.12)
+        XCTAssertEqual(collapsed, 0)
         XCTAssertEqual(half, 0.30)
         XCTAssertEqual(full, 0.40)
         XCTAssertLessThan(collapsed, half)
