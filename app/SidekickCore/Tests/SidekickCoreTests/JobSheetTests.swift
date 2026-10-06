@@ -175,5 +175,58 @@ final class JobSheetTests: XCTestCase {
             "job-sheet-full",
             "job-sheet-closeout",
         ])
+        XCTAssertEqual(JobSheetCopy.stepsHeading, "Steps 1 of 3")
+        XCTAssertEqual(
+            JobSheetCopy.steps(photoID: "commons-hilux-2jz").map(\.title),
+            ["Look at the fuse/relay box", "Next step (from the cited page)"]
+        )
+        XCTAssertEqual(
+            JobSheetCopy.steps(photoID: "commons-hilux-2jz").map(\.isComplete),
+            [true, false]
+        )
+        XCTAssertEqual(
+            JobSheetCopy.steps(photoID: "hrymx-2jz-ge-25308847029").first?.title,
+            "Look at the throttle body"
+        )
+        XCTAssertEqual(JobSheetCopy.partChip(photoID: "commons-hilux-2jz"), "fuse/relay")
+        XCTAssertEqual(JobSheetCopy.partChip(photoID: "commons-supra-n5abh"), "fuse/relay")
+        XCTAssertEqual(JobSheetCopy.partChip(photoID: "hrymx-2jz-ge-25308847029"), "throttle")
+        XCTAssertFalse(JobSheetCopy.firstStep(displayName: "fuse/relay box").contains("FAKE-SPEC"))
+        XCTAssertFalse(JobSheetCopy.nextStep.contains("air box"))
+        XCTAssertEqual(
+            JobSheetCopy.creditLine(attribution: "Demo data. Not Zeke's truck.", shareAlike: true),
+            "CC BY-SA. Demo data. Not Zeke's truck."
+        )
+        XCTAssertEqual(
+            JobSheetLayout.height(detent: .full, screenHeight: 874, topSafeArea: 62),
+            812
+        )
+        XCTAssertEqual(JobSheetLayout.height(detent: .collapsed, screenHeight: 874, topSafeArea: 62), 128)
+        XCTAssertLessThan(
+            JobSheetLayout.height(detent: .half, screenHeight: 874, topSafeArea: 62),
+            874 - 62
+        )
+    }
+
+    func testDemoChromeStaysOffUnlessLaunchArg() {
+        let hidden = DemoLaunchOptions.parse(
+            arguments: ["SidekickMechanic", "-screen", "job-sheet-half"],
+            environment: [:]
+        )
+        XCTAssertFalse(hidden.showDemoChrome)
+        XCTAssertTrue(hidden.opensJobSheet)
+
+        let shown = DemoLaunchOptions.parse(
+            arguments: ["SidekickMechanic", "-showDemoChrome", "1"],
+            environment: [:]
+        )
+        XCTAssertTrue(shown.showDemoChrome)
+        XCTAssertFalse(shown.enablesDemoMode)
+
+        let env = DemoLaunchOptions.parse(
+            arguments: ["SidekickMechanic"],
+            environment: ["SIDEKICK_SHOW_DEMO_CHROME": "true"]
+        )
+        XCTAssertTrue(env.showDemoChrome)
     }
 }
