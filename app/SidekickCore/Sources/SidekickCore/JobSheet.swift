@@ -142,6 +142,9 @@ public enum JobSheetLayout {
     public static let halfHeightFraction: Double = 0.40
     public static let fallbackTopSafeArea: Double = 59
     public static let fullTopGap: Double = 8
+    /// Gap so top corners sit on the scrim, not the display edge.
+    public static let horizontalInset: Double = 8
+    public static let topCornerRadius: Double = 24
     /// Tab bar (~49) + home indicator (~34) when `-showDemoChrome 1`.
     public static let demoTabChromeHeight: Double = 83
 

@@ -206,6 +206,8 @@ final class JobSheetTests: XCTestCase {
             JobSheetLayout.height(detent: .half, screenHeight: 874, topSafeArea: 62),
             874 - 62
         )
+        XCTAssertEqual(JobSheetLayout.horizontalInset, 8)
+        XCTAssertEqual(JobSheetLayout.topCornerRadius, 24)
     }
 
     func testFullHeightLeavesTopSafeAreaPlusGap() {
