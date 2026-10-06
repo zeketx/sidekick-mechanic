@@ -7,6 +7,7 @@ struct AnswerCardView: View {
     let content: AnswerCardContent
     var messageID: MessageID?
     var demoContext: DemoAnswerContext?
+    var onOpenHighlight: (() -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -72,18 +73,27 @@ struct AnswerCardView: View {
 
     @ViewBuilder
     private func demoHighlight(_ demo: DemoAnswerContext, image: UIImage) -> some View {
-        let hidden = demo.display == nil && demo.highlight != nil
+        let presentation = demo.viewerPresentation
         VStack(alignment: .leading, spacing: 8) {
-            DemoHighlightView(
-                image: image,
-                geometry: hidden ? nil : demo.highlight?.geometry,
-                style: demo.style,
-                confirm: demo.display == .confirm,
-                attribution: demo.attribution,
-                shareAlike: demo.shareAlike,
-                notFound: demo.highlight == nil || hidden
-            )
-            if demo.display == .confirm, let onYes = demo.onYes, let onNotThis = demo.onNotThis {
+            Button {
+                onOpenHighlight?()
+            } label: {
+                DemoHighlightView(
+                    image: image,
+                    geometry: presentation.showsOutline
+                        ? (demo.highlight?.geometry ?? HighlightViewerScript.airBoxGeometry)
+                        : nil,
+                    style: demo.style,
+                    confirm: presentation.outlineStroke == .dashed,
+                    dashed: presentation.outlineStroke == .dashed,
+                    attribution: demo.attribution,
+                    shareAlike: demo.shareAlike,
+                    notFound: !presentation.showsOutline
+                )
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Opens the highlight card")
+            if presentation.showsConfirmPrompt, let onYes = demo.onYes, let onNotThis = demo.onNotThis {
                 DemoConfirmBar(onYes: onYes, onNotThis: onNotThis)
             }
         }
@@ -167,6 +177,14 @@ struct DemoAnswerContext {
     var style: DemoHighlightStyle
     var highlight: HighlightRef?
     var display: HighlightDisplay?
+    var flags: FeatureFlags = .v1
     var onYes: (() -> Void)?
     var onNotThis: (() -> Void)?
+
+    var viewerPresentation: HighlightViewerPresentation {
+        HighlightViewerPresentation.resolve(
+            source: HighlightViewerState.fromDemo(display: display, highlight: highlight),
+            flags: flags
+        )
+    }
 }

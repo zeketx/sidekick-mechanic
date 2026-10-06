@@ -9,9 +9,11 @@ struct DemoHighlightView: View {
     let geometry: HighlightGeometry?
     let style: DemoHighlightStyle
     let confirm: Bool
+    var dashed: Bool = false
     let attribution: String
     let shareAlike: Bool
     let notFound: Bool
+    var cornerRadius: CGFloat = 12
 
     var body: some View {
         Color.clear
@@ -30,7 +32,7 @@ struct DemoHighlightView: View {
                     .background(.black.opacity(0.55), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                     .padding(8)
             }
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
             .accessibilityIdentifier("answerCard.demoHighlight")
             .accessibilityLabel(accessibilityText)
     }
@@ -56,12 +58,21 @@ struct DemoHighlightView: View {
         if notFound { EmptyView() }
         else {
             let rings = geometry?.polygons ?? []
-            let width = confirm ? 3.0 : 6.0
+            let width = (confirm || dashed) ? 3.0 : 6.0
             switch style {
             case .outline:
                 Canvas { context, size in
                     for path in Self.paths(rings, in: size) {
-                        context.stroke(path, with: .color(Self.fuchsia), lineWidth: width)
+                        context.stroke(
+                            path,
+                            with: .color(Self.fuchsia),
+                            style: StrokeStyle(
+                                lineWidth: width,
+                                lineCap: .round,
+                                lineJoin: .round,
+                                dash: dashed ? [8, 6] : []
+                            )
+                        )
                     }
                 }
                 .allowsHitTesting(false)
