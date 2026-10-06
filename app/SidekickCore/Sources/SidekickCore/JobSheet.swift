@@ -126,7 +126,7 @@ public enum JobSheetScript {
             bayPhotoID: BayPhotoID(rawValue: photoID) ?? BayPhotoID(rawValue: "fake-bay-photo-front")!,
             partID: partID,
             display: .outline,
-            geometry: HighlightViewerScript.airBoxGeometry,
+            geometry: HighlightViewerScript.geometry(showingOutline: true),
             isDemo: true
         )
     }
