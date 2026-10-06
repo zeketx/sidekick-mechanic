@@ -24,7 +24,7 @@ struct ScanLogView: View {
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("scanLog.subtitle")
                 chipRow
-                LazyVGrid(columns: columns, spacing: 12) {
+                LazyVGrid(columns: columns, spacing: 16) {
                     ForEach(ScanLogScript.entries) { entry in
                         Button {
                             onOpenCell(entry)
@@ -85,18 +85,32 @@ struct ScanLogView: View {
     private func cell(_ entry: ScanLogEntry) -> some View {
         let presentation = entry.presentation(flags: flags)
         let thumbPhotoID = presentation.showsOutline ? presentation.outlinePhotoID : entry.photoID
-        return VStack(alignment: .leading, spacing: 6) {
+        let confirm = presentation.outlineStroke == .dashed
+        return VStack(alignment: .leading, spacing: 4) {
             ZStack(alignment: .top) {
-                GeometryReader { proxy in
-                    LookBackThumb(
-                        image: store.images[thumbPhotoID] ?? HighlightPlaceholderImage.make(),
-                        geometry: entry.geometry(flags: flags),
-                        confirm: presentation.outlineStroke == .dashed,
-                        notFound: !presentation.showsOutline,
-                        cornerRadius: 10,
-                        renderedWidth: proxy.size.width
-                    )
-                }
+                JobSheetChrome.emptyPhoto
+                    .aspectRatio(1, contentMode: .fit)
+                    .overlay {
+                        GeometryReader { proxy in
+                            DemoHighlightView(
+                                image: store.images[thumbPhotoID] ?? HighlightPlaceholderImage.make(),
+                                geometry: entry.geometry(flags: flags),
+                                style: .outline,
+                                confirm: confirm,
+                                dashed: confirm,
+                                attribution: "",
+                                shareAlike: false,
+                                notFound: !presentation.showsOutline,
+                                cornerRadius: 0,
+                                outlineInk: Self.thumbnailInk(
+                                    renderedWidth: proxy.size.width,
+                                    dashed: confirm
+                                ),
+                                fillsContainer: false
+                            )
+                        }
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 if let banner = entry.cellBanner(flags: flags) {
                     Text(banner)
                         .font(.caption2.weight(.semibold))
@@ -112,9 +126,6 @@ struct ScanLogView: View {
                         .accessibilityIdentifier("scanLog.referenceBanner")
                 }
             }
-            .aspectRatio(1, contentMode: .fit)
-            .frame(maxWidth: .infinity)
-            .clipped()
             Text(entry.tagLabel)
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -123,6 +134,22 @@ struct ScanLogView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// GeometryReader can report 0 on the first pass, or the window width if unconstrained.
+    private static func thumbnailInk(renderedWidth: CGFloat, dashed: Bool) -> HighlightOutlineInk {
+        let width: Double
+        if renderedWidth >= 40, renderedWidth <= 240 {
+            width = Double(renderedWidth)
+        } else {
+            width = 100
+        }
+        let scaled = HighlightOutlineInk.scaled(renderedWidth: width, dashed: dashed)
+        return HighlightOutlineInk(
+            strokeWidth: min(scaled.strokeWidth, 1.5),
+            fillOpacity: min(scaled.fillOpacity, 0.15),
+            dash: scaled.dash
+        )
     }
 }
 
