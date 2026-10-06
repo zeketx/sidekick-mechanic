@@ -221,6 +221,25 @@ final class JobSheetTests: XCTestCase {
         XCTAssertEqual(zeroTop, screen - 59 - 8)
     }
 
+    func testScrimOpacityIsMonotonicAndBounded() {
+        let collapsed = JobSheetLayout.scrimOpacity(detent: .collapsed)
+        let half = JobSheetLayout.scrimOpacity(detent: .half)
+        let full = JobSheetLayout.scrimOpacity(detent: .full)
+        XCTAssertEqual(collapsed, 0.12)
+        XCTAssertEqual(half, 0.30)
+        XCTAssertEqual(full, 0.40)
+        XCTAssertLessThan(collapsed, half)
+        XCTAssertLessThan(half, full)
+        for opacity in [collapsed, half, full] {
+            XCTAssertGreaterThanOrEqual(opacity, 0)
+            XCTAssertLessThanOrEqual(opacity, 0.45)
+        }
+        XCTAssertGreaterThanOrEqual(half, 0.25)
+        XCTAssertLessThanOrEqual(half, 0.40)
+        XCTAssertGreaterThanOrEqual(full, 0.25)
+        XCTAssertLessThanOrEqual(full, 0.40)
+    }
+
     func testDemoChromeStaysOffUnlessLaunchArg() {
         let hidden = DemoLaunchOptions.parse(
             arguments: ["SidekickMechanic", "-screen", "job-sheet-half"],
