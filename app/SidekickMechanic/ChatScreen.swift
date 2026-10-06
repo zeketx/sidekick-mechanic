@@ -63,7 +63,8 @@ struct ChatScreen: View {
                 jobSheetScrim
                 bottomBar
             }
-            .ignoresSafeArea(edges: .bottom)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+            .ignoresSafeArea()
         }
         .background(JobSheetChrome.screen)
         .background {
@@ -183,21 +184,7 @@ struct ChatScreen: View {
     private var bottomBar: some View {
         VStack(spacing: 0) {
             if !jobSheet.blocksChat {
-                VStack(spacing: 0) {
-                    if let errorMessage = model.errorMessage {
-                        Text(errorMessage)
-                            .font(.footnote)
-                            .foregroundStyle(.primary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 10)
-                            .background(Color.red.opacity(0.15))
-                            .accessibilityIdentifier("chat.error")
-                            .accessibilityLabel("Error. \(errorMessage)")
-                    }
-                    composer
-                }
-                .background(JobSheetChrome.screen)
+                composerChrome
             }
             if jobSheet.hasJob {
                 JobSheetView(
@@ -216,6 +203,26 @@ struct ChatScreen: View {
                 )
             }
         }
+    }
+
+    @ViewBuilder
+    private var composerChrome: some View {
+        VStack(spacing: 0) {
+            if let errorMessage = model.errorMessage {
+                Text(errorMessage)
+                    .font(.footnote)
+                    .foregroundStyle(.primary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .background(Color.red.opacity(0.15))
+                    .accessibilityIdentifier("chat.error")
+                    .accessibilityLabel("Error. \(errorMessage)")
+            }
+            composer
+        }
+        .background(JobSheetChrome.screen)
+        .safeAreaPadding(.bottom, jobSheet.hasJob ? 0 : nil)
     }
 
     private var composer: some View {
@@ -237,11 +244,10 @@ struct ChatScreen: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
                 .background {
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    Capsule()
                         .fill(JobSheetChrome.paper)
                         .overlay {
-                            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                                .strokeBorder(Color.secondary.opacity(0.28))
+                            Capsule().strokeBorder(Color.primary.opacity(0.18), lineWidth: 1)
                         }
                 }
                 .accessibilityIdentifier("chat.composer")

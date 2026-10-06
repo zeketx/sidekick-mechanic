@@ -211,8 +211,54 @@ final class JobSheetTests: XCTestCase {
             JobSheetLayout.height(detent: .half, screenHeight: 844, topSafeArea: 59),
             380
         )
-        XCTAssertEqual(JobSheetLayout.horizontalInset, 8)
+        XCTAssertEqual(JobSheetLayout.horizontalInset, 0)
+        XCTAssertEqual(JobSheetLayout.width(screenWidth: 402), 402)
         XCTAssertEqual(JobSheetLayout.topCornerRadius, 24)
+    }
+
+    func testSheetIsEdgeToEdgeAndFullReachesScreenBottom() {
+        let screenHeight = 874.0
+        let screenWidth = 402.0
+        let top = 62.0
+        XCTAssertEqual(JobSheetLayout.width(screenWidth: screenWidth), screenWidth)
+        XCTAssertEqual(JobSheetLayout.horizontalInset, 0)
+
+        for detent in JobSheetDetent.allCases {
+            let height = JobSheetLayout.height(
+                detent: detent,
+                screenHeight: screenHeight,
+                topSafeArea: top
+            )
+            let origin = JobSheetLayout.originY(
+                detent: detent,
+                screenHeight: screenHeight,
+                topSafeArea: top
+            )
+            XCTAssertEqual(origin + height, screenHeight)
+            XCTAssertEqual(JobSheetLayout.bottomY(screenHeight: screenHeight), screenHeight)
+        }
+
+        let full = JobSheetLayout.height(detent: .full, screenHeight: screenHeight, topSafeArea: top)
+        XCTAssertEqual(full, screenHeight - top)
+        XCTAssertEqual(
+            JobSheetLayout.originY(detent: .full, screenHeight: screenHeight, topSafeArea: top) + full,
+            screenHeight
+        )
+    }
+
+    func testComposerCornerRadiusStaysPillWhenMultiline() {
+        let single: Double = 37
+        let multiline: Double = 103
+        XCTAssertEqual(ComposerLayout.cornerRadius(height: single), single / 2)
+        XCTAssertEqual(ComposerLayout.cornerRadius(height: multiline), multiline / 2)
+        XCTAssertGreaterThan(
+            ComposerLayout.cornerRadius(height: multiline),
+            ComposerLayout.maxCornerRadius
+        )
+        for height in [single, multiline] {
+            let ratio = ComposerLayout.cornerRadius(height: height) / (height / 2)
+            XCTAssertGreaterThanOrEqual(ratio, ComposerLayout.pillRatioMinimum)
+        }
     }
 
     func testFullHeightCoversNavHeaderBelowStatusBar() {

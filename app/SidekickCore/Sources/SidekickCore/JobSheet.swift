@@ -147,8 +147,8 @@ public enum JobSheetLayout {
     public static let fullTopGap: Double = 0
     /// Paper Jobs / Scan log header under the status bar. Full must cover this.
     public static let navigationBarHeight: Double = 44
-    /// Gap so top corners sit on the scrim, not the display edge.
-    public static let horizontalInset: Double = 8
+    /// Edge to edge. Side gutters made the sheet 386pt on a 402pt window.
+    public static let horizontalInset: Double = 0
     public static let topCornerRadius: Double = 24
     /// Tab bar (~49) + home indicator (~34) when `-showDemoChrome 1`.
     public static let demoTabChromeHeight: Double = 83
@@ -181,6 +181,28 @@ public enum JobSheetLayout {
             // the Jobs / Scan log header letters above the sheet edge.
             max(screenHeight - resolvedTopSafeArea(topSafeArea) - fullTopGap, 240)
         }
+    }
+
+    /// Full-bleed width. Inset is 0 so this equals `screenWidth`.
+    public static func width(screenWidth: Double) -> Double {
+        max(screenWidth - 2 * horizontalInset, 0)
+    }
+
+    /// Sheets sit on the window bottom. Full has no gray strip under it.
+    public static func originY(
+        detent: JobSheetDetent,
+        screenHeight: Double,
+        topSafeArea: Double
+    ) -> Double {
+        screenHeight - height(
+            detent: detent,
+            screenHeight: screenHeight,
+            topSafeArea: topSafeArea
+        )
+    }
+
+    public static func bottomY(screenHeight: Double) -> Double {
+        screenHeight
     }
 }
 

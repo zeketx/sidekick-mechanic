@@ -24,6 +24,7 @@ struct JobSheetView: View {
                 collapsedPeek
                     .padding(.horizontal, 16)
                     .padding(.bottom, 12)
+                    .safeAreaPadding(.bottom)
             } else {
                 expandedBody
             }
@@ -35,11 +36,8 @@ struct JobSheetView: View {
             sheetShape
                 .fill(JobSheetChrome.paper)
                 .shadow(color: Color.black.opacity(0.12), radius: 12, y: -2)
+                .ignoresSafeArea(edges: .bottom)
         }
-        .overlay {
-            sheetShape.strokeBorder(Color.secondary.opacity(0.18))
-        }
-        .padding(.horizontal, CGFloat(JobSheetLayout.horizontalInset))
         .ignoresSafeArea(edges: .bottom)
         .animation(.easeInOut(duration: 0.22), value: model.detent)
         .accessibilityElement(children: .contain)
@@ -60,7 +58,8 @@ struct JobSheetView: View {
     }
 
     private var sheetHeight: CGFloat {
-        let screen = screenHeight > 0 ? screenHeight : UIScreen.main.bounds.height
+        let probed = screenHeight > 0 ? screenHeight : 0
+        let screen = max(probed, UIScreen.main.bounds.height)
         return CGFloat(
             JobSheetLayout.height(
                 detent: model.detent,
