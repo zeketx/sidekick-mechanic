@@ -168,24 +168,30 @@ struct JobSheetView: View {
     }
 
     private var expandedBody: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
-                photoStage
-                Text(model.job?.answerText ?? JobSheetCopy.answer(photoID: catalogPhotoID))
-                    .font(.body)
-                    .foregroundStyle(.primary)
-                    .accessibilityIdentifier("jobSheet.answer")
-                chipRow
-                stepsList
-                if model.job?.hasPhoto != true {
-                    attachButton
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    photoStage
+                    Text(model.job?.answerText ?? JobSheetCopy.answer(photoID: catalogPhotoID))
+                        .font(.body)
+                        .foregroundStyle(.primary)
+                        .accessibilityIdentifier("jobSheet.answer")
+                    chipRow
+                    stepsList
+                    if model.job?.hasPhoto != true {
+                        attachButton
+                    }
                 }
-                outcomeRow
+                .padding(.horizontal, 16)
+                .padding(.bottom, 12)
             }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 16 + bottomChromeInset)
+            .accessibilityIdentifier("jobSheet.body")
+            outcomeRow
+                .padding(.horizontal, 16)
+                .padding(.top, 4)
+                .padding(.bottom, 16 + bottomChromeInset)
+                .safeAreaPadding(.bottom)
         }
-        .accessibilityIdentifier("jobSheet.body")
     }
 
     private var photoStage: some View {

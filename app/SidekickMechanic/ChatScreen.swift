@@ -31,9 +31,6 @@ struct ChatScreen: View {
                         )
                     }
                 }
-                .overlay {
-                    jobSheetScrim
-                }
                 .safeAreaInset(edge: .bottom, spacing: 0) {
                     bottomBar
                 }
@@ -54,9 +51,12 @@ struct ChatScreen: View {
                     }
                 }
                 .toolbarBackground(JobSheetChrome.screen, for: .navigationBar)
-                .toolbarBackground(.visible, for: .navigationBar)
+                .toolbarBackground(jobSheet.hasJob ? .hidden : .visible, for: .navigationBar)
                 .toolbarColorScheme(colorScheme == .dark ? .dark : .light, for: .navigationBar)
                 .background(JobSheetChrome.screen)
+        }
+        .overlay {
+            jobSheetScrim
         }
         .background(JobSheetChrome.screen)
         .background {
@@ -82,20 +82,38 @@ struct ChatScreen: View {
         "\(model.isDemoMode)-\(launch.opensJobSheet)-\(launch.showDemoChrome)"
     }
 
+    private var jobSheetHeight: CGFloat {
+        let screen = windowHeight > 0 ? windowHeight : UIScreen.main.bounds.height
+        return CGFloat(
+            JobSheetLayout.height(
+                detent: jobSheet.detent,
+                screenHeight: Double(screen),
+                topSafeArea: Double(topSafeArea)
+            )
+        )
+    }
+
     @ViewBuilder
     private var jobSheetScrim: some View {
         if jobSheet.hasJob {
-            Color.black
-                .opacity(JobSheetLayout.scrimOpacity(detent: jobSheet.detent))
-                .ignoresSafeArea(edges: .top)
-                .contentShape(Rectangle())
-                .allowsHitTesting(jobSheet.detent != .collapsed)
-                .onTapGesture { jobSheet.close() }
-                .accessibilityIdentifier("jobSheet.dim")
-                .accessibilityLabel("Close job sheet")
-                .accessibilityAddTraits(.isButton)
-                .accessibilityHidden(jobSheet.detent == .collapsed)
-                .animation(.easeInOut(duration: 0.22), value: jobSheet.detent)
+            VStack(spacing: 0) {
+                Color.black
+                    .opacity(JobSheetLayout.scrimOpacity(detent: jobSheet.detent))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .contentShape(Rectangle())
+                    .allowsHitTesting(jobSheet.detent != .collapsed)
+                    .onTapGesture { jobSheet.close() }
+                    .accessibilityIdentifier("jobSheet.dim")
+                    .accessibilityLabel("Close job sheet")
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityHidden(jobSheet.detent == .collapsed)
+                Color.clear
+                    .frame(height: jobSheetHeight)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
+            .ignoresSafeArea()
+            .animation(.easeInOut(duration: 0.22), value: jobSheet.detent)
         }
     }
 
