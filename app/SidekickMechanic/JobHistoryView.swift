@@ -4,6 +4,7 @@ import UIKit
 
 /// Jobs list from the approved Figma frame. Peeks use #112's public outline renderer.
 struct JobHistoryView: View {
+    @Environment(\.dismiss) private var dismiss
     @Bindable var store: DemoImageStore
     var configuration: ChatClientConfiguration
     var flags: FeatureFlags = .v1
@@ -31,14 +32,14 @@ struct JobHistoryView: View {
         }
         .background(JobSheetChrome.screen)
         .toolbar(.hidden, for: .tabBar)
-        .navigationTitle(JobHistoryCopy.title)
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                NavigationLink("Scan log", value: LookBackScreen.scanLog)
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("jobHistory.scanLog")
-            }
+        .toolbar(.hidden, for: .navigationBar)
+        .navigationBarBackButtonHidden(true)
+        .safeAreaInset(edge: .top, spacing: 0) {
+            LookBackPaperHeader(
+                title: JobHistoryCopy.title,
+                showScanLog: true,
+                onBack: { dismiss() }
+            )
         }
         .task {
             if store.catalog == nil {
@@ -66,27 +67,25 @@ struct JobHistoryView: View {
             ))
             : nil
         return HStack(alignment: .center, spacing: 12) {
-            DemoHighlightView(
+            LookBackThumb(
                 image: store.images[row.job.photoID ?? ""] ?? HighlightPlaceholderImage.make(),
                 geometry: geometry,
-                style: .outline,
                 confirm: presentation.outlineStroke == .dashed,
-                dashed: presentation.outlineStroke == .dashed,
-                attribution: "Demo data. Not Zeke's truck.",
-                shareAlike: false,
                 notFound: !presentation.showsOutline,
                 cornerRadius: 8
             )
             .frame(width: 44, height: 44)
-            .clipped()
-            .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 4) {
                 Text(row.job.title)
                     .font(.headline)
                     .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
                 Text(row.dateLabel)
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
             Spacer(minLength: 8)
             outcomeBadge(row.job.outcome)
@@ -116,6 +115,72 @@ struct JobHistoryView: View {
                 }
                 .accessibilityIdentifier("jobHistory.badge.\(outcome.rawValue)")
         }
+    }
+}
+
+/// Square fill thumb. Hides #112's demo attribution; does not fork the outline.
+struct LookBackThumb: View {
+    var image: UIImage
+    var geometry: HighlightGeometry?
+    var confirm: Bool
+    var notFound: Bool
+    var cornerRadius: CGFloat
+
+    var body: some View {
+        Color.clear
+            .overlay {
+                DemoHighlightView(
+                    image: image,
+                    geometry: geometry,
+                    style: .outline,
+                    confirm: confirm,
+                    dashed: confirm,
+                    attribution: "",
+                    shareAlike: false,
+                    notFound: notFound,
+                    cornerRadius: 0,
+                    showsAttribution: false
+                )
+                .scaledToFill()
+            }
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .clipped()
+            .accessibilityHidden(true)
+    }
+}
+
+/// Plain Back / Scan log on #F4F4F4 paper. Avoids iOS 26 toolbar glass capsules.
+struct LookBackPaperHeader: View {
+    var title: String
+    var showScanLog: Bool
+    var onBack: () -> Void
+
+    var body: some View {
+        ZStack {
+            Text(title)
+                .font(.headline)
+                .foregroundStyle(.primary)
+                .accessibilityAddTraits(.isHeader)
+            HStack {
+                Button(JobHistoryCopy.back, action: onBack)
+                    .buttonStyle(.plain)
+                    .font(.body)
+                    .foregroundStyle(.primary)
+                    .accessibilityIdentifier("lookBack.back")
+                Spacer(minLength: 8)
+                if showScanLog {
+                    NavigationLink(ScanLogCopy.title, value: LookBackScreen.scanLog)
+                        .buttonStyle(.plain)
+                        .font(.body)
+                        .foregroundStyle(.primary)
+                        .accessibilityIdentifier("jobHistory.scanLog")
+                }
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity)
+        .background(JobSheetChrome.screen)
     }
 }
 

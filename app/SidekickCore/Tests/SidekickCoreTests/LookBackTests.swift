@@ -32,6 +32,7 @@ final class LookBackTests: XCTestCase {
         XCTAssertEqual(rows.map(\.job.outcome), [.worked, .partly, .didnt, .worked])
         XCTAssertEqual(JobHistoryCopy.title, "Jobs")
         XCTAssertEqual(JobHistoryCopy.subtitle, "One row per ask")
+        XCTAssertEqual(JobHistoryCopy.back, "Back")
         XCTAssertEqual(JobOutcome.allCases.map(\.label), ["Worked", "Partly", "Didn't"])
 
         let expectedParts = [
@@ -84,6 +85,9 @@ final class LookBackTests: XCTestCase {
             "all", "intake", "cooling", "ignition", "electrical", "fuel", "inspected", "watch",
         ])
         XCTAssertEqual(ScanLogCopy.selectedChip, "intake")
+        XCTAssertEqual(ScanLogCopy.thumbBanner, "Not your truck")
+        XCTAssertLessThan(ScanLogCopy.thumbBanner.count, HighlightViewerCopy.referenceBanner.count)
+        XCTAssertFalse(ScanLogCopy.thumbBanner.contains("Demo"))
 
         let outlined = entries.filter { $0.presentation().showsOutline }
         XCTAssertEqual(outlined.count, 6)
@@ -129,8 +133,10 @@ final class LookBackTests: XCTestCase {
         XCTAssertTrue(shown.showsOutline)
         XCTAssertEqual(shown.banner, HighlightViewerCopy.referenceBanner)
         XCTAssertEqual(shown.banner, "Reference, not your truck.")
+        XCTAssertEqual(reference.cellBanner(), "Not your truck")
         XCTAssertEqual(shown.partID, "throttle-body")
         XCTAssertEqual(reference.tagLabel, "throttle")
+        XCTAssertNil(ScanLogScript.entries[0].cellBanner())
         XCTAssertEqual(
             reference.geometry(),
             HighlightViewerScript.geometry(
