@@ -45,7 +45,7 @@ struct JobSheetView: View {
 
     private var sheetHeight: CGFloat {
         let screen = UIScreen.main.bounds.height
-        switch model.detent {
+        return switch model.detent {
         case .collapsed: 128
         case .half: min(screen * 0.52, 460)
         case .full: screen * 0.88
