@@ -217,7 +217,13 @@ struct JobSheetView: View {
                     dashed: presentation.outlineStroke == .dashed,
                     attribution: "",
                     shareAlike: false,
-                    notFound: !presentation.showsOutline
+                    notFound: !presentation.showsOutline,
+                    outlineInk: height < 120
+                        ? .scaled(
+                            renderedWidth: Double(fillsWidth ? height : 72),
+                            dashed: presentation.outlineStroke == .dashed
+                        )
+                        : nil
                 )
                 .frame(width: fillsWidth ? nil : 72, height: height)
                 .frame(maxWidth: fillsWidth ? .infinity : nil)
