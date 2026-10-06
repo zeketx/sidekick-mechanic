@@ -8,9 +8,11 @@ struct SidekickMechanicApp: App {
 
     private static func makeChatModel() -> ChatViewModel {
         let launch = Self.launch
+        let jobLaunch = launch.opensJobSheet
         return ChatViewModel(
             conversationID: ConversationID(rawValue: UUID().uuidString)!,
-            composerText: launch.enablesDemoMode ? launch.cannedQuestion : "",
+            messages: jobLaunch ? JobSheetScript.messages : [],
+            composerText: launch.enablesDemoMode && !jobLaunch ? launch.cannedQuestion : "",
             isDemoMode: launch.enablesDemoMode,
             selectedDemoPhotoID: launch.enablesDemoMode ? launch.resolvedPhotoID : nil,
             highlightStyle: launch.style ?? .outline,

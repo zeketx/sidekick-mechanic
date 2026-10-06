@@ -9,6 +9,7 @@ struct ChatScreen: View {
     var launch: DemoLaunchOptions = DemoLaunchOptions.parse()
     @State private var demoImages = DemoImageStore()
     @State private var presentedViewer: HighlightViewerSession?
+    @State private var jobSheet = JobSheetViewModel()
 
     private var configuration: ChatClientConfiguration {
         ChatClientConfiguration(baseURL: backendURL)
@@ -69,9 +70,18 @@ struct ChatScreen: View {
             }
             .defaultScrollAnchor(.bottom)
             .accessibilityIdentifier("chat.messageList")
+            .allowsHitTesting(!jobSheet.blocksChat)
+            .overlay {
+                if jobSheet.blocksChat {
+                    Color.black.opacity(0.18)
+                        .accessibilityIdentifier("jobSheet.dim")
+                }
+            }
             .onAppear {
                 scrollToEnd(proxy)
                 presentLaunchViewerIfNeeded()
+                presentLaunchJobSheetIfNeeded()
+                jobSheet.sync(from: model.messages, photoID: jobPhotoID)
             }
             .onChange(of: demoImages.images.count) { _, _ in
                 refreshLaunchViewerImage()
@@ -92,6 +102,7 @@ struct ChatScreen: View {
             }
             .onChange(of: model.messages.count) { _, _ in
                 scrollToEnd(proxy)
+                jobSheet.sync(from: model.messages, photoID: jobPhotoID)
             }
             .onChange(of: model.isLoading) { _, _ in
                 scrollToEnd(proxy)
@@ -113,24 +124,48 @@ struct ChatScreen: View {
 
     private var bottomBar: some View {
         VStack(spacing: 0) {
-            if let errorMessage = model.errorMessage {
-                Text(errorMessage)
-                    .font(.footnote)
-                    .foregroundStyle(.primary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .background(Color.red.opacity(0.15))
-                    .accessibilityIdentifier("chat.error")
-                    .accessibilityLabel("Error. \(errorMessage)")
+            if !jobSheet.blocksChat {
+                VStack(spacing: 0) {
+                    if let errorMessage = model.errorMessage {
+                        Text(errorMessage)
+                            .font(.footnote)
+                            .foregroundStyle(.primary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .background(Color.red.opacity(0.15))
+                            .accessibilityIdentifier("chat.error")
+                            .accessibilityLabel("Error. \(errorMessage)")
+                    }
+                    composer
+                }
+                .background(.bar)
             }
-            composer
+            if jobSheet.hasJob {
+                JobSheetView(
+                    model: jobSheet,
+                    image: jobPhoto,
+                    attribution: jobAttribution,
+                    shareAlike: jobShareAlike,
+                    onOpenHighlight: presentJobViewer,
+                    onAttachPhoto: attachDemoPhotoToJob
+                )
+            }
         }
-        .background(.bar)
     }
 
     private var composer: some View {
         HStack(alignment: .bottom, spacing: 8) {
+            if jobSheet.hasJob, jobSheet.job?.hasPhoto != true {
+                Button(action: attachDemoPhotoToJob) {
+                    Image(systemName: "photo.badge.plus")
+                        .font(.title3)
+                }
+                .buttonStyle(.borderless)
+                .accessibilityIdentifier("chat.attach")
+                .accessibilityLabel(JobSheetCopy.attach)
+                .accessibilityHint(JobSheetCopy.attachHint)
+            }
             TextField("Describe the problem", text: $model.composerText, axis: .vertical)
                 .font(.body)
                 .lineLimit(1...5)
@@ -277,6 +312,67 @@ struct ChatScreen: View {
             session.referenceImage = reference
         }
         presentedViewer = session
+    }
+
+    private func presentLaunchJobSheetIfNeeded() {
+        guard let screen = launch.jobSheetScreen else { return }
+        jobSheet.applyLaunch(screen, photoID: launch.resolvedPhotoID)
+    }
+
+    private func presentJobViewer() {
+        guard let job = jobSheet.job, job.hasPhoto else { return }
+        let presentation = HighlightViewerPresentation.resolve(
+            source: HighlightViewerState.fromDemo(
+                display: job.highlight?.display,
+                highlight: job.highlight
+            ),
+            flags: launch.featureFlags
+        )
+        presentedViewer = HighlightViewerSession(
+            presentation: presentation,
+            image: jobPhoto ?? HighlightPlaceholderImage.make(),
+            geometry: presentation.showsOutline
+                ? (job.highlight?.geometry ?? HighlightViewerScript.airBoxGeometry)
+                : nil,
+            attribution: jobAttribution,
+            shareAlike: jobShareAlike
+        )
+    }
+
+    private func attachDemoPhotoToJob() {
+        let photoID = jobPhotoID ?? DemoLaunchOptions.defaultPhotoID
+        if !jobSheet.hasJob {
+            jobSheet.sync(from: model.messages, photoID: photoID)
+        }
+        jobSheet.attachPhoto(photoID: photoID)
+        if model.isDemoMode, model.selectedDemoPhotoID == nil {
+            model.selectedDemoPhotoID = photoID
+        }
+    }
+
+    private var jobPhotoID: String? {
+        if launch.opensJobSheet {
+            return model.selectedDemoPhotoID ?? launch.resolvedPhotoID
+        }
+        return model.activeDemoPhotoID
+    }
+
+    private var jobPhoto: UIImage? {
+        guard let photoID = jobSheet.job?.photoID else { return nil }
+        return demoImages.images[photoID]
+    }
+
+    private var jobPhotoInfo: DemoPhotoInfo? {
+        guard let photoID = jobSheet.job?.photoID else { return nil }
+        return demoImages.catalog?.photos.first { $0.photoID == photoID }
+    }
+
+    private var jobAttribution: String {
+        jobPhotoInfo?.attribution ?? "Demo data. Not Zeke's truck."
+    }
+
+    private var jobShareAlike: Bool {
+        jobPhotoInfo?.shareAlike ?? false
     }
 }
 
