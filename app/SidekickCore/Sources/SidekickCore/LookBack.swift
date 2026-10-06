@@ -8,6 +8,7 @@ public enum LookBackScreen: String, CaseIterable, Hashable, Sendable {
 public enum JobHistoryCopy {
     public static let title = "Jobs"
     public static let subtitle = "One row per ask"
+    public static let back = "Back"
 }
 
 /// Copy locked by tests. Matches the approved Scan log frame.
@@ -18,6 +19,8 @@ public enum ScanLogCopy {
         "all", "intake", "cooling", "ignition", "electrical", "fuel", "inspected", "watch",
     ]
     public static let selectedChip = "intake"
+    /// Fits a grid cell. The highlight card keeps `HighlightViewerCopy.referenceBanner`.
+    public static let thumbBanner = "Not your truck"
 }
 
 /// One Jobs row. Wraps #113's `JobSheetState`. Session-only scripted data.
@@ -127,6 +130,11 @@ public struct ScanLogEntry: Equatable, Sendable, Identifiable {
             partID: shown.partID,
             showingOutline: shown.showsOutline
         )
+    }
+
+    /// Short cell label. Nil when the highlight card would not show a banner.
+    public func cellBanner(flags: FeatureFlags = .v1) -> String? {
+        presentation(flags: flags).banner == nil ? nil : ScanLogCopy.thumbBanner
     }
 }
 
