@@ -11,6 +11,8 @@ struct ChatScreen: View {
     @State private var demoImages = DemoImageStore()
     @State private var presentedViewer: HighlightViewerSession?
     @State private var jobSheet = JobSheetViewModel()
+    @State private var windowHeight: CGFloat = 0
+    @State private var topSafeArea: CGFloat = 0
 
     private var configuration: ChatClientConfiguration {
         ChatClientConfiguration(baseURL: backendURL)
@@ -53,6 +55,12 @@ struct ChatScreen: View {
                 .background(JobSheetChrome.screen)
         }
         .background(JobSheetChrome.screen)
+        .background {
+            WindowSafeAreaProbe { height, top in
+                windowHeight = height
+                topSafeArea = top
+            }
+        }
         .statusBarHidden(false)
         .persistentSystemOverlays(.visible)
         .task(id: demoLoadToken) {
@@ -175,8 +183,8 @@ struct ChatScreen: View {
                     attribution: jobAttribution,
                     shareAlike: jobShareAlike,
                     flags: launch.featureFlags,
-                    screenHeight: SidekickWindowMetrics.screenHeight,
-                    topSafeArea: SidekickWindowMetrics.topSafeArea,
+                    screenHeight: windowHeight,
+                    topSafeArea: topSafeArea,
                     onOpenHighlight: presentJobViewer,
                     onAttachPhoto: attachDemoPhotoToJob
                 )
