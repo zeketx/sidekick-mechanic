@@ -115,5 +115,6 @@ final class DemoModeTests: XCTestCase {
     func testEmptyLaunchLeavesDemoOff() {
         let launch = DemoLaunchOptions.parse(arguments: ["SidekickMechanic"], environment: [:])
         XCTAssertFalse(launch.enablesDemoMode)
+        XCTAssertFalse(launch.showDemoChrome)
     }
 }
