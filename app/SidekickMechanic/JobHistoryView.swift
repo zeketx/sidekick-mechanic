@@ -72,7 +72,8 @@ struct JobHistoryView: View {
                 geometry: geometry,
                 confirm: presentation.outlineStroke == .dashed,
                 notFound: !presentation.showsOutline,
-                cornerRadius: 8
+                cornerRadius: 8,
+                renderedWidth: 44
             )
             .frame(width: 44, height: 44)
             VStack(alignment: .leading, spacing: 4) {
@@ -118,34 +119,32 @@ struct JobHistoryView: View {
     }
 }
 
-/// Square fill thumb. Hides #112's demo attribution; does not fork the outline.
+/// Square fill thumb. Size-aware #112 ink; empty attribution so the overlay stays off.
 struct LookBackThumb: View {
     var image: UIImage
     var geometry: HighlightGeometry?
     var confirm: Bool
     var notFound: Bool
     var cornerRadius: CGFloat
+    var renderedWidth: CGFloat
 
     var body: some View {
-        Color.clear
-            .overlay {
-                DemoHighlightView(
-                    image: image,
-                    geometry: geometry,
-                    style: .outline,
-                    confirm: confirm,
-                    dashed: confirm,
-                    attribution: "",
-                    shareAlike: false,
-                    notFound: notFound,
-                    cornerRadius: 0,
-                    showsAttribution: false
-                )
-                .scaledToFill()
-            }
-            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-            .clipped()
-            .accessibilityHidden(true)
+        DemoHighlightView(
+            image: image,
+            geometry: geometry,
+            style: .outline,
+            confirm: confirm,
+            dashed: confirm,
+            attribution: "",
+            shareAlike: false,
+            notFound: notFound,
+            cornerRadius: 0,
+            outlineInk: .scaled(renderedWidth: Double(renderedWidth), dashed: confirm),
+            fillsContainer: true
+        )
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .clipped()
+        .accessibilityHidden(true)
     }
 }
 

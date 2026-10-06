@@ -87,13 +87,16 @@ struct ScanLogView: View {
         let thumbPhotoID = presentation.showsOutline ? presentation.outlinePhotoID : entry.photoID
         return VStack(alignment: .leading, spacing: 6) {
             ZStack(alignment: .top) {
-                LookBackThumb(
-                    image: store.images[thumbPhotoID] ?? HighlightPlaceholderImage.make(),
-                    geometry: entry.geometry(flags: flags),
-                    confirm: presentation.outlineStroke == .dashed,
-                    notFound: !presentation.showsOutline,
-                    cornerRadius: 10
-                )
+                GeometryReader { proxy in
+                    LookBackThumb(
+                        image: store.images[thumbPhotoID] ?? HighlightPlaceholderImage.make(),
+                        geometry: entry.geometry(flags: flags),
+                        confirm: presentation.outlineStroke == .dashed,
+                        notFound: !presentation.showsOutline,
+                        cornerRadius: 10,
+                        renderedWidth: proxy.size.width
+                    )
+                }
                 if let banner = entry.cellBanner(flags: flags) {
                     Text(banner)
                         .font(.caption2.weight(.semibold))
