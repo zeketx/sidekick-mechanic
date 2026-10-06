@@ -11,6 +11,7 @@ struct ChatScreen: View {
     @State private var demoImages = DemoImageStore()
     @State private var presentedViewer: HighlightViewerSession?
     @State private var jobSheet = JobSheetViewModel()
+    @State private var lookBackPath: [LookBackScreen] = []
     @State private var windowHeight: CGFloat = 0
     @State private var topSafeArea: CGFloat = 0
     @State private var bottomSafeArea: CGFloat = 0
@@ -20,7 +21,7 @@ struct ChatScreen: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $lookBackPath) {
             messageList
                 .safeAreaInset(edge: .top, spacing: 0) {
                     if launch.showDemoChrome, model.isDemoMode {
@@ -39,8 +40,35 @@ struct ChatScreen: View {
                 }
                 .navigationTitle("Sidekick")
                 .navigationBarTitleDisplayMode(.inline)
-                .toolbar(jobSheet.detent == .full && jobSheet.hasJob ? .hidden : .visible, for: .navigationBar)
+                .toolbar(
+                    lookBackPath.isEmpty && !(jobSheet.detent == .full && jobSheet.hasJob)
+                        ? .visible
+                        : .hidden,
+                    for: .navigationBar
+                )
                 .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        Button("Jobs") {
+                            if lookBackPath.last != .jobHistory {
+                                lookBackPath.append(.jobHistory)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .font(.body)
+                        .foregroundStyle(.primary)
+                        .accessibilityIdentifier("chat.jobs")
+                    }
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("Scan log") {
+                            if lookBackPath.last != .scanLog {
+                                lookBackPath.append(.scanLog)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .font(.body)
+                        .foregroundStyle(.primary)
+                        .accessibilityIdentifier("chat.scanLog")
+                    }
                     if launch.showDemoChrome {
                         ToolbarItem(placement: .topBarTrailing) {
                             Button(model.isDemoMode ? "Demo on" : "Demo mode") {
@@ -57,6 +85,23 @@ struct ChatScreen: View {
                 .toolbarBackground(jobSheet.hasJob ? .hidden : .visible, for: .navigationBar)
                 .toolbarColorScheme(colorScheme == .dark ? .dark : .light, for: .navigationBar)
                 .background(JobSheetChrome.screen)
+                .navigationDestination(for: LookBackScreen.self) { screen in
+                    lookBackDestination(screen)
+                }
+        }
+        .fullScreenCover(isPresented: launchViewerPresented) {
+            if let session = presentedViewer {
+                HighlightViewerView(
+                    presentation: session.presentation,
+                    image: session.image,
+                    referenceImage: session.referenceImage,
+                    geometry: session.geometry,
+                    attribution: session.attribution,
+                    shareAlike: session.shareAlike,
+                    onYes: session.onYes,
+                    onNotThis: session.onNotThis
+                )
+            }
         }
         .overlay {
             ZStack(alignment: .bottom) {
@@ -76,7 +121,7 @@ struct ChatScreen: View {
         .statusBarHidden(false)
         .persistentSystemOverlays(.visible)
         .task(id: demoLoadToken) {
-            guard model.isDemoMode || launch.opensJobSheet || launch.showDemoChrome else { return }
+            guard model.isDemoMode || launch.opensJobSheet || launch.opensLookBack || launch.showDemoChrome else { return }
             await demoImages.load(from: configuration)
             if model.isDemoMode, model.selectedDemoPhotoID == nil {
                 model.selectedDemoPhotoID = demoImages.catalog?.defaultPhotoID
@@ -86,7 +131,7 @@ struct ChatScreen: View {
     }
 
     private var demoLoadToken: String {
-        "\(model.isDemoMode)-\(launch.opensJobSheet)-\(launch.showDemoChrome)"
+        "\(model.isDemoMode)-\(launch.opensJobSheet)-\(launch.opensLookBack)-\(launch.showDemoChrome)"
     }
 
     @ViewBuilder
@@ -139,24 +184,11 @@ struct ChatScreen: View {
                 scrollToEnd(proxy)
                 presentLaunchViewerIfNeeded()
                 presentLaunchJobSheetIfNeeded()
+                presentLaunchLookBackIfNeeded()
                 jobSheet.sync(from: model.messages, photoID: jobPhotoID)
             }
             .onChange(of: demoImages.images.count) { _, _ in
                 refreshLaunchViewerImage()
-            }
-            .fullScreenCover(isPresented: launchViewerPresented) {
-                if let session = presentedViewer {
-                    HighlightViewerView(
-                        presentation: session.presentation,
-                        image: session.image,
-                        referenceImage: session.referenceImage,
-                        geometry: session.geometry,
-                        attribution: session.attribution,
-                        shareAlike: session.shareAlike,
-                        onYes: session.onYes,
-                        onNotThis: session.onNotThis
-                    )
-                }
             }
             .onChange(of: model.messages.count) { _, _ in
                 scrollToEnd(proxy)
@@ -199,7 +231,7 @@ struct ChatScreen: View {
                 }
                 .background(JobSheetChrome.screen)
             }
-            if jobSheet.hasJob {
+            if jobSheet.hasJob, lookBackPath.isEmpty {
                 JobSheetView(
                     model: jobSheet,
                     image: jobPhoto,
@@ -386,6 +418,49 @@ struct ChatScreen: View {
     private func presentLaunchJobSheetIfNeeded() {
         guard let screen = launch.jobSheetScreen else { return }
         jobSheet.applyLaunch(screen, photoID: launch.resolvedPhotoID)
+    }
+
+    private func presentLaunchLookBackIfNeeded() {
+        guard lookBackPath.isEmpty, let screen = launch.lookBackScreen else { return }
+        lookBackPath = [screen]
+    }
+
+    @ViewBuilder
+    private func lookBackDestination(_ screen: LookBackScreen) -> some View {
+        switch screen {
+        case .jobHistory:
+            JobHistoryView(
+                store: demoImages,
+                configuration: configuration,
+                flags: launch.featureFlags,
+                onOpenJob: openHistoryJob
+            )
+        case .scanLog:
+            ScanLogView(
+                store: demoImages,
+                configuration: configuration,
+                flags: launch.featureFlags,
+                onOpenCell: openScanCell
+            )
+        }
+    }
+
+    private func openHistoryJob(_ row: JobHistoryRow) {
+        lookBackPath = []
+        jobSheet.job = row.openedSheet()
+    }
+
+    private func openScanCell(_ entry: ScanLogEntry) {
+        let presentation = entry.presentation(flags: launch.featureFlags)
+        let photoInfo = demoImages.catalog?.photos.first { $0.photoID == entry.photoID }
+        presentedViewer = HighlightViewerSession(
+            presentation: presentation,
+            image: demoImages.images[entry.photoID] ?? HighlightPlaceholderImage.make(),
+            referenceImage: presentation.referencePhotoID.flatMap { demoImages.images[$0] },
+            geometry: entry.geometry(flags: launch.featureFlags),
+            attribution: photoInfo?.attribution ?? "Demo data. Not Zeke's truck.",
+            shareAlike: photoInfo?.shareAlike ?? false
+        )
     }
 
     private func presentJobViewer() {

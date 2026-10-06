@@ -14,10 +14,11 @@ struct SidekickMechanicApp: App {
     private static func makeChatModel() -> ChatViewModel {
         let launch = Self.launch
         let jobLaunch = launch.opensJobSheet
+        let lookBack = launch.opensLookBack
         return ChatViewModel(
             conversationID: ConversationID(rawValue: UUID().uuidString)!,
             messages: jobLaunch ? JobSheetScript.messages : [],
-            composerText: launch.enablesDemoMode && !jobLaunch ? launch.cannedQuestion : "",
+            composerText: launch.enablesDemoMode && !jobLaunch && !lookBack ? launch.cannedQuestion : "",
             isDemoMode: launch.enablesDemoMode,
             selectedDemoPhotoID: launch.enablesDemoMode ? launch.resolvedPhotoID : nil,
             highlightStyle: launch.style ?? .outline,
