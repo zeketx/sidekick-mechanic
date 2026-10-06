@@ -399,4 +399,36 @@ final class HighlightViewerTests: XCTestCase {
         XCTAssertEqual(HighlightOutlineInk.scaled(renderedWidth: 40).strokeWidth, 1.25, accuracy: 0.05)
         XCTAssertEqual(HighlightOutlineInk.scaled(renderedWidth: 40).fillOpacity, 0.06, accuracy: 0.005)
     }
+
+    func testViewerLayoutKeepsEveryCatalogPolygonOnScreen() {
+        let visible = OutlineRect(x: 0, y: 0, width: 393, height: 620)
+        var checked = 0
+        for photo in DemoOutlineCatalog.load() {
+            for part in photo.parts {
+                guard let geometry = DemoOutlineCatalog.geometry(
+                    photoID: photo.photoID,
+                    partID: part.partID
+                ) else { continue }
+                let displayed = HighlightOutlineLayout.viewerDisplayedImage(
+                    imageWidth: Double(photo.width),
+                    imageHeight: Double(photo.height),
+                    boundsWidth: visible.width,
+                    boundsHeight: visible.height
+                )
+                XCTAssertGreaterThan(displayed.width, 0)
+                XCTAssertGreaterThan(displayed.height, 0)
+                for ring in geometry.polygons {
+                    for point in ring.points {
+                        let mapped = HighlightOutlineLayout.map(point, in: displayed)
+                        XCTAssertTrue(
+                            visible.contains(mapped),
+                            "\(photo.photoID) \(part.partID) (\(point.x), \(point.y)) mapped to (\(mapped.x), \(mapped.y)) outside the visible card"
+                        )
+                        checked += 1
+                    }
+                }
+            }
+        }
+        XCTAssertGreaterThan(checked, 20)
+    }
 }

@@ -14,6 +14,15 @@ public struct OutlineRect: Equatable, Sendable {
 
     public var midX: Double { x + width / 2 }
     public var midY: Double { y + height / 2 }
+
+    public var minX: Double { x }
+    public var minY: Double { y }
+    public var maxX: Double { x + width }
+    public var maxY: Double { y + height }
+
+    public func contains(_ point: HighlightPoint) -> Bool {
+        point.x >= minX && point.x <= maxX && point.y >= minY && point.y <= maxY
+    }
 }
 
 /// One cubic Bézier of a closed Catmull-Rom ring, still in normalized 0-1 space.
@@ -63,6 +72,21 @@ public enum HighlightOutlineLayout {
         HighlightPoint(
             x: rect.x + point.x * rect.width,
             y: rect.y + point.y * rect.height
+        )
+    }
+
+    /// Layout the highlight viewer uses: the whole photo is visible (aspect-fit).
+    public static func viewerDisplayedImage(
+        imageWidth: Double,
+        imageHeight: Double,
+        boundsWidth: Double,
+        boundsHeight: Double
+    ) -> OutlineRect {
+        aspectFit(
+            imageWidth: imageWidth,
+            imageHeight: imageHeight,
+            boundsWidth: boundsWidth,
+            boundsHeight: boundsHeight
         )
     }
 

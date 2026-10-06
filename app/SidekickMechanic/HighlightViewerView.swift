@@ -46,6 +46,7 @@ struct HighlightViewerView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
+                chromeHeader
                 if let banner = presentation.banner {
                     bannerPill(banner)
                 }
@@ -55,21 +56,29 @@ struct HighlightViewerView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .background(cardFill)
-            .navigationTitle(presentation.title)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbarBackground(cardFill, for: .navigationBar)
-            .toolbarBackground(.visible, for: .navigationBar)
-            .toolbarColorScheme(.light, for: .navigationBar)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Close") { dismiss() }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(.primary)
-                        .accessibilityIdentifier("highlightViewer.close")
-                }
-            }
+            .toolbar(.hidden, for: .navigationBar)
             .accessibilityIdentifier("highlightViewer")
         }
+    }
+
+    private var chromeHeader: some View {
+        ZStack {
+            Text(presentation.title)
+                .font(.headline)
+                .foregroundStyle(.primary)
+                .accessibilityAddTraits(.isHeader)
+            HStack {
+                Button("Close") { dismiss() }
+                    .buttonStyle(.plain)
+                    .font(.body)
+                    .foregroundStyle(.primary)
+                    .accessibilityIdentifier("highlightViewer.close")
+                Spacer(minLength: 0)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(cardFill)
     }
 
     private func bannerPill(_ text: String) -> some View {
@@ -149,7 +158,7 @@ struct HighlightViewerView: View {
             shareAlike: shareAlike,
             notFound: geometry == nil,
             cornerRadius: 0,
-            fillsContainer: true
+            fillsContainer: false
         )
         return Color.clear
             .frame(maxWidth: .infinity, maxHeight: .infinity)
