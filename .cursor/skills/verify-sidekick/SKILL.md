@@ -23,11 +23,17 @@ From the repository root, first command on a Mac:
 .cursor/skills/verify-sidekick/scripts/verify-ios.sh doctor
 ```
 
-Full run (build, boot, each `-screen`, taps, Figma stitch, cleanup):
+Doctor exits 1 before the first run if the simulator is not booted, the app is not installed, or :8000 is down. That is expected: `pending_for_run` in its JSON lists what `run` will do about it. Only exit 2 (owner-only: no Xcode, Linux, missing scheme) blocks a run.
+
+Full run (build, boot, each `-screen`, taps, Figma stitch, measured checklist, cleanup). This one line is the whole UI proof:
 
 ```bash
 .cursor/skills/verify-sidekick/scripts/verify-ios.sh run
 ```
+
+`run` exit codes: `0` harness and taps passed, no measured design FAIL (REVIEW cells still need you); `1` build, launch or a tap test failed (screenshots, side-by-sides and checklist are still written); `2` owner-only; `3` harness and taps passed but the design checklist has measured FAIL rows. It takes about 4–5 minutes on an M-series Mac (build, 11 screens, 8 UI tests).
+
+The last lines print the taps result, each failed test, and the checklist verdict with its path. Read `artifacts/verify/latest/compare/checklist.md` and open every `compare/<screen>.png` before reporting.
 
 Ready means all of these are true:
 
@@ -46,7 +52,7 @@ python3 -m pip install -r backend/requirements.txt
 uvicorn app:app --host 127.0.0.1 --port 8000
 ```
 
-`run` starts that uvicorn itself when :8000 is free, records the pid, and stops only that pid. `GET /demo/photos` is on PR #92 (`cursor/demo-mode-backend-27ef`), which is not in this UI stack. Highlights still render from placeholder images. Doctor records demo-photos as false in that case; it is not a hard fail.
+`run` starts that uvicorn itself when :8000 is free, records the pid, and stops only that pid. If something already answers on :8000 with title `Sidekick Mechanic` (for example the PR #92 demo backend from another checkout), `run` uses it and leaves it running. `GET /demo/photos` is on PR #92 (`cursor/demo-mode-backend-27ef`), which is not in this UI stack. Highlights still render from placeholder images. Doctor records demo-photos as false in that case; it is not a hard fail.
 
 Launch arguments (parsed in `DemoLaunchOptions` / `OnboardingLaunchOptions`). Pass them after the bundle id with `simctl launch`, or as XCTest `launchArguments`.
 
@@ -62,19 +68,19 @@ Launch arguments (parsed in `DemoLaunchOptions` / `OnboardingLaunchOptions`). Pa
 | `-showDemoChrome 1` | Demo toggle, demo banner, Chat/Readings tabs. |
 | `-flagUnsureHighlight 1` | Internal unsure card. Off in v1 unless the screen is `highlight-unsure`. |
 
-The helper terminates the app between `-screen` launches and waits (2.5–4 s) so the next shot is that screen, not a leftover cover.
+The helper terminates the app between `-screen` launches and waits (2.5–4 s) so the next shot is that screen, not a leftover cover. Every non-onboarding screen also gets `-sidekick.onboarding.completed YES`, so the same map works once #111 adds first-run onboarding.
 
 Teardown: `verify-ios.sh cleanup`. See Cleanup.
 
 ## Doctor
 
-Read-only. Does not boot a simulator, install the app, or start uvicorn.
+Read-only. Does not boot a simulator, install the app, or start uvicorn. A standalone doctor writes `artifacts/verify/doctor/doctor.json` and does not move `latest`, so `compare` still finds the last run.
 
 ```bash
 .cursor/skills/verify-sidekick/scripts/verify-ios.sh doctor
 ```
 
-Exit 0 only on macOS when Xcode is present, scheme `SidekickMechanic` lists, the preferred (or fallback) iPhone is **Booted**, this checkout's app is installed, and `GET /openapi.json` on :8000 is Sidekick Mechanic. On Linux it exits 2 and writes `owner-only.json`.
+Exit 0 only on macOS when Xcode is present, scheme `SidekickMechanic` lists, the preferred (or fallback) iPhone is **Booted**, this checkout's app is installed, and `GET /openapi.json` on :8000 is Sidekick Mechanic. Otherwise exit 1 with `pending_for_run` (not a blocker; `run` fixes those). On Linux it exits 2 and writes `owner-only.json`.
 
 The JSON always includes `git.branch`, `git.sha`, `xcodebuild` version when available, simulator name/udid/state, `app_installed`, and `backend.openapi` / `backend.demo_photos`.
 
@@ -104,7 +110,7 @@ xcrun simctl io <udid> screenshot artifacts/verify/<run-id>/screenshots/job-hist
 
 ### Real taps (XCUITest)
 
-Launch args cannot open the Garage sheet, tap a Jobs row, drag the sheet, or tap the scrim. Those go through `app/SidekickMechanicUITests/DriveUITests.swift` on target `SidekickMechanicUITests`.
+Launch args cannot open the Garage sheet, tap a Jobs row, drag the sheet, tap the scrim, or type in the composer. Those go through `app/SidekickMechanicUITests/DriveUITests.swift` on target `SidekickMechanicUITests`. A tap failure does not stop `run`: it records `taps/result.json` (passed / failed / skipped tests and the assertion lines), still stitches and measures, then exits 1.
 
 ```bash
 .cursor/skills/verify-sidekick/scripts/verify-ios.sh taps
@@ -129,17 +135,22 @@ xcodebuild test \
 | `testDragSheetCollapsedToHalf` | Drag the sheet handle up | `jobSheet.handle` | `jobSheet.collapsed` → `jobSheet.half` |
 | `testTapScrimCollapsesHalfSheet` | Tap the dimmed chat | `jobSheet.dim` | `jobSheet.half` → `jobSheet.collapsed` |
 | `testScanLogFromJobsHeader` | Jobs → Scan log | `jobHistory.scanLog` | `scanLog.grid` |
-| `testOpenGarageIfPresent` | Chat → Garage | `chat.garage` | **XCTSkip on this stack.** Garage is PR #111 (`onboarding.garage`, `garage.done`). |
+| `testOpenGarageIfPresent` | Chat → Garage | `chat.garage` | **XCTSkip on this stack.** Garage is PR #111 (`onboarding.garage`, `garage.done`). Writes `taps/garage-unmet.json`. |
+| `testComposerStaysPillWhenMultiline` | Tap the composer, type a long problem | `chat.composer` | `taps/taps-composer-multiline.png` + `taps/layout-composer-multiline.json` for the pill check |
+| `testRecordLayoutFrames` | Launch chat, Jobs, collapsed / half / full | leaf ids per screen | `taps/layout-frames.json` (points) for the composer and nav-button checks |
+| `testIdentifierAudit` | Launch each screen | every id listed under Identifiers | `taps/identifiers.json` found / missing; fails if a documented id is unreachable |
 
-The drag uses a vector from `jobSheet.handle`, not a raw screen coordinate of the sheet.
+The drag uses a vector from `jobSheet.handle`, not a raw screen coordinate of the sheet. The drag and scrim tests also save a before shot (`taps-sheet-before-drag.png`, `taps-sheet-before-scrim.png`). Every test launches with `-sidekick.onboarding.completed YES` unless it passes an onboarding flag itself.
+
+SwiftUI trap that broke three of these tests on the first Mac run: `.accessibilityIdentifier` on a container **overwrites every child identifier** unless the container has `.accessibilityElement(children: .contain)` first. `chat.messageList` swallowed `chat.jobs` / `chat.scanLog`, `jobHistory.list` swallowed `jobHistory.scanLog` and the rows, `jobSheet.outcome` swallowed the Worked / Partly / Didn't ids, `highlightViewer` swallowed its close button. A plain `VStack` with `.contain` can also drop out of the tree entirely, which is why `chat.header` and `jobSheet` were removed. Put new ids on leaves, add `.contain` to any container id, and let `testIdentifierAudit` catch regressions.
 
 If `xcodegen generate` is run from `app/project.yml`, it recreates the UI test target. The committed `app/SidekickMechanic.xcodeproj` already includes it so a Mac without XcodeGen can still `xcodebuild test`.
 
 ### Identifiers (this checkout)
 
-Chat: `chat.header`, `chat.jobs`, `chat.scanLog`, `chat.composer`, `chat.send`, `chat.messageList`, `chat.attach`, `demo.toggle`. Garage `chat.garage` only on #111.
+Chat: `chat.jobs`, `chat.scanLog`, `chat.composer`, `chat.send`, `chat.messageList`, `chat.attach` (only when attach is shown), `demo.toggle` (`-showDemoChrome 1`). Garage `chat.garage` only on #111.
 
-Job sheet: `jobSheet`, `jobSheet.collapsed` / `.half` / `.full`, `jobSheet.handle`, `jobSheet.open` / `.close`, `jobSheet.dim`, `jobSheet.outcome.worked` / `.partly` / `.didnt`.
+Job sheet: `jobSheet.collapsed` / `.half` / `.full` (the sheet frame itself: x = 8, width 386 on a 402 pt window today), `jobSheet.handle`, `jobSheet.title`, `jobSheet.peek`, `jobSheet.open` / `.close`, `jobSheet.dim`, `jobSheet.body`, `jobSheet.answer`, `jobSheet.photo`, `jobSheet.chips`, `jobSheet.steps`, `jobSheet.outcome`, `jobSheet.outcome.worked` / `.partly` / `.didnt`.
 
 Highlight: `highlightViewer`, `highlightViewer.close`, `highlightViewer.photo`, `demo.confirm.yes` / `.notThis`.
 
@@ -154,13 +165,21 @@ Proof goes to `artifacts/verify/<run-id>/` (gitignored). `latest` is a symlink t
 | Path | What it proves |
 | --- | --- |
 | `doctor.json` | Xcode, sim, app, backend, branch, SHA |
+| `manifest.json` | Command, git, shot lists, taps result and checklist verdict |
 | `screenshots/<screen>.png` | That `-screen` after terminate + wait, status bar 9:41 |
+| `taps/result.json` | Which UI tests passed / failed / skipped, assertion lines |
 | `taps/taps-jobs-list.png` | Jobs list after tapping `chat.jobs` |
 | `taps/taps-job-row-opened.png` | Cold idle sheet at half after the row tap |
-| `taps/taps-sheet-after-drag.png` | Detent change from the handle |
-| `taps/taps-sheet-after-scrim.png` | Collapsed after tapping `jobSheet.dim` |
+| `taps/taps-sheet-before-drag.png`, `taps-sheet-after-drag.png` | Collapsed, then half from the handle |
+| `taps/taps-sheet-before-scrim.png`, `taps-sheet-after-scrim.png` | Half, then collapsed after tapping `jobSheet.dim` |
+| `taps/taps-scan-log.png` | Scan log after Jobs → Scan log |
+| `taps/taps-composer-multiline.png` | Composer after typing a long problem |
+| `taps/layout-frames.json`, `layout-composer-multiline.json` | XCUITest element frames (points) the checklist measures against |
+| `taps/identifiers.json` | Documented ids found / missing per screen |
+| `taps/DriveUITests.xcresult` | Full XCTest result bundle |
 | `compare/<screen>.png` | Figma (or #94 wireframe) left, simulator right |
-| `compare/checklist.md` | Standing design checklist, pass/fail filled by the agent |
+| `compare/checklist.md` | Per-screen checklist: measured PASS / FAIL with numbers, REVIEW cells for you |
+| `compare/design-checks.json` | Every measurement behind the checklist |
 | `owner-only.json` | Linux / missing Xcode. Not a pass. |
 
 Proof standards:
@@ -175,6 +194,16 @@ Proof standards:
 
 Every UI change must copy this table into the PR (and into `compare/checklist.md`) with pass/fail and a screenshot path. Fail the PR if any row is fail or unfilled.
 
+`compare_figma.py --run-dir` (called by `run` and `compare`) pre-fills it through `scripts/design_checks.py`, per screen:
+
+- **Edge to edge** (job-sheet-*): scans for the white sheet and reports the first white pixel from each side (px and pt), the gap under the sheet at full, rounded top corners, sheet colour and the scrim colour above it. Any side inset, a bottom gap at full, a non-white sheet, a dark scrim at collapsed or a light one at half/full is FAIL.
+- **Composer** (chat + the multiline tap shot): finds the outline around the `chat.composer` frame, fits the corner radius and compares it with half the height (pill needs fitted radius / half height ≥ 0.75 on one line **and** after typing a long problem; the circular fit reads `.continuous` corners ~15–20% small, hence 0.75), and samples the background above, below and left of it.
+- **Nav buttons** (chat, Jobs, half, full): looks for a tinted fill behind each `chat.jobs` / `chat.scanLog` / `lookBack.back` / `jobHistory.scanLog` / `jobSheet.close` frame (glass capsule = FAIL). Truncation is still yours to check.
+- **Status bar / #F4F4F4**: status bar time contrast on every screen, `#F4F4F4` on chat / Jobs / Scan log. Can only FAIL; clipping and overlap stay REVIEW.
+- **Highlight outline** and **Matches Figma** are always REVIEW: open the side-by-side and list every difference.
+
+The overall verdict is never PASS from the script; the best it says is NEEDS REVIEW.
+
 | Rule | Pass / Fail | Evidence |
 | --- | --- | --- |
 | Highlights are precise outlines that follow the part's shape, **never** a box or rectangle. Low confidence is a hedged (dashed) outline or none. |  |  |
@@ -186,8 +215,8 @@ Every UI change must copy this table into the PR (and into `compare/checklist.md
 
 Current layout notes the next agent must still photograph, not assume:
 
-- `JobSheetLayout.horizontalInset` is `8`, so the sheet is **not** full width yet. That row should fail until the inset is 0.
-- Composer corner radius is 18 on a rounded rectangle, not a capsule.
+- `JobSheetLayout.horizontalInset` is `8`, so the sheet is **not** full width yet. Measured on the Mac (Oct 6 2026, e65812b stack): first white pixel 27 px = 9 pt in from each side at collapsed / half / full / closeout (8 pt inset + the 1 pt stroke), and at full the sheet stops 22 pt above the screen bottom. The XCUITest frames agree: `jobSheet.collapsed` / `.half` / `.full` are `[8, y, 386, h]` and `.full` ends 21 pt short of 874. The edge-to-edge row FAILs until both are 0.
+- Composer corner radius is a fixed 18 on a rounded rectangle, not a capsule. On one line (≈37 pt tall) it measures close to a pill (fit ratio 0.80, PASS); once the text wraps to four lines (≈103 pt) the same 18 pt corners read 0.29 and the row FAILs. See `taps/taps-composer-multiline.png`.
 
 Do not report done without screenshots.
 
@@ -205,11 +234,13 @@ Cleanup uses `.cursor/skills/verify-sidekick/run/state.json` (gitignored):
 - Deletes the state file and `/tmp/sidekick-verify-sidekick/evidence-path`.
 - Does **not** delete `artifacts/verify/`. After `run`, the screenshots and `compare/` files must still exist.
 
-`run` calls cleanup in a `finally` block. Confirm the evidence directory is still there after it returns.
+`run` calls cleanup in a `finally` block. Confirm the evidence directory is still there after it returns. Cleanup leaves the app terminated (the simulator shows the home screen); relaunch with `xcrun simctl launch booted com.zeketx.SidekickMechanic -screen job-sheet-half -demoPhoto hilux` if someone needs the app on screen afterwards.
+
+If `taps/result.json` lists tests that are not in `DriveUITests.swift` (stale runner on the simulator, seen once with Xcode open on the same project), run `verify-ios.sh taps` again before trusting it.
 
 ## Helpers
 
-All four are executable. Invoke them from the repository root.
+All of them are executable. Invoke them from the repository root.
 
 ```bash
 .cursor/skills/verify-sidekick/scripts/verify-ios.sh doctor
@@ -229,7 +260,11 @@ python3 .cursor/skills/verify-sidekick/scripts/compare_figma.py \
   --screen job-history
 ```
 
-`verify-ios.sh` is a bash front door. `verify_sidekick.py` does the work. `compare_figma.py` needs Pillow (`python3 -m pip install pillow`).
+```bash
+python3 .cursor/skills/verify-sidekick/scripts/design_checks.py --run-dir artifacts/verify/latest
+```
+
+`verify-ios.sh` is a bash front door. `verify_sidekick.py` does the work. `compare_figma.py` stitches and writes the checklist; `design_checks.py` measures the automated rows. Both need Pillow (`python3 -m pip install pillow`). XcodeGen is optional: the committed `.xcodeproj` already has the UI test target.
 
 UI tests live at `app/SidekickMechanicUITests/DriveUITests.swift` so Xcode compiles them. Figma / #94 wireframe refs live at `features/figma/<screen>.png`.
 

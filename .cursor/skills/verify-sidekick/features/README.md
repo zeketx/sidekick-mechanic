@@ -16,6 +16,7 @@ This directory is the maintained source for verifying the user-facing iPhone UI.
 
 - Start every recipe from a terminated app. The helper terminates between `-screen` launches.
 - Prefer accessibility identifiers over coordinates. The only relative gesture is a drag from `jobSheet.handle`.
+- `testIdentifierAudit` (`taps/identifiers.json`) checks every identifier the map names. If one is missing, fix the map or the view before trusting a tap failure.
 - Treat every command as literal. Keep `-screen` values and identifiers unchanged.
 - Launch-arg screens go through `verify-ios.sh screens --screens <id>`.
 - Taps go through `verify-ios.sh taps` (`DriveUITests`).
@@ -24,7 +25,7 @@ This directory is the maintained source for verifying the user-facing iPhone UI.
 ## Proof and skip reporting
 
 - Capture the user action and the resulting state, not only the final screen.
-- UI proof is a simulator screenshot plus a Figma side-by-side in `compare/` plus a filled design checklist.
+- UI proof is a simulator screenshot plus a Figma side-by-side in `compare/` plus a filled design checklist. `run` pre-fills measurable rows (sheet edge to edge, composer pill, plain nav buttons, status bar / `#F4F4F4`) with PASS / FAIL and numbers; you fill the REVIEW cells.
 - Record the feature ID and entry point (`-screen …` or the XCTest method) on every artifact.
 - Report an unreachable path with the attempted command and the unmet precondition (onboarding not in checkout, demo photos 404, Garage missing).
 - Do not report a skipped entry point as verified through a different path.

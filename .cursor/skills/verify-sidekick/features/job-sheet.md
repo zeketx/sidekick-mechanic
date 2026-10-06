@@ -29,14 +29,15 @@ Preconditions:
 - **Half.** `--screens job-sheet-half`. Identifiers `jobSheet.half`, `jobSheet.body`, `jobSheet.outcome`. Outcome labels are Worked, Partly, Didn't. Scrim is stronger. Tap `jobSheet.dim` is enabled.
 - **Full.** `--screens job-sheet-full`. Identifier `jobSheet.full`. The sheet reaches the bottom of the screen. Rounded top corners only. No gray strip under the sheet.
 - **Closeout.** `--screens job-sheet-closeout`. Half height. `jobSheet.outcome.worked` is selected (underlined).
-- **Drag.** `.cursor/skills/verify-sidekick/scripts/verify-ios.sh taps` runs `testDragSheetCollapsedToHalf`. Handle `jobSheet.handle`. Result `jobSheet.half`. Shot `taps/taps-sheet-after-drag.png`.
-- **Scrim tap.** `testTapScrimCollapsesHalfSheet`. `jobSheet.dim` then `jobSheet.collapsed`. Shot `taps/taps-sheet-after-scrim.png`.
-- **Proof.** Side-by-sides `compare/job-sheet-collapsed.png`, `job-sheet-half.png`, `job-sheet-full.png`. Fill the edge-to-edge sheet row. If `JobSheetLayout.horizontalInset` is not 0, that row fails (today it is 8).
+- **Drag.** `.cursor/skills/verify-sidekick/scripts/verify-ios.sh taps` runs `testDragSheetCollapsedToHalf`. Handle `jobSheet.handle`. Result `jobSheet.half`. Shots `taps/taps-sheet-before-drag.png` then `taps/taps-sheet-after-drag.png`.
+- **Scrim tap.** `testTapScrimCollapsesHalfSheet`. `jobSheet.dim` then `jobSheet.collapsed`. Shots `taps/taps-sheet-before-scrim.png` then `taps/taps-sheet-after-scrim.png`.
+- **Proof.** Side-by-sides `compare/job-sheet-collapsed.png`, `job-sheet-half.png`, `job-sheet-full.png`. The edge-to-edge row is measured per shot in `compare/checklist.md` (first white pixel from each side, gap under the sheet at full, scrim colour). While `JobSheetLayout.horizontalInset` is 8 it reports FAIL with 27 px / 9 pt each side and a 22 pt gap under the full sheet.
 
 ## Gotchas
 
 - Full is a detent only. Steps, notes, and tags beyond the two scripted checkboxes stay in later work. Do not fail the shot for missing editors.
 - `-showDemoChrome 1` adds tab-bar inset (`bottomChromeInset`). Default shots omit it so the sheet can sit on the home indicator.
-- Outcome `Didn't` uses identifier `jobSheet.outcome.didnt` (raw value `didnt`), not `didnt-work`.
+- Outcome `Didn't` uses identifier `jobSheet.outcome.didnt` (raw value `didnt`), not `didnt-work`. The `jobSheet.outcome` row needs `.accessibilityElement(children: .contain)` or it hides all three.
+- There is no `jobSheet` id on the sheet body. The detent ids carry the sheet frame: on the Mac `jobSheet.collapsed` / `.half` / `.full` start at x = 8 pt and are 386 pt wide on a 402 pt window, and `.full` ends 21 pt above the bottom. The checklist prints those frames next to the pixel scan.
 - The photo thumb must show a part-shaped outline, not a rectangle, when the job has a photo.
 - Closeout has no dedicated #94 wireframe. `features/figma/job-sheet-closeout.png` is the half-frame until a Figma export exists.

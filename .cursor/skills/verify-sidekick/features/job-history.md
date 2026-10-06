@@ -28,12 +28,13 @@ Preconditions:
 - **Jobs via tap.** `.cursor/skills/verify-sidekick/scripts/verify-ios.sh taps` runs `testOpenJobsThenColdIdleRow`. Tap `chat.jobs`, shot `taps/taps-jobs-list.png`, tap `jobHistory.row.cold-idle`, expect `jobSheet.half`, shot `taps/taps-job-row-opened.png`.
 - **Scan log via launch arg.** `--screens scan-log`. Identifier `scanLog.grid`. Selected chip `intake`. Cell `scanLog.cell.scan-log-0`. Outlines are polygons; empty cells show no box highlight.
 - **Scan log via Jobs header.** `testScanLogFromJobsHeader` taps `jobHistory.scanLog`. Result `scanLog.grid`. Shot `taps/taps-scan-log.png`.
-- **Proof.** `compare/job-history.png` and `compare/scan-log.png` against `features/figma/job-history.png` and `scan-log.png`. List every difference vs Figma (thumb photos vs gray squares on the #94 wireframe, badge fill, chip wrap). Fill the header-button and outline rows.
+- **Proof.** `compare/job-history.png` and `compare/scan-log.png` against `features/figma/job-history.png` and `scan-log.png`. List every difference vs Figma (thumb photos vs gray squares on the #94 wireframe, badge fill, chip wrap). The header-button row is pre-measured from `lookBack.back` / `jobHistory.scanLog` frames; fill the outline row.
 
 ## Gotchas
 
 - Opening a history row does not append chat (later work). The sheet is the proof, not a new user bubble.
 - Row identifiers slug the title: `jobHistory.row.cold-idle`, `jobHistory.row.hard-start`, `jobHistory.row.battery-light`, `jobHistory.row.hose-check`.
 - Scan-log cell ids are `scan-log-0` … `scan-log-8`, not part names.
+- `jobHistory.list` and `scanLog.grid` sit on the whole screen including the header inset. Without `.accessibilityElement(children: .contain)` they replace `lookBack.back`, `jobHistory.scanLog` and the row / cell ids, and `testScanLogFromJobsHeader` fails with "jobHistory.scanLog is missing".
 - Thumbs reuse the highlight renderer. A square crop that clips the outline is a fail even if the list layout matches.
 - Do not verify Jobs by only launching `-screen job-sheet-half`. That skips the row tap.
