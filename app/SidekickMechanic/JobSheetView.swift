@@ -182,7 +182,7 @@ struct JobSheetView: View {
     private var expandedBody: some View {
         VStack(spacing: 0) {
             ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: 8) {
                     photoStage
                     Text(model.job?.answerText ?? JobSheetCopy.answer(photoID: catalogPhotoID))
                         .font(.body)
@@ -195,20 +195,25 @@ struct JobSheetView: View {
                     }
                 }
                 .padding(.horizontal, 16)
-                .padding(.bottom, 12)
+                .padding(.bottom, 8)
             }
             .accessibilityIdentifier("jobSheet.body")
             outcomeRow
                 .padding(.horizontal, 16)
                 .padding(.top, 4)
-                .padding(.bottom, 16 + bottomChromeInset)
+                .padding(.bottom, 8 + bottomChromeInset)
                 .safeAreaPadding(.bottom)
         }
     }
 
-    private var photoStage: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            photoThumb(height: model.detent == .full ? 200 : 100, fillsWidth: true)
+        private var photoStage: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            photoThumb(
+                height: model.detent == .full
+                    ? CGFloat(JobSheetLayout.fullPhotoHeight)
+                    : CGFloat(JobSheetLayout.halfPhotoHeight),
+                fillsWidth: true
+            )
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(JobSheetCopy.photoCaption)
                     .font(.caption)
@@ -307,6 +312,8 @@ struct JobSheetView: View {
                         JobSheetChipLabel(text: index == 0 ? JobSheetCopy.chip : citation.chipLabel)
                     }
                     .buttonStyle(.plain)
+                    .tint(JobSheetChrome.chipInk)
+                    .foregroundStyle(JobSheetChrome.chipInk)
                     .accessibilityIdentifier("jobSheet.chip.\(index)")
                     .accessibilityHint("Opens the cited page")
                 }
@@ -380,12 +387,12 @@ private struct JobSheetChipLabel: View {
     var body: some View {
         Text(text)
             .font(.subheadline)
-            .foregroundStyle(.primary)
+            .foregroundStyle(JobSheetChrome.chipInk)
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
             .background(JobSheetChrome.paper, in: Capsule())
             .overlay {
-                Capsule().strokeBorder(Color.secondary.opacity(0.35))
+                Capsule().strokeBorder(JobSheetChrome.chipInk.opacity(0.4), lineWidth: 1)
             }
     }
 }
@@ -413,6 +420,9 @@ enum JobSheetChrome {
             return UIColor(red: 0.957, green: 0.957, blue: 0.957, alpha: 1)
         }
     }
+
+    /// Label ink. Hierarchical `.primary` on a NavigationLink reads as disabled gray.
+    static let chipInk = Color(uiColor: .label)
 }
 
 /// Full-window height from a reader that ignores the safe area, plus insets from one

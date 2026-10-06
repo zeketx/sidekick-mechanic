@@ -91,7 +91,7 @@ struct ChatScreen: View {
 
     @ViewBuilder
     private var jobSheetScrim: some View {
-        if jobSheet.hasJob {
+        if jobSheet.hasJob, JobSheetLayout.scrimOpacity(detent: jobSheet.detent) > 0 {
             Color.black
                 .opacity(JobSheetLayout.scrimOpacity(detent: jobSheet.detent))
                 .ignoresSafeArea()
