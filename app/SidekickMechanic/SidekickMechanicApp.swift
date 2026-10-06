@@ -110,7 +110,7 @@ struct AppRootView: View {
         }
         .sheet(isPresented: $isGaragePresented) {
             NavigationStack {
-                GarageListView()
+                GarageListView(canvas: .white)
                     .navigationTitle("Your garage")
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar {
@@ -119,7 +119,11 @@ struct AppRootView: View {
                                 .accessibilityIdentifier("garage.done")
                         }
                     }
+                    .toolbarBackground(.white, for: .navigationBar)
+                    .toolbarBackground(.visible, for: .navigationBar)
             }
+            .presentationBackground(.white)
+            .presentationBackgroundInteraction(.disabled)
         }
     }
 

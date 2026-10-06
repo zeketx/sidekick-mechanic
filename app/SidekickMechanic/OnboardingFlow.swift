@@ -180,6 +180,7 @@ private struct HowItWorksOnboardingPage: View {
 /// Display-only garage rows. Used on first-open screen 3 and from Chat → Garage.
 struct GarageListView: View {
     var showsHeader = false
+    var canvas: Color = OnboardingPalette.paper
 
     var body: some View {
         ScrollView {
@@ -212,7 +213,7 @@ struct GarageListView: View {
             .padding(.bottom, 24)
         }
         .scrollContentBackground(.hidden)
-        .background(OnboardingPalette.paper)
+        .background(canvas)
         .accessibilityIdentifier("onboarding.garage")
     }
 
