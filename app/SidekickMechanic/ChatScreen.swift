@@ -136,7 +136,11 @@ struct ChatScreen: View {
 
     @ViewBuilder
     private var jobSheetScrim: some View {
+<<<<<<< HEAD
         if jobSheet.hasJob, JobSheetLayout.scrimOpacity(detent: jobSheet.detent) > 0 {
+=======
+        if jobSheet.hasJob, lookBackPath.isEmpty {
+>>>>>>> 06018cb (Hide the job-sheet scrim on look-back screens)
             Color.black
                 .opacity(JobSheetLayout.scrimOpacity(detent: jobSheet.detent))
                 .ignoresSafeArea()
