@@ -327,13 +327,20 @@ struct ChatScreen: View {
                 display: job.highlight?.display,
                 highlight: job.highlight
             ),
-            flags: launch.featureFlags
+            flags: launch.featureFlags,
+            photoID: job.photoID ?? launch.resolvedPhotoID,
+            partID: job.highlight?.partID.rawValue ?? launch.partID
         )
         presentedViewer = HighlightViewerSession(
             presentation: presentation,
             image: jobPhoto ?? HighlightPlaceholderImage.make(),
+            referenceImage: presentation.referencePhotoID.flatMap { demoImages.images[$0] },
             geometry: presentation.showsOutline
-                ? (job.highlight?.geometry ?? HighlightViewerScript.geometry(showingOutline: true))
+                ? (job.highlight?.geometry ?? HighlightViewerScript.geometry(
+                    photoID: presentation.outlinePhotoID,
+                    partID: presentation.partID,
+                    showingOutline: true
+                ))
                 : nil,
             attribution: jobAttribution,
             shareAlike: jobShareAlike

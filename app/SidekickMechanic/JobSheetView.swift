@@ -59,14 +59,20 @@ struct JobSheetView: View {
                 display: model.job?.highlight?.display,
                 highlight: model.job?.highlight
             ),
-            flags: flags
+            flags: flags,
+            photoID: model.job?.photoID ?? DemoLaunchOptions.defaultPhotoID,
+            partID: model.job?.highlight?.partID.rawValue
         )
     }
 
     private var outlineGeometry: HighlightGeometry? {
         guard presentation.showsOutline else { return nil }
         return model.job?.highlight?.geometry
-            ?? HighlightViewerScript.geometry(showingOutline: true)
+            ?? HighlightViewerScript.geometry(
+                photoID: presentation.outlinePhotoID,
+                partID: presentation.partID,
+                showingOutline: true
+            )
     }
 
     private var handle: some View {
@@ -130,7 +136,7 @@ struct JobSheetView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 photoStage
-                Text(model.job?.answerText ?? JobSheetCopy.answer)
+                Text(model.job?.answerText ?? JobSheetCopy.answer(photoID: model.job?.photoID ?? DemoLaunchOptions.defaultPhotoID))
                     .font(.body)
                     .foregroundStyle(.primary)
                     .accessibilityIdentifier("jobSheet.answer")
