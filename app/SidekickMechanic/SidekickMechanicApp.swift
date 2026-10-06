@@ -47,22 +47,91 @@ struct SidekickMechanicApp: App {
 
     var body: some Scene {
         WindowGroup {
-            Group {
-                if Self.launch.showDemoChrome {
-                    TabView {
-                        ChatScreen(model: chatModel, launch: Self.launch)
-                            .tabItem { Label("Chat", systemImage: "bubble.left.and.text.bubble.right") }
-                        ReadingsTab()
-                            .tabItem { Label("Readings", systemImage: "gauge.with.dots.needle.33percent") }
-                    }
-                } else {
-                    ChatScreen(model: chatModel, launch: Self.launch)
-                }
-            }
-            .background(JobSheetChrome.screen)
-            .statusBarHidden(false)
-            .persistentSystemOverlays(.visible)
+            AppRootView(chatModel: chatModel, launch: Self.launch)
+                .background(JobSheetChrome.screen)
+                .statusBarHidden(false)
+                .persistentSystemOverlays(.visible)
         }
+    }
+}
+
+/// First-open onboarding, then Chat. Garage is a sheet so chat is not wiped.
+struct AppRootView: View {
+    @Bindable var chatModel: ChatViewModel
+    var launch: DemoLaunchOptions
+    @AppStorage(OnboardingStorage.completedKey) private var onboardingCompleted = false
+    @State private var page: OnboardingPage = .welcome
+    @State private var isOnboardingVisible = false
+    @State private var isGaragePresented = false
+    @State private var didApplyLaunchOptions = false
+
+    var body: some View {
+        Group {
+            if isOnboardingVisible {
+                OnboardingFlow(page: $page, onFinished: completeOnboarding)
+            } else {
+                mainContent
+            }
+        }
+        .onAppear(perform: applyLaunchOptions)
+    }
+
+    @ViewBuilder
+    private var mainContent: some View {
+        Group {
+            if launch.showDemoChrome {
+                TabView {
+                    ChatScreen(
+                        model: chatModel,
+                        launch: launch,
+                        onOpenGarage: { isGaragePresented = true }
+                    )
+                    .tabItem { Label("Chat", systemImage: "bubble.left.and.text.bubble.right") }
+                    ReadingsTab()
+                        .tabItem { Label("Readings", systemImage: "gauge.with.dots.needle.33percent") }
+                }
+            } else {
+                ChatScreen(
+                    model: chatModel,
+                    launch: launch,
+                    onOpenGarage: { isGaragePresented = true }
+                )
+            }
+        }
+        .sheet(isPresented: $isGaragePresented) {
+            NavigationStack {
+                GarageListView()
+                    .navigationTitle("Your garage")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Done") { isGaragePresented = false }
+                                .accessibilityIdentifier("garage.done")
+                        }
+                    }
+            }
+        }
+    }
+
+    private func applyLaunchOptions() {
+        guard !didApplyLaunchOptions else { return }
+        didApplyLaunchOptions = true
+        let onboarding = OnboardingLaunchOptions.parse()
+        if onboarding.resetOnboarding {
+            onboardingCompleted = false
+        }
+        if let screen = onboarding.screen {
+            page = screen
+            isOnboardingVisible = true
+        } else if !onboardingCompleted {
+            page = .welcome
+            isOnboardingVisible = true
+        }
+    }
+
+    private func completeOnboarding() {
+        onboardingCompleted = true
+        isOnboardingVisible = false
     }
 }
 

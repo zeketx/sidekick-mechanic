@@ -7,6 +7,7 @@ struct ChatScreen: View {
     @Bindable var model: ChatViewModel
     var backendURL: URL = AppConfig.backendURL
     var launch: DemoLaunchOptions = DemoLaunchOptions.parse()
+    var onOpenGarage: (() -> Void)?
     @Environment(\.colorScheme) private var colorScheme
     @State private var demoImages = DemoImageStore()
     @State private var presentedViewer: HighlightViewerSession?
@@ -41,6 +42,12 @@ struct ChatScreen: View {
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar(jobSheet.detent == .full && jobSheet.hasJob ? .hidden : .visible, for: .navigationBar)
                 .toolbar {
+                    ToolbarItem(placement: .topBarLeading) {
+                        if let onOpenGarage {
+                            Button("Garage", action: onOpenGarage)
+                                .accessibilityIdentifier("chat.garage")
+                        }
+                    }
                     if launch.showDemoChrome {
                         ToolbarItem(placement: .topBarTrailing) {
                             Button(model.isDemoMode ? "Demo on" : "Demo mode") {
@@ -569,17 +576,17 @@ private struct IdleChatClient: ChatClient {
 }
 
 #Preview("Light") {
-    ChatScreen(model: ChatScreenPreview.conversation())
+    ChatScreen(model: ChatScreenPreview.conversation(), onOpenGarage: {})
         .preferredColorScheme(.light)
 }
 
 #Preview("Dark") {
-    ChatScreen(model: ChatScreenPreview.conversation())
+    ChatScreen(model: ChatScreenPreview.conversation(), onOpenGarage: {})
         .preferredColorScheme(.dark)
 }
 
 #Preview("Accessibility XL") {
-    ChatScreen(model: ChatScreenPreview.conversation())
+    ChatScreen(model: ChatScreenPreview.conversation(), onOpenGarage: {})
         .environment(\.dynamicTypeSize, .accessibility3)
 }
 
