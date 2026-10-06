@@ -14,27 +14,44 @@ struct DemoHighlightView: View {
     let shareAlike: Bool
     let notFound: Bool
     var cornerRadius: CGFloat = 12
+    /// When nil, stroke and fill scale from the rendered width (thumbnails stay outlines).
+    var outlineInk: HighlightOutlineInk? = nil
+    var fillsContainer: Bool = false
 
     var body: some View {
-        Color.clear
-            .aspectRatio(image.size, contentMode: .fit)
-            .overlay {
-                Image(uiImage: image)
-                    .resizable()
-                    .interpolation(.medium)
+        Group {
+            if fillsContainer {
+                Color.clear
+                    .overlay {
+                        Image(uiImage: image)
+                            .resizable()
+                            .interpolation(.medium)
+                            .scaledToFill()
+                    }
                     .overlay { styleOverlay }
+                    .clipped()
+            } else {
+                Color.clear
+                    .aspectRatio(image.size, contentMode: .fit)
+                    .overlay {
+                        Image(uiImage: image)
+                            .resizable()
+                            .interpolation(.medium)
+                            .overlay { styleOverlay }
+                    }
             }
-            .overlay(alignment: .bottomLeading) {
-                Text(attributionLine)
-                    .font(.caption2)
-                    .foregroundStyle(.white)
-                    .padding(6)
-                    .background(.black.opacity(0.55), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-                    .padding(8)
-            }
-            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-            .accessibilityIdentifier("answerCard.demoHighlight")
-            .accessibilityLabel(accessibilityText)
+        }
+        .overlay(alignment: .bottomLeading) {
+            Text(attributionLine)
+                .font(.caption2)
+                .foregroundStyle(.white)
+                .padding(6)
+                .background(.black.opacity(0.55), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .padding(8)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .accessibilityIdentifier("answerCard.demoHighlight")
+        .accessibilityLabel(accessibilityText)
     }
 
     private var attributionLine: String {
@@ -58,21 +75,29 @@ struct DemoHighlightView: View {
         if notFound { EmptyView() }
         else {
             let rings = geometry?.polygons ?? []
-            let width = (confirm || dashed) ? 3.0 : 6.0
             switch style {
             case .outline:
                 Canvas { context, size in
-                    let fitted = Self.fittedRect(imageSize: image.size, bounds: size)
-                    for path in Self.smoothPaths(rings, in: fitted) {
-                        context.fill(path, with: .color(Self.fillFuchsia))
+                    let ink = outlineInk ?? HighlightOutlineInk.scaled(
+                        renderedWidth: size.width,
+                        dashed: confirm || dashed
+                    )
+                    let mapped = Self.imageRect(
+                        imageSize: image.size,
+                        bounds: size,
+                        fill: fillsContainer
+                    )
+                    let fill = Self.fillFuchsia.opacity(ink.fillOpacity)
+                    for path in Self.smoothPaths(rings, in: mapped) {
+                        context.fill(path, with: .color(fill))
                         context.stroke(
                             path,
                             with: .color(Self.fuchsia),
                             style: StrokeStyle(
-                                lineWidth: width,
+                                lineWidth: ink.strokeWidth,
                                 lineCap: .round,
                                 lineJoin: .round,
-                                dash: dashed ? [8, 6] : []
+                                dash: ink.dash.map { CGFloat($0) }
                             )
                         )
                     }
@@ -103,8 +128,8 @@ struct DemoHighlightView: View {
 
     private func polygonFill(_ rings: [HighlightPolygon]) -> some View {
         Canvas { context, size in
-            let fitted = Self.fittedRect(imageSize: image.size, bounds: size)
-            for path in Self.smoothPaths(rings, in: fitted) {
+            let mapped = Self.imageRect(imageSize: image.size, bounds: size, fill: fillsContainer)
+            for path in Self.smoothPaths(rings, in: mapped) {
                 context.fill(path, with: .color(.white))
             }
         }
@@ -112,9 +137,9 @@ struct DemoHighlightView: View {
 
     private func inverseFill(_ rings: [HighlightPolygon]) -> some View {
         Canvas { context, size in
-            let fitted = Self.fittedRect(imageSize: image.size, bounds: size)
+            let mapped = Self.imageRect(imageSize: image.size, bounds: size, fill: fillsContainer)
             var path = Path(CGRect(origin: .zero, size: size))
-            for ring in Self.smoothPaths(rings, in: fitted) {
+            for ring in Self.smoothPaths(rings, in: mapped) {
                 path.addPath(ring)
             }
             context.fill(path, with: .color(.white), style: FillStyle(eoFill: true))
@@ -122,10 +147,18 @@ struct DemoHighlightView: View {
     }
 
     private static let fuchsia = Color(red: 1, green: 0, blue: 1)
-    private static let fillFuchsia = Color(red: 1, green: 0.45, blue: 0.95).opacity(0.22)
+    private static let fillFuchsia = Color(red: 1, green: 0.45, blue: 0.95)
 
-    private static func fittedRect(imageSize: CGSize, bounds: CGSize) -> OutlineRect {
-        HighlightOutlineLayout.aspectFit(
+    private static func imageRect(imageSize: CGSize, bounds: CGSize, fill: Bool) -> OutlineRect {
+        if fill {
+            return HighlightOutlineLayout.aspectFill(
+                imageWidth: imageSize.width,
+                imageHeight: imageSize.height,
+                boundsWidth: bounds.width,
+                boundsHeight: bounds.height
+            )
+        }
+        return HighlightOutlineLayout.aspectFit(
             imageWidth: imageSize.width,
             imageHeight: imageSize.height,
             boundsWidth: bounds.width,
@@ -160,7 +193,7 @@ struct DemoHighlightView: View {
         in size: CGSize,
         padding: CGFloat
     ) -> CGRect? {
-        let fitted = fittedRect(imageSize: size, bounds: size)
+        let fitted = imageRect(imageSize: size, bounds: size, fill: false)
         let points = rings.flatMap(\.points)
         guard !points.isEmpty else { return nil }
         let mapped = points.map {
