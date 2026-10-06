@@ -72,6 +72,10 @@ backend/.ingest/
 # Verification process lock. Proof files under .cursor/skills/verify-*/evidence stay.
 .cursor/skills/verify-backend/run/
 .cursor/skills/verify-ios/run/
+.cursor/skills/verify-sidekick/run/
+
+# Simulator screenshots from verify-sidekick. Commit a run only on purpose.
+artifacts/verify/
 
 # Model weights and datasets
 *.mlmodel

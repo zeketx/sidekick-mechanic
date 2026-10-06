@@ -39,6 +39,17 @@
          </BuildableReference>
       </MacroExpansion>
       <Testables>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "A11F0C2E7B4D81A35E6C0D27"
+               BuildableName = "SidekickMechanicUITests.xctest"
+               BlueprintName = "SidekickMechanicUITests"
+               ReferencedContainer = "container:SidekickMechanic.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction

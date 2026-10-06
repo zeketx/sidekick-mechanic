@@ -18,7 +18,18 @@
 		F1A8C4D29B3E5F708C1D2E4A /* HighlightViewerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C4E1A90B3D24F6E8A1C2D3E /* HighlightViewerView.swift */; };
 		A91F0C2E7B4D81A35E6C0D11 /* JobSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D2E4B71C0A93F15E6B7D802 /* JobSheetView.swift */; };
 		F8C31A07B4D25E91C0A6E2D4 /* OnboardingFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A2E91C4D0B38F15A6C4E9B1 /* OnboardingFlow.swift */; };
+		A11F0C2E7B4D81A35E6C0D21 /* DriveUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11F0C2E7B4D81A35E6C0D20 /* DriveUITests.swift */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		A11F0C2E7B4D81A35E6C0D2B /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 10608A27B2E069CEB9375C91 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 5BD0DD42D46AD4F7E0051C39;
+			remoteInfo = SidekickMechanic;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		13B80ACAAD45356A974F77C2 /* SidekickMechanicApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidekickMechanicApp.swift; sourceTree = "<group>"; };
@@ -34,6 +45,8 @@
 		7C4E1A90B3D24F6E8A1C2D3E /* HighlightViewerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HighlightViewerView.swift; sourceTree = "<group>"; };
 		8D2E4B71C0A93F15E6B7D802 /* JobSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JobSheetView.swift; sourceTree = "<group>"; };
 		F32A0E1A3A9E29B5E9E0AF2E /* SidekickMechanic.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = SidekickMechanic.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A11F0C2E7B4D81A35E6C0D20 /* DriveUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriveUITests.swift; sourceTree = "<group>"; };
+		A11F0C2E7B4D81A35E6C0D23 /* SidekickMechanicUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = SidekickMechanicUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -45,6 +58,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A11F0C2E7B4D81A35E6C0D26 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -52,8 +72,17 @@
 			isa = PBXGroup;
 			children = (
 				F32A0E1A3A9E29B5E9E0AF2E /* SidekickMechanic.app */,
+				A11F0C2E7B4D81A35E6C0D23 /* SidekickMechanicUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		A11F0C2E7B4D81A35E6C0D24 /* SidekickMechanicUITests */ = {
+			isa = PBXGroup;
+			children = (
+				A11F0C2E7B4D81A35E6C0D20 /* DriveUITests.swift */,
+			);
+			path = SidekickMechanicUITests;
 			sourceTree = "<group>";
 		};
 		755C3292AD23B407F09667BB /* Packages */ = {
@@ -69,6 +98,7 @@
 			children = (
 				755C3292AD23B407F09667BB /* Packages */,
 				DAC12F11A0D49031AD661B04 /* SidekickMechanic */,
+				A11F0C2E7B4D81A35E6C0D24 /* SidekickMechanicUITests */,
 				6A431A2E8B3AC4FA66298FAB /* Products */,
 			);
 			sourceTree = "<group>";
@@ -113,6 +143,25 @@
 			productReference = F32A0E1A3A9E29B5E9E0AF2E /* SidekickMechanic.app */;
 			productType = "com.apple.product-type.application";
 		};
+		A11F0C2E7B4D81A35E6C0D27 /* SidekickMechanicUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A11F0C2E7B4D81A35E6C0D2A /* Build configuration list for PBXNativeTarget "SidekickMechanicUITests" */;
+			buildPhases = (
+				A11F0C2E7B4D81A35E6C0D25 /* Sources */,
+				A11F0C2E7B4D81A35E6C0D26 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				A11F0C2E7B4D81A35E6C0D2C /* PBXTargetDependency */,
+			);
+			name = SidekickMechanicUITests;
+			packageProductDependencies = (
+			);
+			productName = SidekickMechanicUITests;
+			productReference = A11F0C2E7B4D81A35E6C0D23 /* SidekickMechanicUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -124,6 +173,10 @@
 				TargetAttributes = {
 					5BD0DD42D46AD4F7E0051C39 = {
 						ProvisioningStyle = Automatic;
+					};
+					A11F0C2E7B4D81A35E6C0D27 = {
+						ProvisioningStyle = Manual;
+						TestTargetID = 5BD0DD42D46AD4F7E0051C39;
 					};
 				};
 			};
@@ -145,6 +198,7 @@
 			projectRoot = "";
 			targets = (
 				5BD0DD42D46AD4F7E0051C39 /* SidekickMechanic */,
+				A11F0C2E7B4D81A35E6C0D27 /* SidekickMechanicUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -167,7 +221,23 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A11F0C2E7B4D81A35E6C0D25 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A11F0C2E7B4D81A35E6C0D21 /* DriveUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		A11F0C2E7B4D81A35E6C0D2C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 5BD0DD42D46AD4F7E0051C39 /* SidekickMechanic */;
+			targetProxy = A11F0C2E7B4D81A35E6C0D2B /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		05C83FE8FA6BEF7F9DDE7C77 /* Debug */ = {
@@ -248,6 +318,7 @@
 				SDKROOT = iphoneos;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_VERSION = 6.0;
 			};
 			name = Debug;
@@ -304,7 +375,50 @@
 				SDKROOT = iphoneos;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_STRICT_CONCURRENCY = complete;
 				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		A11F0C2E7B4D81A35E6C0D28 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGN_STYLE = Manual;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.zeketx.SidekickMechanicUITests;
+				SDKROOT = iphoneos;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = SidekickMechanic;
+			};
+			name = Debug;
+		};
+		A11F0C2E7B4D81A35E6C0D29 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGNING_ALLOWED = NO;
+				CODE_SIGN_STYLE = Manual;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.zeketx.SidekickMechanicUITests;
+				SDKROOT = iphoneos;
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = SidekickMechanic;
 			};
 			name = Release;
 		};
@@ -344,6 +458,15 @@
 			buildConfigurations = (
 				05C83FE8FA6BEF7F9DDE7C77 /* Debug */,
 				D2D465232973B8308E702DED /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		A11F0C2E7B4D81A35E6C0D2A /* Build configuration list for PBXNativeTarget "SidekickMechanicUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A11F0C2E7B4D81A35E6C0D28 /* Debug */,
+				A11F0C2E7B4D81A35E6C0D29 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;

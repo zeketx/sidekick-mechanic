@@ -29,6 +29,7 @@ struct JobSheetView: View {
                 expandedBody
             }
         }
+        .accessibilityIdentifier("jobSheet")
         .frame(maxWidth: .infinity)
         .frame(height: sheetHeight)
         .clipShape(sheetShape)
