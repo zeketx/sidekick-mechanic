@@ -141,6 +141,7 @@ struct ChatScreen: View {
                 .padding(.vertical, 12)
             }
             .defaultScrollAnchor(.bottom)
+            .accessibilityElement(children: .contain)
             .accessibilityIdentifier("chat.messageList")
             .allowsHitTesting(!jobSheet.blocksChat)
             .onAppear {

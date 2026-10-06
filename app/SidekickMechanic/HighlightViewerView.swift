@@ -57,6 +57,7 @@ struct HighlightViewerView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             .background(cardFill)
             .toolbar(.hidden, for: .navigationBar)
+            .accessibilityElement(children: .contain)
             .accessibilityIdentifier("highlightViewer")
         }
     }
