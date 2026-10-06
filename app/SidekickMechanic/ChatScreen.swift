@@ -147,6 +147,7 @@ struct ChatScreen: View {
                     image: jobPhoto,
                     attribution: jobAttribution,
                     shareAlike: jobShareAlike,
+                    flags: launch.featureFlags,
                     onOpenHighlight: presentJobViewer,
                     onAttachPhoto: attachDemoPhotoToJob
                 )
@@ -332,7 +333,7 @@ struct ChatScreen: View {
             presentation: presentation,
             image: jobPhoto ?? HighlightPlaceholderImage.make(),
             geometry: presentation.showsOutline
-                ? (job.highlight?.geometry ?? HighlightViewerScript.airBoxGeometry)
+                ? (job.highlight?.geometry ?? HighlightViewerScript.geometry(showingOutline: true))
                 : nil,
             attribution: jobAttribution,
             shareAlike: jobShareAlike
