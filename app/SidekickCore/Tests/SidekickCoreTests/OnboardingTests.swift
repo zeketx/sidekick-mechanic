@@ -7,6 +7,7 @@ final class OnboardingTests: XCTestCase {
         XCTAssertTrue(OnboardingCopy.welcomeBody.contains("chat"))
         XCTAssertEqual(OnboardingCopy.truckName, "1990 Land Cruiser LJ78")
         XCTAssertEqual(OnboardingCopy.truckMeta, "2JZ-GE swap · no turbo · donor year TBD")
+        XCTAssertEqual(OnboardingCopy.bayCaption, "Engine bay photo")
     }
 
     func testHowItWorksUsesFixtureCitationChip() {
@@ -24,19 +25,19 @@ final class OnboardingTests: XCTestCase {
         XCTAssertEqual(GarageFacts.confirmed.map(\.value), [
             "1990 Land Cruiser LJ78",
             "2JZ-GE swap",
-            "Lexus donor ECU",
+            "Lexus · year TBD",
         ])
         XCTAssertTrue(GarageFacts.confirmed.allSatisfy(\.isConfirmed))
     }
 
     func testGaragePendingRowsAreTBD() {
         XCTAssertEqual(GarageFacts.pending.map(\.label), [
-            "Donor year",
             "OBD type",
             "Harness",
             "Photo angles",
         ])
-        XCTAssertEqual(GarageFacts.pending.map(\.value), ["TBD", "TBD", "TBD", "TBD"])
+        XCTAssertEqual(GarageFacts.pending.map(\.value), ["TBD", "TBD", "TBD"])
+        XCTAssertFalse(GarageFacts.pending.contains { $0.label == "Donor year" })
         XCTAssertTrue(GarageFacts.pending.allSatisfy { !$0.isConfirmed })
         XCTAssertEqual(
             GarageFacts.tbdNotice,

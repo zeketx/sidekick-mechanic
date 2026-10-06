@@ -80,12 +80,12 @@ public enum GarageFacts {
     public static let confirmed: [GarageFact] = [
         GarageFact(label: "Chassis", value: "1990 Land Cruiser LJ78", isConfirmed: true),
         GarageFact(label: "Engine", value: "2JZ-GE swap", isConfirmed: true),
-        GarageFact(label: "Donor ECU", value: "Lexus donor ECU", isConfirmed: true),
+        GarageFact(label: "Donor ECU", value: "Lexus · year TBD", isConfirmed: true),
     ]
 
-    /// Donor year, OBD type, harness, photo angles — TBD in TRUCK.md until delivery.
+    /// OBD type, harness, photo angles — TBD in TRUCK.md until delivery.
+    /// Donor year stays on the ECU row (`Lexus · year TBD`), matching the approved Figma.
     public static let pending: [GarageFact] = [
-        GarageFact(label: "Donor year", value: "TBD", isConfirmed: false),
         GarageFact(label: "OBD type", value: "TBD", isConfirmed: false),
         GarageFact(label: "Harness", value: "TBD", isConfirmed: false),
         GarageFact(label: "Photo angles", value: "TBD", isConfirmed: false),
@@ -126,4 +126,5 @@ public enum OnboardingCopy {
 
     public static let garageTitle = "Known facts only"
     public static let citationExample = "FAKE-DOC-2JZ · p. 999"
+    public static let bayCaption = "Engine bay photo"
 }

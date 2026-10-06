@@ -1,5 +1,6 @@
 import SidekickCore
 import SwiftUI
+import UIKit
 
 /// Three first-open screens. No animation. Skip or Start chatting lands on chat.
 struct OnboardingFlow: View {
@@ -7,23 +8,31 @@ struct OnboardingFlow: View {
     var onFinished: () -> Void
 
     var body: some View {
-        NavigationStack {
+        VStack(spacing: 0) {
+            header
             pageBody
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color(.systemGroupedBackground))
-                .navigationTitle(navigationTitle)
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button("Skip", action: onFinished)
-                            .accessibilityIdentifier("onboarding.skip")
-                    }
-                }
-                .safeAreaInset(edge: .bottom, spacing: 0) {
-                    footer
-                }
+            footer
         }
+        .background(OnboardingPalette.paper)
         .accessibilityIdentifier("onboarding.\(page.rawValue)")
+    }
+
+    private var header: some View {
+        ZStack {
+            Text(navigationTitle)
+                .font(.headline)
+            HStack {
+                Spacer()
+                Button("Skip", action: onFinished)
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("onboarding.skip")
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 6)
+        .padding(.bottom, 2)
     }
 
     @ViewBuilder
@@ -56,14 +65,14 @@ struct OnboardingFlow: View {
                     .padding(.vertical, 12)
             }
             .buttonStyle(.plain)
-            .foregroundStyle(Color(.systemBackground))
+            .foregroundStyle(OnboardingPalette.paper)
             .background(Color.primary, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             .accessibilityIdentifier(page == .garage ? "onboarding.start" : "onboarding.next")
         }
         .padding(.horizontal, 24)
         .padding(.top, 12)
         .padding(.bottom, 16)
-        .background(Color(.systemGroupedBackground))
+        .background(OnboardingPalette.paper)
     }
 
     private var pageDots: some View {
@@ -96,11 +105,17 @@ struct OnboardingFlow: View {
 private struct WelcomeOnboardingPage: View {
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                BayPlaceholderView()
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 200)
-                    .accessibilityLabel("Placeholder engine bay. Air box outlined.")
+            VStack(alignment: .leading, spacing: 16) {
+                VStack(spacing: 8) {
+                    BayPlaceholderView()
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 188)
+                        .accessibilityLabel("Placeholder engine bay. Air box outlined.")
+                    Text(OnboardingCopy.bayCaption)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity)
+                }
 
                 Text(OnboardingCopy.welcomeTitle)
                     .font(.title2.weight(.bold))
@@ -119,19 +134,17 @@ private struct WelcomeOnboardingPage: View {
                 }
                 .padding(14)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(
-                    Color(.secondarySystemGroupedBackground),
-                    in: RoundedRectangle(cornerRadius: 12, style: .continuous)
-                )
+                .background(OnboardingPalette.card, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .strokeBorder(Color.secondary.opacity(0.25))
+                        .strokeBorder(Color.secondary.opacity(0.22))
                 }
             }
             .padding(.horizontal, 24)
-            .padding(.top, 12)
+            .padding(.top, 4)
             .padding(.bottom, 24)
         }
+        .scrollContentBackground(.hidden)
         .accessibilityIdentifier("onboarding.welcome")
     }
 }
@@ -154,20 +167,18 @@ private struct HowItWorksOnboardingPage: View {
                     }
                     .padding(16)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(
-                        Color(.secondarySystemGroupedBackground),
-                        in: RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    )
+                    .background(OnboardingPalette.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                     .overlay {
                         RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .strokeBorder(Color.secondary.opacity(0.25))
+                            .strokeBorder(Color.secondary.opacity(0.22))
                     }
                 }
             }
             .padding(.horizontal, 24)
-            .padding(.top, 12)
+            .padding(.top, 4)
             .padding(.bottom, 24)
         }
+        .scrollContentBackground(.hidden)
         .accessibilityIdentifier("onboarding.howItWorks")
     }
 }
@@ -203,10 +214,11 @@ struct GarageListView: View {
                 }
             }
             .padding(.horizontal, 24)
-            .padding(.top, 12)
+            .padding(.top, 4)
             .padding(.bottom, 24)
         }
-        .background(Color(.systemGroupedBackground))
+        .scrollContentBackground(.hidden)
+        .background(OnboardingPalette.paper)
         .accessibilityIdentifier("onboarding.garage")
     }
 
@@ -234,15 +246,13 @@ private struct GarageRowView: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
         .background(
-            fact.isConfirmed
-                ? Color(.secondarySystemGroupedBackground)
-                : Color.secondary.opacity(0.12),
+            fact.isConfirmed ? OnboardingPalette.card : OnboardingPalette.pendingRow,
             in: RoundedRectangle(cornerRadius: 10, style: .continuous)
         )
         .overlay {
             if fact.isConfirmed {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .strokeBorder(Color.secondary.opacity(0.25))
+                    .strokeBorder(Color.secondary.opacity(0.22))
             }
         }
         .accessibilityElement(children: .combine)
@@ -251,64 +261,133 @@ private struct GarageRowView: View {
     }
 }
 
-/// Abstract NA 2JZ bay. Not the truck. Magenta outline on the air box.
-private struct BayPlaceholderView: View {
-    private static let fuchsia = Color(red: 1, green: 0, blue: 1)
+/// Neutral paper, not `systemGroupedBackground` (blue-gray on iOS).
+private enum OnboardingPalette {
+    static let paper = Color(uiColor: UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor(white: 0.11, alpha: 1)
+            : UIColor(red: 0.957, green: 0.957, blue: 0.957, alpha: 1)
+    })
+    static let card = Color(uiColor: UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor(white: 0.16, alpha: 1)
+            : UIColor.white
+    })
+    static let pendingRow = Color(uiColor: UIColor { traits in
+        traits.userInterfaceStyle == .dark
+            ? UIColor(white: 0.20, alpha: 1)
+            : UIColor(white: 0.91, alpha: 1)
+    })
+    static let fuchsia = Color(red: 1, green: 0, blue: 1)
+    static let fuchsiaFill = Color(red: 1, green: 0.82, blue: 1).opacity(0.55)
+}
 
+/// Abstract NA 2JZ bay. Not the truck. Organic magenta outline on the air box.
+private struct BayPlaceholderView: View {
     var body: some View {
         GeometryReader { proxy in
             let w = proxy.size.width
             let h = proxy.size.height
-            ZStack(alignment: .top) {
+            ZStack {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(Color.secondary.opacity(0.22))
+                    .fill(Color.secondary.opacity(0.14))
 
-                VStack(spacing: h * 0.06) {
+                VStack(spacing: 0) {
                     RoundedRectangle(cornerRadius: 4, style: .continuous)
-                        .fill(Color.secondary.opacity(0.18))
+                        .strokeBorder(Color.secondary.opacity(0.28), lineWidth: 1)
+                        .background {
+                            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                .fill(OnboardingPalette.card.opacity(0.7))
+                        }
                         .overlay {
                             Text("radiator area")
                                 .font(.caption2)
                                 .foregroundStyle(.secondary)
                         }
-                        .frame(width: w * 0.84, height: h * 0.14)
+                        .frame(width: w * 0.84, height: h * 0.12)
+                        .padding(.top, h * 0.07)
+
+                    Spacer(minLength: 0)
 
                     ZStack {
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .fill(Color.secondary.opacity(0.28))
-                            .frame(width: w * 0.64, height: h * 0.46)
-
-                        RoundedRectangle(cornerRadius: 5, style: .continuous)
-                            .fill(Color(.systemBackground).opacity(0.7))
-                            .overlay {
-                                Text("air box")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
-                            .overlay {
-                                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                    .strokeBorder(Self.fuchsia, lineWidth: 2.4)
-                                    .padding(-3)
-                            }
-                            .frame(width: w * 0.44, height: h * 0.18)
-                            .offset(y: -h * 0.08)
+                        OrganicPartOutline()
+                            .fill(OnboardingPalette.fuchsiaFill)
+                        OrganicPartOutline()
+                            .stroke(OnboardingPalette.fuchsia, lineWidth: 2.2)
+                        Text("air box")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
                     }
+                    .frame(width: w * 0.50, height: h * 0.22)
+
+                    Spacer(minLength: 0)
 
                     HStack {
                         RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .fill(Color.secondary.opacity(0.18))
-                            .frame(width: w * 0.18, height: h * 0.14)
+                            .fill(OnboardingPalette.card.opacity(0.85))
+                            .frame(width: w * 0.16, height: h * 0.12)
                         Spacer()
                         RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .fill(Color.secondary.opacity(0.18))
-                            .frame(width: w * 0.16, height: h * 0.16)
+                            .fill(OnboardingPalette.card.opacity(0.85))
+                            .frame(width: w * 0.16, height: h * 0.12)
                     }
                     .padding(.horizontal, w * 0.08)
+                    .padding(.bottom, h * 0.08)
                 }
-                .padding(.top, h * 0.08)
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+    }
+}
+
+/// Loose closed curve through irregular points. A bounding box is never the highlight.
+private struct OrganicPartOutline: Shape {
+    func path(in rect: CGRect) -> Path {
+        let units: [CGPoint] = [
+            CGPoint(x: 0.07, y: 0.40),
+            CGPoint(x: 0.16, y: 0.14),
+            CGPoint(x: 0.34, y: 0.04),
+            CGPoint(x: 0.55, y: 0.11),
+            CGPoint(x: 0.76, y: 0.03),
+            CGPoint(x: 0.93, y: 0.20),
+            CGPoint(x: 0.98, y: 0.46),
+            CGPoint(x: 0.90, y: 0.76),
+            CGPoint(x: 0.70, y: 0.96),
+            CGPoint(x: 0.44, y: 0.91),
+            CGPoint(x: 0.20, y: 0.84),
+            CGPoint(x: 0.03, y: 0.60),
+        ]
+        let points = units.map {
+            CGPoint(x: rect.minX + $0.x * rect.width, y: rect.minY + $0.y * rect.height)
+        }
+        return Self.closedCatmullRom(points)
+    }
+
+    private static func closedCatmullRom(_ points: [CGPoint]) -> Path {
+        guard points.count >= 3 else { return Path() }
+        let count = points.count
+        func at(_ index: Int) -> CGPoint {
+            points[(index % count + count) % count]
+        }
+        var path = Path()
+        path.move(to: points[0])
+        for index in 0..<count {
+            let p0 = at(index - 1)
+            let p1 = at(index)
+            let p2 = at(index + 1)
+            let p3 = at(index + 2)
+            let control1 = CGPoint(
+                x: p1.x + (p2.x - p0.x) / 6,
+                y: p1.y + (p2.y - p0.y) / 6
+            )
+            let control2 = CGPoint(
+                x: p2.x - (p3.x - p1.x) / 6,
+                y: p2.y - (p3.y - p1.y) / 6
+            )
+            path.addCurve(to: p2, control1: control1, control2: control2)
+        }
+        path.closeSubpath()
+        return path
     }
 }
 
