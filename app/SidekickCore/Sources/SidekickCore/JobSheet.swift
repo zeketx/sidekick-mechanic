@@ -73,9 +73,22 @@ public enum JobSheetCopy {
     public static let peekHint = "Photo + outline sit here"
     public static let outcomeHeading = "Outcome"
     public static let question = "Rough idle after a cold start"
-    public static let answer =
-        "Start with the air box on top. FAKE-DOC-2JZ p. 999. No guessed numbers."
+    public static let citationNote = "FAKE-DOC-2JZ p. 999. No guessed numbers."
     public static let chip = "FAKE-DOC-2JZ · p. 999"
+
+    /// Same everyday line as #112 for this photo/part, plus the fixture citation.
+    public static func answer(
+        photoID: String,
+        partID: String? = nil,
+        state: HighlightViewerState = .confident
+    ) -> String {
+        let pick = DemoOutlineCatalog.selection(photoID: photoID, partID: partID, state: state)
+        return "\(DemoOutlineCatalog.everydayCopy(displayName: pick.displayName, state: state)) \(citationNote)"
+    }
+
+    public static var answer: String {
+        Self.answer(photoID: DemoLaunchOptions.defaultPhotoID)
+    }
 }
 
 /// One job. Photo is this job's attach, not a bay-map frame.
@@ -119,14 +132,22 @@ public struct JobSheetState: Equatable, Sendable, Identifiable {
 public enum JobSheetScript {
     public static let userMessageID = MessageID(rawValue: "job-sheet-user")!
     public static let assistantMessageID = MessageID(rawValue: "job-sheet-assistant")!
-    public static let partID = PartID(rawValue: "fake-part-intake")!
 
-    public static func highlight(photoID: String) -> HighlightRef {
-        HighlightRef(
-            bayPhotoID: BayPhotoID(rawValue: photoID) ?? BayPhotoID(rawValue: "fake-bay-photo-front")!,
-            partID: partID,
+    public static func selection(photoID: String, partID: String? = nil) -> DemoOutlineSelection {
+        DemoOutlineCatalog.selection(photoID: photoID, partID: partID, state: .confident)
+    }
+
+    public static func highlight(photoID: String, partID: String? = nil) -> HighlightRef {
+        let pick = selection(photoID: photoID, partID: partID)
+        return HighlightRef(
+            bayPhotoID: BayPhotoID(rawValue: pick.photoID) ?? BayPhotoID(rawValue: "fake-bay-photo-front")!,
+            partID: PartID(rawValue: pick.partID) ?? PartID(rawValue: "fuse-relay-box")!,
             display: .outline,
-            geometry: HighlightViewerScript.geometry(showingOutline: true),
+            geometry: HighlightViewerScript.geometry(
+                photoID: pick.photoID,
+                partID: pick.partID,
+                showingOutline: true
+            ),
             isDemo: true
         )
     }
@@ -153,13 +174,14 @@ public enum JobSheetScript {
         photoID: String?,
         outcome: JobOutcome? = nil
     ) -> JobSheetState {
-        JobSheetState(
+        let resolvedPhoto = photoID ?? DemoLaunchOptions.defaultPhotoID
+        return JobSheetState(
             sourceMessageID: assistantMessageID,
             title: JobSheetCopy.title,
-            answerText: JobSheetCopy.answer,
+            answerText: JobSheetCopy.answer(photoID: resolvedPhoto),
             citations: [HighlightViewerScript.fixtureCitation],
             photoID: photoID,
-            highlight: photoID.map(highlight),
+            highlight: photoID.map { highlight(photoID: $0) },
             detent: detent,
             outcome: outcome
         )
@@ -191,7 +213,8 @@ public final class JobSheetViewModel {
     public func sync(from messages: [Message], photoID: String?) {
         guard let assistant = Self.latestAssistant(in: messages) else { return }
         if job?.sourceMessageID == assistant.id { return }
-        let highlight = Self.highlight(from: assistant.answer) ?? photoID.map(JobSheetScript.highlight)
+        let highlight = Self.highlight(from: assistant.answer)
+            ?? photoID.map { JobSheetScript.highlight(photoID: $0) }
         job = JobSheetState(
             sourceMessageID: assistant.id,
             title: Self.title(from: messages),
@@ -241,6 +264,7 @@ public final class JobSheetViewModel {
         update { job in
             job.photoID = photoID
             job.highlight = JobSheetScript.highlight(photoID: photoID)
+            job.answerText = JobSheetCopy.answer(photoID: photoID)
         }
     }
 

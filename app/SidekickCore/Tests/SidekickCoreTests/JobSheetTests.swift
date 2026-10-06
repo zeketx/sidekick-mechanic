@@ -48,6 +48,8 @@ final class JobSheetTests: XCTestCase {
             XCTAssertEqual(model.job?.outcome, .worked)
             XCTAssertEqual(JobSheetCopy.answer.contains("FAKE-DOC-2JZ"), true)
             XCTAssertFalse(JobSheetCopy.answer.contains("FAKE-SPEC"))
+            XCTAssertFalse(JobSheetCopy.answer.contains("air box"))
+            XCTAssertTrue(JobSheetCopy.answer.contains("fuse/relay box"))
         }
     }
 
@@ -60,13 +62,31 @@ final class JobSheetTests: XCTestCase {
             XCTAssertEqual(model.job?.photoID, "commons-hilux-2jz")
             XCTAssertTrue(model.job?.hasPhoto == true)
             XCTAssertEqual(model.job?.highlight?.bayPhotoID.rawValue, "commons-hilux-2jz")
-            XCTAssertEqual(model.job?.highlight?.partID.rawValue, "fake-part-intake")
+            XCTAssertEqual(model.job?.highlight?.partID.rawValue, "fuse-relay-box")
             XCTAssertEqual(model.job?.highlight?.isDemo, true)
             XCTAssertEqual(
                 model.job?.highlight?.geometry,
-                HighlightViewerScript.geometry(showingOutline: true)
+                HighlightViewerScript.geometry(
+                    photoID: "commons-hilux-2jz",
+                    partID: "fuse-relay-box",
+                    showingOutline: true
+                )
             )
+            XCTAssertTrue(model.job?.answerText.contains("fuse/relay box") == true)
+            XCTAssertFalse(model.job?.answerText.contains("air box") == true)
             XCTAssertGreaterThanOrEqual(model.job?.highlight?.geometry?.polygons[0].points.count ?? 0, 5)
+
+            model.attachPhoto(photoID: "hrymx-2jz-ge-25308847029")
+            XCTAssertEqual(model.job?.highlight?.partID.rawValue, "throttle-body")
+            XCTAssertTrue(model.job?.answerText.contains("throttle body") == true)
+            XCTAssertEqual(
+                model.job?.highlight?.geometry,
+                HighlightViewerScript.geometry(
+                    photoID: "hrymx-2jz-ge-25308847029",
+                    partID: "throttle-body",
+                    showingOutline: true
+                )
+            )
         }
     }
 
@@ -129,6 +149,9 @@ final class JobSheetTests: XCTestCase {
             XCTAssertEqual(model.job?.outcome, .worked)
             XCTAssertEqual(model.job?.photoID, DemoLaunchOptions.defaultPhotoID)
             XCTAssertEqual(model.job?.headerTitle, "Job · Cold idle")
+            XCTAssertEqual(model.job?.highlight?.partID.rawValue, "fuse-relay-box")
+            XCTAssertTrue(model.job?.answerText.contains("fuse/relay box") == true)
+            XCTAssertFalse(model.job?.answerText.contains("air box") == true)
         }
     }
 
@@ -137,6 +160,15 @@ final class JobSheetTests: XCTestCase {
         XCTAssertFalse(JobSheetCopy.answer.contains("Step"))
         XCTAssertFalse(JobSheetCopy.answer.contains("Notes"))
         XCTAssertFalse(JobSheetCopy.answer.contains("Tags"))
+        XCTAssertFalse(JobSheetCopy.answer.contains("air box"))
+        XCTAssertEqual(
+            JobSheetCopy.answer(photoID: "commons-supra-n5abh"),
+            "Start with the fuse/relay box. FAKE-DOC-2JZ p. 999. No guessed numbers."
+        )
+        XCTAssertEqual(
+            JobSheetCopy.answer(photoID: "flickr-robmarson-6763892857"),
+            "Start with the throttle body. FAKE-DOC-2JZ p. 999. No guessed numbers."
+        )
         XCTAssertEqual(JobSheetScreen.allCases.map(\.rawValue), [
             "job-sheet-collapsed",
             "job-sheet-half",
