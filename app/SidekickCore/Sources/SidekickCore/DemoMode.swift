@@ -132,8 +132,11 @@ extension ChatClientConfiguration {
 
 /// Launch arguments and env hooks for screenshot runs. No typing required.
 ///
-/// `-demoPhoto <id> -demoPart <part_id> -demoState outline|confirm|not_found -demoStyle outline|saturate|circle|dim`
-/// Env: `SIDEKICK_DEMO_PHOTO`, `SIDEKICK_DEMO_PART`, `SIDEKICK_DEMO_STATE`, `SIDEKICK_DEMO_STYLE`.
+/// `-demoPhoto <id> -demoPart <part_id> -demoState outline|confirm|not_found|reference -demoStyle outline|saturate|circle|dim`
+/// `-screen highlight-confident|highlight-unsure|highlight-not-found|highlight-reference`
+/// `-flagUnsureHighlight 1` turns on the internal unsure card. Off by default.
+/// Env: `SIDEKICK_DEMO_PHOTO`, `SIDEKICK_DEMO_PART`, `SIDEKICK_DEMO_STATE`, `SIDEKICK_DEMO_STYLE`,
+/// `SIDEKICK_SCREEN`, `SIDEKICK_FLAG_UNSURE_HIGHLIGHT`.
 public struct DemoLaunchOptions: Equatable, Sendable {
     public static let defaultPhotoID = "commons-hilux-2jz"
 
@@ -141,9 +144,19 @@ public struct DemoLaunchOptions: Equatable, Sendable {
     public var partID: String?
     public var state: String?
     public var style: DemoHighlightStyle?
+    public var screen: HighlightViewerScreen?
+    public var unsureHighlight: Bool
 
     public var enablesDemoMode: Bool {
-        photoID != nil || partID != nil || state != nil || style != nil
+        photoID != nil || partID != nil || state != nil || style != nil || screen != nil
+    }
+
+    public var featureFlags: FeatureFlags {
+        FeatureFlags(unsureHighlight: unsureHighlight)
+    }
+
+    public var opensHighlightViewer: Bool {
+        screen != nil
     }
 
     public var resolvedPhotoID: String {
@@ -151,34 +164,58 @@ public struct DemoLaunchOptions: Equatable, Sendable {
     }
 
     public var cannedQuestion: String {
-        Self.question(partID: partID, state: state, photoID: resolvedPhotoID)
+        if let screen {
+            switch screen {
+            case .confident:
+                return Self.question(partID: partID, state: "outline", photoID: resolvedPhotoID)
+            case .unsure:
+                return Self.question(partID: partID, state: "confirm", photoID: resolvedPhotoID)
+            case .notFound:
+                return Self.question(partID: partID, state: "not_found", photoID: resolvedPhotoID)
+            case .reference:
+                return Self.question(partID: partID, state: "reference", photoID: resolvedPhotoID)
+            }
+        }
+        return Self.question(partID: partID, state: state, photoID: resolvedPhotoID)
     }
 
     public init(
         photoID: String? = nil,
         partID: String? = nil,
         state: String? = nil,
-        style: DemoHighlightStyle? = nil
+        style: DemoHighlightStyle? = nil,
+        screen: HighlightViewerScreen? = nil,
+        unsureHighlight: Bool = false
     ) {
         self.photoID = photoID.map(Self.resolvePhotoID)
         self.partID = partID
         self.state = state
         self.style = style
+        self.screen = screen
+        self.unsureHighlight = unsureHighlight || screen == .unsure
     }
 
     public static func parse(
         arguments: [String] = ProcessInfo.processInfo.arguments,
         environment: [String: String] = ProcessInfo.processInfo.environment
     ) -> DemoLaunchOptions {
-        DemoLaunchOptions(
-            photoID: flag(arguments, "-demoPhoto") ?? environment["SIDEKICK_DEMO_PHOTO"],
-            partID: flag(arguments, "-demoPart") ?? environment["SIDEKICK_DEMO_PART"],
-            state: flag(arguments, "-demoState") ?? environment["SIDEKICK_DEMO_STATE"],
+        let screen = HighlightViewerScreen(
+            rawValue: LaunchArgument.flag(arguments, "-screen")
+                ?? environment["SIDEKICK_SCREEN"]
+                ?? ""
+        )
+        return DemoLaunchOptions(
+            photoID: LaunchArgument.flag(arguments, "-demoPhoto") ?? environment["SIDEKICK_DEMO_PHOTO"],
+            partID: LaunchArgument.flag(arguments, "-demoPart") ?? environment["SIDEKICK_DEMO_PART"],
+            state: LaunchArgument.flag(arguments, "-demoState") ?? environment["SIDEKICK_DEMO_STATE"],
             style: DemoHighlightStyle(
-                rawValue: flag(arguments, "-demoStyle")
+                rawValue: LaunchArgument.flag(arguments, "-demoStyle")
                     ?? environment["SIDEKICK_DEMO_STYLE"]
                     ?? ""
-            )
+            ),
+            screen: screen,
+            unsureHighlight: FeatureFlags.parse(arguments: arguments, environment: environment)
+                .unsureHighlight
         )
     }
 
@@ -197,10 +234,12 @@ public struct DemoLaunchOptions: Equatable, Sendable {
             return question(forPart: partID)
         }
         switch state {
-        case "confirm":
+        case "confirm", "unsure":
             return "where's the intake plenum?"
         case "not_found":
             return "where are the coil packs?"
+        case "reference":
+            return "where's the air box?"
         default:
             return photoID == defaultPhotoID || photoID == "commons-hilux-2jz"
                 ? "where's the fuse box?"
@@ -228,13 +267,5 @@ public struct DemoLaunchOptions: Equatable, Sendable {
         case "flickr": "flickr-robmarson-6763892857"
         default: raw
         }
-    }
-
-    private static func flag(_ arguments: [String], _ name: String) -> String? {
-        guard let index = arguments.firstIndex(of: name) else { return nil }
-        let next = arguments.index(after: index)
-        guard next < arguments.endIndex else { return nil }
-        let value = arguments[next]
-        return value.hasPrefix("-") ? nil : value
     }
 }

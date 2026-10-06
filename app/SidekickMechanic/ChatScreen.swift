@@ -1,11 +1,14 @@
 import SidekickCore
 import SwiftUI
+import UIKit
 
 /// Message list and composer. Assistant replies use `AnswerCardView`.
 struct ChatScreen: View {
     @Bindable var model: ChatViewModel
     var backendURL: URL = AppConfig.backendURL
+    var launch: DemoLaunchOptions = DemoLaunchOptions.parse()
     @State private var demoImages = DemoImageStore()
+    @State private var presentedViewer: HighlightViewerSession?
 
     private var configuration: ChatClientConfiguration {
         ChatClientConfiguration(baseURL: backendURL)
@@ -51,7 +54,8 @@ struct ChatScreen: View {
                     ForEach(model.messages, id: \.id) { message in
                         MessageBubble(
                             message: message,
-                            demoContext: demoContext(for: message)
+                            demoContext: demoContext(for: message),
+                            onOpenHighlight: { presentViewer(for: message) }
                         )
                             .id(message.id)
                     }
@@ -65,7 +69,26 @@ struct ChatScreen: View {
             }
             .defaultScrollAnchor(.bottom)
             .accessibilityIdentifier("chat.messageList")
-            .onAppear { scrollToEnd(proxy) }
+            .onAppear {
+                scrollToEnd(proxy)
+                presentLaunchViewerIfNeeded()
+            }
+            .onChange(of: demoImages.images.count) { _, _ in
+                refreshLaunchViewerImage()
+            }
+            .fullScreenCover(isPresented: launchViewerPresented) {
+                if let session = presentedViewer {
+                    HighlightViewerView(
+                        presentation: session.presentation,
+                        image: session.image,
+                        geometry: session.geometry,
+                        attribution: session.attribution,
+                        shareAlike: session.shareAlike,
+                        onYes: session.onYes,
+                        onNotThis: session.onNotThis
+                    )
+                }
+            }
             .onChange(of: model.messages.count) { _, _ in
                 scrollToEnd(proxy)
             }
@@ -164,6 +187,7 @@ struct ChatScreen: View {
             style: model.highlightStyle,
             highlight: highlight,
             display: display,
+            flags: launch.featureFlags,
             onYes: {
                 model.applyDemoConfirm(messageID: message.id, decision: .yes)
                 if let photoID, let partID = highlight?.partID.rawValue {
@@ -188,12 +212,69 @@ struct ChatScreen: View {
             }
         )
     }
+
+    private func presentViewer(for message: Message) {
+        guard let demo = demoContext(for: message), let image = demo.photo else { return }
+        let presentation = demo.viewerPresentation
+        presentedViewer = HighlightViewerSession(
+            presentation: presentation,
+            image: image,
+            geometry: presentation.showsOutline
+                ? (demo.highlight?.geometry ?? HighlightViewerScript.airBoxGeometry)
+                : nil,
+            attribution: demo.attribution,
+            shareAlike: demo.shareAlike,
+            onYes: demo.onYes,
+            onNotThis: demo.onNotThis
+        )
+    }
+
+    private func presentLaunchViewerIfNeeded() {
+        guard presentedViewer == nil, let screen = launch.screen else { return }
+        let presentation = HighlightViewerPresentation.resolve(
+            source: screen.source,
+            flags: launch.featureFlags
+        )
+        presentedViewer = HighlightViewerSession(
+            presentation: presentation,
+            image: demoImages.images[launch.resolvedPhotoID] ?? HighlightPlaceholderImage.make(),
+            geometry: HighlightViewerScript.geometry(showingOutline: presentation.showsOutline),
+            attribution: "Demo data. Not Zeke's truck.",
+            shareAlike: false
+        )
+    }
+
+    private var launchViewerPresented: Binding<Bool> {
+        Binding(
+            get: { presentedViewer != nil },
+            set: { if !$0 { presentedViewer = nil } }
+        )
+    }
+
+    private func refreshLaunchViewerImage() {
+        guard launch.screen != nil, var session = presentedViewer else { return }
+        guard let image = demoImages.images[launch.resolvedPhotoID] else { return }
+        session.image = image
+        presentedViewer = session
+    }
+}
+
+private struct HighlightViewerSession {
+    let id = UUID()
+    var presentation: HighlightViewerPresentation
+    var image: UIImage
+    var geometry: HighlightGeometry?
+    var attribution: String
+    var shareAlike: Bool
+    var onYes: (() -> Void)?
+    var onNotThis: (() -> Void)?
 }
 
 /// User turns stay text bubbles. Assistant turns are answer cards.
 private struct MessageBubble: View {
     let message: Message
     var demoContext: DemoAnswerContext?
+    var onOpenHighlight: (() -> Void)?
 
     var body: some View {
         switch message {
@@ -217,7 +298,8 @@ private struct MessageBubble: View {
                 AnswerCardView(
                     content: AnswerCardContent(answer: assistant.answer),
                     messageID: assistant.id,
-                    demoContext: demoContext
+                    demoContext: demoContext,
+                    onOpenHighlight: onOpenHighlight
                 )
                 Spacer(minLength: 32)
             }
