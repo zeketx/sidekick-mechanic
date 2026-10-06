@@ -9,13 +9,19 @@
 
     python3 .cursor/skills/verify-sidekick/scripts/compare_figma.py --run-dir artifacts/verify/<id>
 
-Proof is the side-by-side PNG plus compare/checklist.md. This script does not
-score pixels. An agent fills pass/fail after looking at every visible difference.
+Proof is the side-by-side PNG plus compare/checklist.md. With --run-dir the
+checklist is pre-filled by design_checks.py: edge-to-edge sheet, composer pill,
+plain nav buttons and status bar / #F4F4F4 are measured from the pixels (and the
+XCUITest frames in taps/layout-*.json) and reported PASS or FAIL with numbers.
+The rest stays REVIEW until an agent looks at every side-by-side.
+
+Exit codes: 0 stitched, no automated FAIL; 3 stitched, checklist has FAIL rows; 1 error.
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -86,14 +92,23 @@ def command_run_dir(Image, ImageDraw, ImageFont, run_dir: Path) -> int:
         dest = out_dir / shot.name
         stitch(Image, ImageDraw, ImageFont, figma, shot, dest, shot.stem)
         wrote.append(str(dest.relative_to(run_dir)))
-    write_checklist(out_dir / "checklist.md", wrote, missing)
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import design_checks
+
+    report = design_checks.evaluate(run_dir, out_dir)
+    (out_dir / "design-checks.json").write_text(
+        json.dumps(report, indent=2) + "\n", encoding="utf-8"
+    )
+    write_checklist(out_dir / "checklist.md", wrote, missing, report=report)
     if not wrote:
         print("no Figma refs matched screenshots", file=sys.stderr)
         return 1
     print(f"wrote {len(wrote)} side-by-side image(s) under {out_dir}")
     for name in missing:
         print(f"no Figma ref for {name}", file=sys.stderr)
-    return 0
+    print(f"design checklist: {report['overall']} ({report['fail_count']} FAIL, "
+          f"{report['review_count']} REVIEW) -> {out_dir / 'checklist.md'}")
+    return 3 if report["fail_count"] else 0
 
 
 def command_self_test(Image, ImageDraw, ImageFont, run_dir: Path) -> int:
@@ -173,16 +188,53 @@ def load_font(ImageFont, size: int):
     return ImageFont.load_default()
 
 
-def write_checklist(path: Path, wrote: list[str], missing: list[str], note: str | None = None) -> None:
+STANDING_RULES = [
+    ("highlight", "Highlight is a precise outline that follows the part. Never a box or rectangle. Low confidence is a dashed outline or none."),
+    ("edge", "Bottom sheet is edge to edge in collapsed, half, and full: full width, no side inset. Full height reaches the bottom of the screen with no bottom padding, gray strip, or squared-off bottom. Rounded top corners only. Sheet is white. Content behind is dimmed (scrim none/light at collapsed, stronger at half and full)."),
+    ("composer", "Composer is a fully rounded pill (\"Describe the problem\") with no boxy corners, on one consistent background color above and below."),
+    ("nav", "Nav / header buttons are plain text (Close, Jobs, Scan log, Back). Never truncated glass capsules."),
+    ("chrome", "Status bar and titles stay visible (no black-on-black). Nothing clipped or overlapping. Neutral #F4F4F4 background."),
+    ("figma", "Matches the Figma frame for this screen. Every visible difference is listed."),
+]
+
+
+def aggregate(report: dict, key: str) -> tuple[str, str]:
+    cells = {screen: cells[key] for screen, cells in report["screens"].items()}
+    fails = [s for s, c in cells.items() if c["verdict"] == "FAIL"]
+    reviews = [s for s, c in cells.items() if c["verdict"] == "REVIEW"]
+    passes = [s for s, c in cells.items() if c["verdict"] == "PASS"]
+    if fails:
+        return "FAIL", "measured FAIL on " + ", ".join(f"`screenshots/{s}.png`" for s in fails)
+    if reviews:
+        return "REVIEW", "agent: open " + ", ".join(f"`compare/{s}.png`" for s in reviews)
+    if passes:
+        return "PASS", "measured on " + ", ".join(passes)
+    return "N/A", "no screen in this run"
+
+
+def write_checklist(
+    path: Path,
+    wrote: list[str],
+    missing: list[str],
+    note: str | None = None,
+    report: dict | None = None,
+) -> None:
     lines = [
         "# Design checklist",
         "",
-        "Fill pass/fail after looking at every side-by-side. Pixel match is not required.",
+        "FAIL/PASS cells are measured (see evidence below). Replace every REVIEW cell with PASS or FAIL",
+        "after opening the side-by-side. Pixel match is not required.",
         "List every visible difference against the Figma frame, not only the asked-about ones.",
         "",
     ]
     if note:
         lines.extend([note, ""])
+    if report is not None:
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import design_checks
+
+        lines.extend(design_checks.checklist_lines(report))
+        lines.append("")
     lines.extend(
         [
             "## Side-by-sides in this run",
@@ -205,12 +257,13 @@ def write_checklist(path: Path, wrote: list[str], missing: list[str], note: str 
             "",
             "| Rule | Pass / Fail | Evidence |",
             "| --- | --- | --- |",
-            "| Highlight is a precise outline that follows the part. Never a box or rectangle. Low confidence is a dashed outline or none. |  |  |",
-            "| Bottom sheet is edge to edge in collapsed, half, and full: full width, no side inset. Full height reaches the bottom of the screen with no bottom padding, gray strip, or squared-off bottom. Rounded top corners only. Sheet is white. Content behind is dimmed (scrim none/light at collapsed, stronger at half and full). |  |  |",
-            "| Composer is a fully rounded pill (\"Describe the problem\") with no boxy corners, on one consistent background color above and below. |  |  |",
-            "| Nav / header buttons are plain text (Close, Jobs, Scan log, Back). Never truncated glass capsules. |  |  |",
-            "| Status bar and titles stay visible (no black-on-black). Nothing clipped or overlapping. Neutral #F4F4F4 background. |  |  |",
-            "| Matches the Figma frame for this screen. Every visible difference is listed. |  |  |",
+        ]
+    )
+    for key, text in STANDING_RULES:
+        verdict, evidence = aggregate(report, key) if report is not None else ("", "")
+        lines.append(f"| {text} | {verdict} | {evidence} |")
+    lines.extend(
+        [
             "",
             "## Differences vs Figma",
             "",

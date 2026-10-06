@@ -13,6 +13,7 @@ import argparse
 import json
 import os
 import platform
+import re
 import shutil
 import signal
 import socket
@@ -202,7 +203,9 @@ def add_run_flags(parser: argparse.ArgumentParser) -> None:
 
 
 def command_doctor() -> int:
-    evidence = prepare_evidence(None)
+    # Standalone doctor writes artifacts/verify/doctor/doctor.json and leaves `latest`
+    # pointing at the last real run, so `compare` without --run-id still finds screenshots.
+    evidence = prepare_evidence("doctor", update_latest=False)
     report = doctor(evidence)
     write_json(evidence / "doctor.json", report)
     print(json.dumps(report, indent=2))
@@ -210,7 +213,11 @@ def command_doctor() -> int:
 
 
 def command_run(args: argparse.Namespace) -> int:
+    """Exit 0: harness ok, no measured FAIL (REVIEW cells still need the agent).
+    Exit 1: harness or tap failure. Exit 2: owner-only (Linux). Exit 3: harness ok,
+    design checklist has measured FAIL rows."""
     evidence = prepare_evidence(args.run_id)
+    results: dict[str, Any] = {}
     try:
         if platform.system() != "Darwin":
             linux_partial(evidence)
@@ -228,16 +235,35 @@ def command_run(args: argparse.Namespace) -> int:
         override_status_bar(udid)
         doctor(evidence)
         capture_screens(udid, selected_screens(args.screens), evidence)
+        # A failing tap test must not hide the screenshots, side-by-sides or checklist:
+        # record it, keep going, and fail the run at the end.
         if not args.skip_taps:
-            run_ui_tests(udid, evidence)
+            results["taps"] = run_ui_tests(udid, evidence)
         if not args.skip_compare:
-            run_compare(evidence)
-        write_manifest(evidence, "run")
+            code = run_compare(evidence)
+            results["checklist"] = checklist_summary(evidence, code)
+        write_manifest(evidence, "run", results)
     finally:
         command_cleanup()
     if not (evidence / "doctor.json").is_file() and not (evidence / "owner-only.json").is_file():
         raise VerificationError("cleanup removed evidence")
     print(f"verify-sidekick: evidence kept at {evidence}")
+    taps = results.get("taps")
+    checklist = results.get("checklist")
+    if taps is not None:
+        print(f"verify-sidekick: taps {'PASS' if taps['ok'] else 'FAIL'} - {taps['summary']}")
+        for name in taps["failed"]:
+            print(f"verify-sidekick:   failed {name}")
+    if checklist is not None:
+        print(
+            f"verify-sidekick: design checklist {checklist['overall']} "
+            f"({checklist['fail_count']} FAIL, {checklist['review_count']} REVIEW) "
+            f"-> {evidence / 'compare' / 'checklist.md'}"
+        )
+    if taps is not None and not taps["ok"]:
+        return 1
+    if checklist is not None and checklist["fail_count"]:
+        return 3
     return 0
 
 
@@ -271,9 +297,10 @@ def command_taps(args: argparse.Namespace) -> int:
         status_bar=True,
     )
     override_status_bar(udid)
-    run_ui_tests(udid, evidence)
-    write_manifest(evidence, "taps")
-    return 0
+    taps = run_ui_tests(udid, evidence)
+    write_manifest(evidence, "taps", {"taps": taps})
+    print(f"verify-sidekick: taps {'PASS' if taps['ok'] else 'FAIL'} - {taps['summary']}")
+    return 0 if taps["ok"] else 1
 
 
 def command_compare(args: argparse.Namespace) -> int:
@@ -286,7 +313,10 @@ def command_compare(args: argparse.Namespace) -> int:
         )
         return proc.returncode
     evidence = evidence_dir(args.run_id)
-    return run_compare(evidence)
+    code = run_compare(evidence)
+    summary = checklist_summary(evidence, code)
+    print(f"verify-sidekick: design checklist {summary['overall']} -> {evidence / 'compare' / 'checklist.md'}")
+    return code
 
 
 def linux_partial(evidence: Path) -> None:
@@ -361,6 +391,16 @@ def doctor(evidence: Path | None = None) -> dict[str, Any]:
     if sim.get("udid") and sim.get("state") == "Booted":
         installed = app_installed(str(sim["udid"]))
     report["app_installed"] = installed
+    # Before the first `run` these are expected: run boots the sim, builds, installs and
+    # starts uvicorn. Only owner-only reasons (exit 2) block a run.
+    pending = []
+    if sim.get("state") != "Booted":
+        pending.append("simulator not booted (run boots it)")
+    if not installed:
+        pending.append("app not installed from this checkout (run builds and installs it)")
+    if backend.get("openapi") is not True:
+        pending.append("backend :8000 not answering (run starts uvicorn from backend/ if the port is free)")
+    report["pending_for_run"] = pending
     report["ok"] = (
         backend.get("openapi") is True
         and sim.get("state") == "Booted"
@@ -636,7 +676,11 @@ def capture_screens(udid: str, names: list[str], evidence: Path) -> None:
             check=False,
         )
         time.sleep(0.8)
-        launch = ["xcrun", "simctl", "launch", udid, BUNDLE_ID, *spec.args]
+        args = list(spec.args)
+        if not spec.requires_onboarding and "-sidekick.onboarding.completed" not in args:
+            # #111 adds first-run onboarding; without this every -screen opens onboarding instead.
+            args += ["-sidekick.onboarding.completed", "YES"]
+        launch = ["xcrun", "simctl", "launch", udid, BUNDLE_ID, *args]
         launched = subprocess.run(launch, capture_output=True, text=True, check=False)
         if launched.returncode != 0:
             raise VerificationError(
@@ -662,7 +706,7 @@ def capture_screens(udid: str, names: list[str], evidence: Path) -> None:
         write_json(evidence / "screenshots" / "skipped.json", {"skipped": skipped})
 
 
-def run_ui_tests(udid: str, evidence: Path) -> None:
+def run_ui_tests(udid: str, evidence: Path) -> dict[str, Any]:
     taps = evidence / "taps"
     taps.mkdir(parents=True, exist_ok=True)
     POINTER.parent.mkdir(parents=True, exist_ok=True)
@@ -692,11 +736,30 @@ def run_ui_tests(udid: str, evidence: Path) -> None:
     (evidence / "logs" / "xcodebuild-test.txt").write_text(
         proc.stdout + proc.stderr, encoding="utf-8"
     )
+    output = proc.stdout + proc.stderr
+    failed = sorted(set(re.findall(r"Test Case '-\[\S+ (test\w+)\]' failed", output)))
+    passed = sorted(set(re.findall(r"Test Case '-\[\S+ (test\w+)\]' passed", output)))
+    skipped = sorted(set(re.findall(r"Test Case '-\[\S+ (test\w+)\]' skipped", output)))
+    errors = re.findall(r"DriveUITests\.swift:\d+: error: .*", output)
+    executed = re.findall(r"Executed \d+ tests?, with .*", output)
+    result = {
+        "ok": proc.returncode == 0,
+        "exit_code": proc.returncode,
+        "summary": executed[-1] if executed else f"xcodebuild test exit {proc.returncode}",
+        "passed": passed,
+        "failed": failed,
+        "skipped": skipped,
+        "errors": errors,
+        "log": "logs/xcodebuild-test.txt",
+    }
+    write_json(taps / "result.json", result)
     if proc.returncode != 0:
-        raise VerificationError(
-            "xcodebuild test failed. See logs/xcodebuild-test.txt "
-            "(Garage skip is XCTSkip and still exit 0)."
+        print(
+            "verify-sidekick: xcodebuild test failed (see logs/xcodebuild-test.txt). "
+            "Continuing to compare so the evidence is complete.",
+            file=sys.stderr,
         )
+    return result
 
 
 def run_compare(evidence: Path) -> int:
@@ -705,9 +768,28 @@ def run_compare(evidence: Path) -> int:
         cwd=REPO,
         check=False,
     )
-    if proc.returncode != 0:
+    if proc.returncode not in (0, 3):
         raise VerificationError("compare_figma.py failed")
-    return 0
+    return proc.returncode
+
+
+def checklist_summary(evidence: Path, code: int) -> dict[str, Any]:
+    path = evidence / "compare" / "design-checks.json"
+    if not path.is_file():
+        return {"overall": "MISSING", "fail_count": 0, "review_count": 0, "exit_code": code}
+    report = json.loads(path.read_text(encoding="utf-8"))
+    return {
+        "overall": report.get("overall"),
+        "fail_count": report.get("fail_count", 0),
+        "review_count": report.get("review_count", 0),
+        "fails": [
+            f"{screen}/{rule}"
+            for screen, cells in report.get("screens", {}).items()
+            for rule, cell in cells.items()
+            if cell.get("verdict") == "FAIL"
+        ],
+        "exit_code": code,
+    }
 
 
 def selected_screens(raw: str | None) -> list[str]:
@@ -778,11 +860,13 @@ def kill_pid(pid: int) -> None:
         return
 
 
-def prepare_evidence(run_id: str | None) -> Path:
+def prepare_evidence(run_id: str | None, update_latest: bool = True) -> Path:
     run_id = run_id or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     evidence = REPO / "artifacts" / "verify" / run_id
     evidence.mkdir(parents=True, exist_ok=True)
     (evidence / "logs").mkdir(exist_ok=True)
+    if not update_latest:
+        return evidence
     latest = REPO / "artifacts" / "verify" / "latest"
     if latest.is_symlink() or latest.is_file():
         latest.unlink()
@@ -828,7 +912,7 @@ def write_owner_only(exc: OwnerOnly, evidence: Path) -> None:
     )
 
 
-def write_manifest(evidence: Path, command: str) -> None:
+def write_manifest(evidence: Path, command: str, results: dict[str, Any] | None = None) -> None:
     shots = []
     shot_dir = evidence / "screenshots"
     if shot_dir.is_dir():
@@ -839,6 +923,10 @@ def write_manifest(evidence: Path, command: str) -> None:
             "command": command,
             "git": git_identity(),
             "screenshots": shots,
+            "taps": sorted(path.name for path in (evidence / "taps").glob("*.png"))
+            if (evidence / "taps").is_dir()
+            else [],
+            "results": results or {},
             "evidence": str(evidence.relative_to(REPO)),
         },
     )
