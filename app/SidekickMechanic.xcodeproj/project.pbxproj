@@ -16,6 +16,7 @@
 		EE5981AB831000F2971BD24E /* DemoModeChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EB4D68F04A32B2EE2BCE0E3 /* DemoModeChrome.swift */; };
 		EF2F2ADDFB91BBD9D49CCA4A /* ChatScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2690995B0121B547CC4651A /* ChatScreen.swift */; };
 		F1A8C4D29B3E5F708C1D2E4A /* HighlightViewerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C4E1A90B3D24F6E8A1C2D3E /* HighlightViewerView.swift */; };
+		A91F0C2E7B4D81A35E6C0D11 /* JobSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D2E4B71C0A93F15E6B7D802 /* JobSheetView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -29,6 +30,7 @@
 		BA6E449AB2CCC4A451FC49CA /* DemoHighlightView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoHighlightView.swift; sourceTree = "<group>"; };
 		C2690995B0121B547CC4651A /* ChatScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatScreen.swift; sourceTree = "<group>"; };
 		7C4E1A90B3D24F6E8A1C2D3E /* HighlightViewerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HighlightViewerView.swift; sourceTree = "<group>"; };
+		8D2E4B71C0A93F15E6B7D802 /* JobSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JobSheetView.swift; sourceTree = "<group>"; };
 		F32A0E1A3A9E29B5E9E0AF2E /* SidekickMechanic.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = SidekickMechanic.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -76,6 +78,7 @@
 				C2690995B0121B547CC4651A /* ChatScreen.swift */,
 				9890FA44BA3B2B62C0293DC5 /* CitationPageView.swift */,
 				7C4E1A90B3D24F6E8A1C2D3E /* HighlightViewerView.swift */,
+				8D2E4B71C0A93F15E6B7D802 /* JobSheetView.swift */,
 				BA6E449AB2CCC4A451FC49CA /* DemoHighlightView.swift */,
 				4EB4D68F04A32B2EE2BCE0E3 /* DemoModeChrome.swift */,
 				6E949A9B055A354A7C6DBA2C /* Info.plist */,
@@ -152,6 +155,7 @@
 				EF2F2ADDFB91BBD9D49CCA4A /* ChatScreen.swift in Sources */,
 				41976CE283ADE9BF1B986389 /* CitationPageView.swift in Sources */,
 				F1A8C4D29B3E5F708C1D2E4A /* HighlightViewerView.swift in Sources */,
+				A91F0C2E7B4D81A35E6C0D11 /* JobSheetView.swift in Sources */,
 				E3B11CEF4C0FAF51B5B38689 /* DemoHighlightView.swift in Sources */,
 				EE5981AB831000F2971BD24E /* DemoModeChrome.swift in Sources */,
 				0687133FFA68D04738B1D1D8 /* ReadingsScreen.swift in Sources */,
