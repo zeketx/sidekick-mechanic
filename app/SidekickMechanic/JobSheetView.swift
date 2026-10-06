@@ -2,12 +2,13 @@ import SidekickCore
 import SwiftUI
 import UIKit
 
-/// Bottom sheet for one job (JS-1/2/3). Outline is the #112 polygon, never a box.
+/// Bottom sheet for one job (JS-1/2/3). Outline comes from #112's public renderer.
 struct JobSheetView: View {
     @Bindable var model: JobSheetViewModel
     var image: UIImage?
     var attribution: String
     var shareAlike: Bool
+    var flags: FeatureFlags = .v1
     var onOpenHighlight: () -> Void
     var onAttachPhoto: () -> Void
 
@@ -25,10 +26,10 @@ struct JobSheetView: View {
         }
         .frame(maxWidth: .infinity)
         .frame(height: sheetHeight)
-        .background(.background, in: UnevenRoundedRectangle(topLeadingRadius: 20, topTrailingRadius: 20))
+        .background(JobSheetChrome.paper, in: UnevenRoundedRectangle(topLeadingRadius: 20, topTrailingRadius: 20))
         .overlay(alignment: .top) {
             UnevenRoundedRectangle(topLeadingRadius: 20, topTrailingRadius: 20)
-                .strokeBorder(Color.secondary.opacity(0.2))
+                .strokeBorder(Color.secondary.opacity(0.22))
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(detentIdentifier)
@@ -49,6 +50,23 @@ struct JobSheetView: View {
         case .half: min(screen * 0.52, 460)
         case .full: screen * 0.88
         }
+    }
+
+    /// Public #112 view model. Thumbnails follow resolve(), not a copied outline.
+    private var presentation: HighlightViewerPresentation {
+        HighlightViewerPresentation.resolve(
+            source: HighlightViewerState.fromDemo(
+                display: model.job?.highlight?.display,
+                highlight: model.job?.highlight
+            ),
+            flags: flags
+        )
+    }
+
+    private var outlineGeometry: HighlightGeometry? {
+        guard presentation.showsOutline else { return nil }
+        return model.job?.highlight?.geometry
+            ?? HighlightViewerScript.geometry(showingOutline: true)
     }
 
     private var handle: some View {
@@ -83,6 +101,7 @@ struct JobSheetView: View {
                     model.close()
                 }
             }
+            .buttonStyle(.plain)
             .font(.subheadline)
             .foregroundStyle(.secondary)
             .accessibilityIdentifier(model.detent == .collapsed ? "jobSheet.open" : "jobSheet.close")
@@ -139,18 +158,17 @@ struct JobSheetView: View {
 
     @ViewBuilder
     private func photoThumb(height: CGFloat) -> some View {
-        if model.job?.hasPhoto == true, let image {
+        if model.job?.hasPhoto == true {
             Button(action: onOpenHighlight) {
                 DemoHighlightView(
-                    image: image,
-                    geometry: model.job?.highlight?.geometry ?? HighlightViewerScript.airBoxGeometry,
+                    image: image ?? HighlightPlaceholderImage.make(),
+                    geometry: outlineGeometry,
                     style: .outline,
-                    confirm: false,
+                    confirm: presentation.outlineStroke == .dashed,
+                    dashed: presentation.outlineStroke == .dashed,
                     attribution: attribution,
                     shareAlike: shareAlike,
-                    notFound: false,
-                    cornerRadius: 10,
-                    showsAttribution: height > 80
+                    notFound: !presentation.showsOutline
                 )
                 .frame(maxWidth: .infinity)
                 .frame(height: height)
@@ -159,32 +177,9 @@ struct JobSheetView: View {
             .buttonStyle(.plain)
             .accessibilityIdentifier("jobSheet.photo")
             .accessibilityHint("Opens the highlight card")
-        } else if model.job?.hasPhoto == true {
-            Button(action: onOpenHighlight) {
-                Image(uiImage: HighlightPlaceholderImage.make())
-                    .resizable()
-                    .scaledToFill()
-                    .frame(maxWidth: .infinity)
-                    .frame(height: height)
-                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-                    .overlay {
-                        DemoHighlightView(
-                            image: HighlightPlaceholderImage.make(),
-                            geometry: HighlightViewerScript.airBoxGeometry,
-                            style: .outline,
-                            confirm: false,
-                            attribution: attribution,
-                            shareAlike: shareAlike,
-                            notFound: false,
-                            cornerRadius: 10
-                        )
-                    }
-            }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("jobSheet.photo")
         } else {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color.secondary.opacity(0.15))
+                .fill(JobSheetChrome.emptyPhoto)
                 .frame(maxWidth: .infinity)
                 .frame(height: height)
                 .overlay {
@@ -197,12 +192,12 @@ struct JobSheetView: View {
     }
 
     private var attachButton: some View {
-        Button(action: onAttachPhoto) {
-            Label(JobSheetCopy.attach, systemImage: "photo.badge.plus")
-                .font(.subheadline.weight(.semibold))
-        }
-        .accessibilityIdentifier("jobSheet.attach")
-        .accessibilityHint(JobSheetCopy.attachHint)
+        Button(JobSheetCopy.attach, action: onAttachPhoto)
+            .buttonStyle(.plain)
+            .font(.subheadline)
+            .foregroundStyle(.primary)
+            .accessibilityIdentifier("jobSheet.attach")
+            .accessibilityHint(JobSheetCopy.attachHint)
     }
 
     private var chipRow: some View {
@@ -214,12 +209,7 @@ struct JobSheetView: View {
                     } label: {
                         Text(index == 0 ? JobSheetCopy.chip : citation.chipLabel)
                             .font(.subheadline)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(.background, in: Capsule())
-                            .overlay {
-                                Capsule().strokeBorder(Color.secondary.opacity(0.35))
-                            }
+                            .foregroundStyle(.primary)
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("jobSheet.chip.\(index)")
@@ -234,37 +224,44 @@ struct JobSheetView: View {
     private var outcomeRow: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(JobSheetCopy.outcomeHeading)
-                .font(.caption.weight(.semibold))
+                .font(.caption)
                 .foregroundStyle(.secondary)
-            HStack(spacing: 8) {
+            HStack(spacing: 16) {
                 ForEach(JobOutcome.allCases, id: \.self) { outcome in
-                    Button {
+                    let selected = model.job?.outcome == outcome
+                    Button(outcome.label) {
                         model.selectOutcome(outcome)
-                    } label: {
-                        Text(outcome.label)
-                            .font(.subheadline.weight(.semibold))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
                     }
                     .buttonStyle(.plain)
-                    .foregroundStyle(model.job?.outcome == outcome ? Color(.systemBackground) : .primary)
-                    .background(
-                        model.job?.outcome == outcome ? Color.primary : Color.secondary.opacity(0.12),
-                        in: RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    )
-                    .overlay {
-                        if model.job?.outcome != outcome {
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                                .strokeBorder(Color.primary.opacity(0.35))
-                        }
-                    }
+                    .font(.subheadline.weight(selected ? .semibold : .regular))
+                    .foregroundStyle(selected ? Color.primary : Color.secondary)
+                    .padding(.vertical, 12)
                     .accessibilityIdentifier("jobSheet.outcome.\(outcome.rawValue)")
-                    .accessibilityAddTraits(model.job?.outcome == outcome ? .isSelected : [])
+                    .accessibilityAddTraits(selected ? .isSelected : [])
                 }
+                Spacer(minLength: 0)
             }
         }
         .accessibilityIdentifier("jobSheet.outcome")
     }
+}
+
+/// Figma paper: white / #f4f4f4 / #e8e8e8. Not system blue-gray.
+enum JobSheetChrome {
+    static let paper = Color(uiColor: UIColor { traits in
+        if traits.userInterfaceStyle == .dark { return .systemBackground }
+        return UIColor(red: 1, green: 1, blue: 1, alpha: 1)
+    })
+
+    static let screen = Color(uiColor: UIColor { traits in
+        if traits.userInterfaceStyle == .dark { return .systemBackground }
+        return UIColor(red: 0.957, green: 0.957, blue: 0.957, alpha: 1)
+    })
+
+    static let emptyPhoto = Color(uiColor: UIColor { traits in
+        if traits.userInterfaceStyle == .dark { return .secondarySystemBackground }
+        return UIColor(red: 0.910, green: 0.910, blue: 0.910, alpha: 1)
+    })
 }
 
 #Preview("Collapsed") {
@@ -310,7 +307,7 @@ private struct JobSheetPreview: View {
 
     var body: some View {
         NavigationStack {
-            Color(.systemGroupedBackground)
+            JobSheetChrome.screen
                 .ignoresSafeArea()
                 .safeAreaInset(edge: .bottom, spacing: 0) {
                     JobSheetView(
