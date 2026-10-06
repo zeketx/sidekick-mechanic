@@ -61,6 +61,19 @@ public enum JobSheetScreen: String, CaseIterable, Hashable, Sendable {
     }
 }
 
+/// One scripted checkbox on the half sheet. Not the later #97 editor.
+public struct JobSheetStep: Equatable, Sendable, Identifiable {
+    public var id: Int
+    public var title: String
+    public var isComplete: Bool
+
+    public init(id: Int, title: String, isComplete: Bool) {
+        self.id = id
+        self.title = title
+        self.isComplete = isComplete
+    }
+}
+
 /// Copy locked by tests. Fixture citation only — no vehicle specs.
 public enum JobSheetCopy {
     public static let title = "Cold idle"
@@ -75,6 +88,9 @@ public enum JobSheetCopy {
     public static let question = "Rough idle after a cold start"
     public static let citationNote = "FAKE-DOC-2JZ p. 999. No guessed numbers."
     public static let chip = "FAKE-DOC-2JZ · p. 999"
+    public static let stepsHeading = "Steps 1 of 3"
+    public static let nextStep = "Next step (from the cited page)"
+    public static let creditInfo = "Photo credit"
 
     /// Same everyday line as #112 for this photo/part, plus the fixture citation.
     public static func answer(
@@ -88,6 +104,55 @@ public enum JobSheetCopy {
 
     public static var answer: String {
         Self.answer(photoID: DemoLaunchOptions.defaultPhotoID)
+    }
+
+    public static func partChip(
+        photoID: String,
+        partID: String? = nil
+    ) -> String {
+        let pick = DemoOutlineCatalog.selection(photoID: photoID, partID: partID, state: .confident)
+        return DemoOutlineCatalog.shortTag(partID: pick.partID)
+    }
+
+    public static func firstStep(displayName: String) -> String {
+        "Look at the \(displayName)"
+    }
+
+    /// Half-sheet checkboxes from the Figma frame. Third step stays in #97.
+    public static func steps(
+        photoID: String,
+        partID: String? = nil
+    ) -> [JobSheetStep] {
+        let pick = DemoOutlineCatalog.selection(photoID: photoID, partID: partID, state: .confident)
+        return [
+            JobSheetStep(id: 1, title: firstStep(displayName: pick.displayName), isComplete: true),
+            JobSheetStep(id: 2, title: nextStep, isComplete: false),
+        ]
+    }
+
+    public static func creditLine(attribution: String, shareAlike: Bool) -> String {
+        shareAlike ? "CC BY-SA. \(attribution)" : attribution
+    }
+}
+
+/// Sheet height vs the window. Full sits below the status-bar safe area.
+public enum JobSheetLayout {
+    public static let collapsedHeight: Double = 128
+    public static let halfMaxHeight: Double = 460
+
+    public static func height(
+        detent: JobSheetDetent,
+        screenHeight: Double,
+        topSafeArea: Double
+    ) -> Double {
+        return switch detent {
+        case .collapsed:
+            collapsedHeight
+        case .half:
+            min(screenHeight * 0.52, halfMaxHeight)
+        case .full:
+            max(screenHeight - topSafeArea, 240)
+        }
     }
 }
 

@@ -42,12 +42,14 @@ struct DemoHighlightView: View {
             }
         }
         .overlay(alignment: .bottomLeading) {
-            Text(attributionLine)
-                .font(.caption2)
-                .foregroundStyle(.white)
-                .padding(6)
-                .background(.black.opacity(0.55), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-                .padding(8)
+            if !attributionLine.isEmpty {
+                Text(attributionLine)
+                    .font(.caption2)
+                    .foregroundStyle(.white)
+                    .padding(6)
+                    .background(.black.opacity(0.55), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .padding(8)
+            }
         }
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         .accessibilityIdentifier("answerCard.demoHighlight")

@@ -7,6 +7,7 @@ struct ChatScreen: View {
     @Bindable var model: ChatViewModel
     var backendURL: URL = AppConfig.backendURL
     var launch: DemoLaunchOptions = DemoLaunchOptions.parse()
+    @Environment(\.colorScheme) private var colorScheme
     @State private var demoImages = DemoImageStore()
     @State private var presentedViewer: HighlightViewerSession?
     @State private var jobSheet = JobSheetViewModel()
@@ -19,7 +20,7 @@ struct ChatScreen: View {
         NavigationStack {
             messageList
                 .safeAreaInset(edge: .top, spacing: 0) {
-                    if model.isDemoMode {
+                    if launch.showDemoChrome, model.isDemoMode {
                         DemoModeChrome(
                             model: model,
                             store: demoImages,
@@ -32,14 +33,40 @@ struct ChatScreen: View {
                 }
                 .navigationTitle("Sidekick")
                 .navigationBarTitleDisplayMode(.inline)
+                .toolbar(jobSheet.detent == .full && jobSheet.hasJob ? .hidden : .visible, for: .navigationBar)
                 .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Toggle("Demo mode", isOn: $model.isDemoMode)
+                    if launch.showDemoChrome {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button(model.isDemoMode ? "Demo on" : "Demo mode") {
+                                model.isDemoMode.toggle()
+                            }
+                            .buttonStyle(.plain)
+                            .font(.body)
+                            .foregroundStyle(.primary)
                             .accessibilityIdentifier("demo.toggle")
+                        }
                     }
                 }
-                .background(.background)
+                .toolbarBackground(JobSheetChrome.screen, for: .navigationBar)
+                .toolbarBackground(.visible, for: .navigationBar)
+                .toolbarColorScheme(colorScheme == .dark ? .dark : .light, for: .navigationBar)
+                .background(JobSheetChrome.screen)
         }
+        .background(JobSheetChrome.screen)
+        .statusBarHidden(false)
+        .persistentSystemOverlays(.visible)
+        .task(id: demoLoadToken) {
+            guard model.isDemoMode || launch.opensJobSheet || launch.showDemoChrome else { return }
+            await demoImages.load(from: configuration)
+            if model.isDemoMode, model.selectedDemoPhotoID == nil {
+                model.selectedDemoPhotoID = demoImages.catalog?.defaultPhotoID
+                    ?? DemoLaunchOptions.defaultPhotoID
+            }
+        }
+    }
+
+    private var demoLoadToken: String {
+        "\(model.isDemoMode)-\(launch.opensJobSheet)-\(launch.showDemoChrome)"
     }
 
     private var messageList: some View {
@@ -139,7 +166,7 @@ struct ChatScreen: View {
                     }
                     composer
                 }
-                .background(.bar)
+                .background(JobSheetChrome.screen)
             }
             if jobSheet.hasJob {
                 JobSheetView(
@@ -148,6 +175,8 @@ struct ChatScreen: View {
                     attribution: jobAttribution,
                     shareAlike: jobShareAlike,
                     flags: launch.featureFlags,
+                    screenHeight: SidekickWindowMetrics.screenHeight,
+                    topSafeArea: SidekickWindowMetrics.topSafeArea,
                     onOpenHighlight: presentJobViewer,
                     onAttachPhoto: attachDemoPhotoToJob
                 )
@@ -162,7 +191,7 @@ struct ChatScreen: View {
                     Image(systemName: "photo.badge.plus")
                         .font(.title3)
                 }
-                .buttonStyle(.borderless)
+                .buttonStyle(.plain)
                 .accessibilityIdentifier("chat.attach")
                 .accessibilityLabel(JobSheetCopy.attach)
                 .accessibilityHint(JobSheetCopy.attachHint)
@@ -175,18 +204,23 @@ struct ChatScreen: View {
                 .padding(.vertical, 8)
                 .background {
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(Color.secondary.opacity(0.15))
+                        .fill(JobSheetChrome.paper)
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                .strokeBorder(Color.secondary.opacity(0.28))
+                        }
                 }
                 .accessibilityIdentifier("chat.composer")
 
             Button {
                 Task { await model.send() }
             } label: {
-                Image(systemName: "arrow.up.circle.fill")
-                    .font(.title2)
-                    .symbolRenderingMode(.hierarchical)
+                Image(systemName: "arrow.up")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .frame(width: 32, height: 32)
             }
-            .buttonStyle(.borderless)
+            .buttonStyle(.plain)
             .disabled(!model.canSend)
             .accessibilityIdentifier("chat.send")
             .accessibilityLabel("Send")

@@ -9,8 +9,11 @@ struct JobSheetView: View {
     var attribution: String
     var shareAlike: Bool
     var flags: FeatureFlags = .v1
+    var screenHeight: CGFloat = UIScreen.main.bounds.height
+    var topSafeArea: CGFloat = 59
     var onOpenHighlight: () -> Void
     var onAttachPhoto: () -> Void
+    @State private var showsCredit = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -33,6 +36,11 @@ struct JobSheetView: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(detentIdentifier)
+        .confirmationDialog(JobSheetCopy.creditInfo, isPresented: $showsCredit, titleVisibility: .visible) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(creditText)
+        }
     }
 
     private var detentIdentifier: String {
@@ -44,12 +52,21 @@ struct JobSheetView: View {
     }
 
     private var sheetHeight: CGFloat {
-        let screen = UIScreen.main.bounds.height
-        return switch model.detent {
-        case .collapsed: 128
-        case .half: min(screen * 0.52, 460)
-        case .full: screen * 0.88
-        }
+        CGFloat(
+            JobSheetLayout.height(
+                detent: model.detent,
+                screenHeight: Double(screenHeight),
+                topSafeArea: Double(topSafeArea)
+            )
+        )
+    }
+
+    private var catalogPhotoID: String {
+        model.job?.photoID ?? DemoLaunchOptions.defaultPhotoID
+    }
+
+    private var catalogPartID: String? {
+        model.job?.highlight?.partID.rawValue
     }
 
     /// Public #112 view model. Thumbnails follow resolve(), not a copied outline.
@@ -60,8 +77,8 @@ struct JobSheetView: View {
                 highlight: model.job?.highlight
             ),
             flags: flags,
-            photoID: model.job?.photoID ?? DemoLaunchOptions.defaultPhotoID,
-            partID: model.job?.highlight?.partID.rawValue
+            photoID: catalogPhotoID,
+            partID: catalogPartID
         )
     }
 
@@ -73,6 +90,10 @@ struct JobSheetView: View {
                 partID: presentation.partID,
                 showingOutline: true
             )
+    }
+
+    private var creditText: String {
+        JobSheetCopy.creditLine(attribution: attribution, shareAlike: shareAlike)
     }
 
     private var handle: some View {
@@ -118,12 +139,19 @@ struct JobSheetView: View {
 
     private var collapsedPeek: some View {
         HStack(alignment: .center, spacing: 12) {
-            photoThumb(height: 48)
+            photoThumb(height: 48, fillsWidth: false)
             VStack(alignment: .leading, spacing: 4) {
-                Text(model.job?.hasPhoto == true ? JobSheetCopy.photoCaption : JobSheetCopy.peekHint)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                if model.job?.hasPhoto != true {
+                HStack(spacing: 6) {
+                    Text(model.job?.hasPhoto == true ? JobSheetCopy.photoCaption : JobSheetCopy.peekHint)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                    if model.job?.hasPhoto == true {
+                        creditInfoButton
+                    }
+                }
+                if model.job?.hasPhoto == true {
+                    partChip
+                } else {
                     attachButton
                 }
             }
@@ -136,11 +164,12 @@ struct JobSheetView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 photoStage
-                Text(model.job?.answerText ?? JobSheetCopy.answer(photoID: model.job?.photoID ?? DemoLaunchOptions.defaultPhotoID))
+                Text(model.job?.answerText ?? JobSheetCopy.answer(photoID: catalogPhotoID))
                     .font(.body)
                     .foregroundStyle(.primary)
                     .accessibilityIdentifier("jobSheet.answer")
                 chipRow
+                stepsList
                 if model.job?.hasPhoto != true {
                     attachButton
                 }
@@ -154,16 +183,30 @@ struct JobSheetView: View {
 
     private var photoStage: some View {
         VStack(alignment: .leading, spacing: 6) {
-            photoThumb(height: model.detent == .full ? 200 : 140)
-            Text(JobSheetCopy.photoCaption)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .accessibilityIdentifier("jobSheet.photoCaption")
+            photoThumb(height: model.detent == .full ? 200 : 140, fillsWidth: true)
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(JobSheetCopy.photoCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("jobSheet.photoCaption")
+                Spacer(minLength: 8)
+                if model.job?.hasPhoto == true {
+                    creditInfoButton
+                }
+            }
+            if model.job?.hasPhoto == true {
+                Text(creditText)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .accessibilityIdentifier("jobSheet.credit")
+                    .accessibilityHidden(true)
+            }
         }
     }
 
     @ViewBuilder
-    private func photoThumb(height: CGFloat) -> some View {
+    private func photoThumb(height: CGFloat, fillsWidth: Bool) -> some View {
         if model.job?.hasPhoto == true {
             Button(action: onOpenHighlight) {
                 DemoHighlightView(
@@ -172,29 +215,46 @@ struct JobSheetView: View {
                     style: .outline,
                     confirm: presentation.outlineStroke == .dashed,
                     dashed: presentation.outlineStroke == .dashed,
-                    attribution: attribution,
-                    shareAlike: shareAlike,
+                    attribution: "",
+                    shareAlike: false,
                     notFound: !presentation.showsOutline
                 )
-                .frame(maxWidth: .infinity)
-                .frame(height: height)
+                .frame(width: fillsWidth ? nil : 72, height: height)
+                .frame(maxWidth: fillsWidth ? .infinity : nil)
                 .clipped()
             }
             .buttonStyle(.plain)
             .accessibilityIdentifier("jobSheet.photo")
             .accessibilityHint("Opens the highlight card")
+            .accessibilityValue(creditText)
         } else {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .fill(JobSheetChrome.emptyPhoto)
-                .frame(maxWidth: .infinity)
-                .frame(height: height)
+                .frame(width: fillsWidth ? nil : 72, height: height)
+                .frame(maxWidth: fillsWidth ? .infinity : nil)
                 .overlay {
                     Text(JobSheetCopy.peekHint)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                        .opacity(fillsWidth ? 1 : 0)
                 }
                 .accessibilityIdentifier("jobSheet.photoEmpty")
         }
+    }
+
+    private var creditInfoButton: some View {
+        Button {
+            showsCredit.toggle()
+        } label: {
+            Image(systemName: "info.circle")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("jobSheet.creditInfo")
+        .accessibilityLabel(JobSheetCopy.creditInfo)
+        .accessibilityValue(creditText)
+        .accessibilityHint("Shows the photo license")
     }
 
     private var attachButton: some View {
@@ -213,18 +273,48 @@ struct JobSheetView: View {
                     NavigationLink {
                         CitationPageView(citation: citation)
                     } label: {
-                        Text(index == 0 ? JobSheetCopy.chip : citation.chipLabel)
-                            .font(.subheadline)
-                            .foregroundStyle(.primary)
+                        JobSheetChipLabel(text: index == 0 ? JobSheetCopy.chip : citation.chipLabel)
                     }
                     .buttonStyle(.plain)
                     .accessibilityIdentifier("jobSheet.chip.\(index)")
                     .accessibilityHint("Opens the cited page")
                 }
+                partChip
             }
         }
         .fixedSize(horizontal: false, vertical: true)
         .accessibilityIdentifier("jobSheet.chips")
+    }
+
+    private var partChip: some View {
+        JobSheetChipLabel(text: JobSheetCopy.partChip(photoID: catalogPhotoID, partID: catalogPartID))
+            .accessibilityIdentifier("jobSheet.partChip")
+    }
+
+    private var stepsList: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(JobSheetCopy.stepsHeading)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.primary)
+                .accessibilityIdentifier("jobSheet.stepsHeading")
+            ForEach(JobSheetCopy.steps(photoID: catalogPhotoID, partID: catalogPartID)) { step in
+                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                    Image(systemName: step.isComplete ? "checkmark.square.fill" : "square")
+                        .font(.body)
+                        .foregroundStyle(.primary)
+                        .accessibilityHidden(true)
+                    Text(step.title)
+                        .font(.body)
+                        .foregroundStyle(.primary)
+                    Spacer(minLength: 0)
+                }
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel(step.title)
+                .accessibilityValue(step.isComplete ? "Completed" : "Not completed")
+                .accessibilityIdentifier("jobSheet.step.\(step.id)")
+            }
+        }
+        .accessibilityIdentifier("jobSheet.steps")
     }
 
     private var outcomeRow: some View {
@@ -239,8 +329,8 @@ struct JobSheetView: View {
                         model.selectOutcome(outcome)
                     }
                     .buttonStyle(.plain)
-                    .font(.subheadline.weight(selected ? .semibold : .regular))
-                    .foregroundStyle(selected ? Color.primary : Color.secondary)
+                    .font(.body.weight(selected ? .bold : .semibold))
+                    .foregroundStyle(selected ? Color.primary : Color.primary.opacity(0.55))
                     .padding(.vertical, 12)
                     .accessibilityIdentifier("jobSheet.outcome.\(outcome.rawValue)")
                     .accessibilityAddTraits(selected ? .isSelected : [])
@@ -249,6 +339,22 @@ struct JobSheetView: View {
             }
         }
         .accessibilityIdentifier("jobSheet.outcome")
+    }
+}
+
+private struct JobSheetChipLabel: View {
+    var text: String
+
+    var body: some View {
+        Text(text)
+            .font(.subheadline)
+            .foregroundStyle(.primary)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+            .background(JobSheetChrome.paper, in: Capsule())
+            .overlay {
+                Capsule().strokeBorder(Color.secondary.opacity(0.35))
+            }
     }
 }
 
@@ -268,6 +374,26 @@ enum JobSheetChrome {
         if traits.userInterfaceStyle == .dark { return .secondarySystemBackground }
         return UIColor(red: 0.910, green: 0.910, blue: 0.910, alpha: 1)
     })
+
+    static var screenUIColor: UIColor {
+        UIColor { traits in
+            if traits.userInterfaceStyle == .dark { return .systemBackground }
+            return UIColor(red: 0.957, green: 0.957, blue: 0.957, alpha: 1)
+        }
+    }
+}
+
+enum SidekickWindowMetrics {
+    static var screenHeight: CGFloat {
+        UIScreen.main.bounds.height
+    }
+
+    static var topSafeArea: CGFloat {
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        let inset = scenes.flatMap(\.windows).first(where: \.isKeyWindow)?.safeAreaInsets.top
+            ?? scenes.flatMap(\.windows).first?.safeAreaInsets.top
+        return inset ?? 59
+    }
 }
 
 #Preview("Collapsed") {
@@ -320,7 +446,7 @@ private struct JobSheetPreview: View {
                         model: model,
                         image: HighlightPlaceholderImage.make(),
                         attribution: "Demo data. Not Zeke's truck.",
-                        shareAlike: false,
+                        shareAlike: true,
                         onOpenHighlight: {},
                         onAttachPhoto: {}
                     )
