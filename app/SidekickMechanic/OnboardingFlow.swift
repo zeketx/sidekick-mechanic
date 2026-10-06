@@ -106,16 +106,10 @@ private struct WelcomeOnboardingPage: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                VStack(spacing: 8) {
-                    BayPlaceholderView()
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 188)
-                        .accessibilityLabel("Placeholder engine bay. Air box outlined.")
-                    Text(OnboardingCopy.bayCaption)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity)
-                }
+                BayPlaceholderView()
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 200)
+                    .accessibilityLabel("Placeholder engine bay. Air box outlined.")
 
                 Text(OnboardingCopy.welcomeTitle)
                     .font(.title2.weight(.bold))
@@ -332,7 +326,12 @@ private struct BayPlaceholderView: View {
                             .frame(width: w * 0.16, height: h * 0.12)
                     }
                     .padding(.horizontal, w * 0.08)
-                    .padding(.bottom, h * 0.08)
+
+                    Text(OnboardingCopy.bayCaption)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .padding(.top, 6)
+                        .padding(.bottom, h * 0.05)
                 }
             }
         }
