@@ -13,6 +13,7 @@ struct ChatScreen: View {
     @State private var jobSheet = JobSheetViewModel()
     @State private var windowHeight: CGFloat = 0
     @State private var topSafeArea: CGFloat = 0
+    @State private var bottomSafeArea: CGFloat = 0
 
     private var configuration: ChatClientConfiguration {
         ChatClientConfiguration(baseURL: backendURL)
@@ -56,9 +57,10 @@ struct ChatScreen: View {
         }
         .background(JobSheetChrome.screen)
         .background {
-            WindowSafeAreaProbe { height, top in
+            WindowSafeAreaProbe { height, top, bottom in
                 windowHeight = height
                 topSafeArea = top
+                bottomSafeArea = bottom
             }
         }
         .statusBarHidden(false)
@@ -185,6 +187,9 @@ struct ChatScreen: View {
                     flags: launch.featureFlags,
                     screenHeight: windowHeight,
                     topSafeArea: topSafeArea,
+                    bottomChromeInset: launch.showDemoChrome
+                        ? max(bottomSafeArea, CGFloat(JobSheetLayout.demoTabChromeHeight))
+                        : 0,
                     onOpenHighlight: presentJobViewer,
                     onAttachPhoto: attachDemoPhotoToJob
                 )
@@ -451,12 +456,12 @@ private struct MessageBubble: View {
                 Spacer(minLength: 32)
                 Text(user.text)
                     .font(.body)
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(Color.white)
                     .multilineTextAlignment(.leading)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
                     .background(
-                        Color.accentColor.opacity(0.18),
+                        Color.black,
                         in: RoundedRectangle(cornerRadius: 18, style: .continuous)
                     )
             }

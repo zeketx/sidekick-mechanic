@@ -25,7 +25,7 @@ final class AnswerCardContentTests: XCTestCase {
         )
         XCTAssertNil(card.statusTitle)
         XCTAssertEqual(card.chips.map(\.id), [0])
-        XCTAssertEqual(card.chips.map(\.label), ["FAKE-DOC-2JZ · page 999"])
+        XCTAssertEqual(card.chips.map(\.label), ["FAKE-DOC-2JZ · p. 999"])
         XCTAssertEqual(card.chips.map(\.docID.rawValue), ["FAKE-DOC-2JZ"])
         XCTAssertEqual(card.chips.map(\.page.rawValue), [999])
         XCTAssertEqual(
@@ -41,7 +41,7 @@ final class AnswerCardContentTests: XCTestCase {
 
         XCTAssertEqual(card.presentation, .found)
         XCTAssertEqual(card.text, "Look at the fake intake area on the fixture bay photo.")
-        XCTAssertEqual(card.chips.map(\.label), ["FAKE-DOC-2JZ · page 999"])
+        XCTAssertEqual(card.chips.map(\.label), ["FAKE-DOC-2JZ · p. 999"])
         XCTAssertTrue(card.showsHighlightSlot)
         XCTAssertEqual(card.highlight?.bayPhotoID.rawValue, "fake-bay-photo-front")
         XCTAssertEqual(card.highlight?.partID.rawValue, "fake-part-intake")
@@ -84,8 +84,8 @@ final class AnswerCardContentTests: XCTestCase {
 
         XCTAssertEqual(card.chips.map(\.id), [0, 1])
         XCTAssertEqual(card.chips.map(\.label), [
-            "FAKE-DOC-A · page 999",
-            "FAKE-DOC-B · page 999",
+            "FAKE-DOC-A · p. 999",
+            "FAKE-DOC-B · p. 999",
         ])
         XCTAssertEqual(card.chips.map(\.citation), [
             try citation(docID: "FAKE-DOC-A", snippet: "FAKE-SNIPPET-A"),
@@ -117,7 +117,7 @@ final class AnswerCardContentTests: XCTestCase {
 
     func testCitationChipLabelIsDocumentAndPage() throws {
         let citation = try citation(docID: "FAKE-DOC-2JZ", snippet: "FAKE-SNIPPET")
-        XCTAssertEqual(citation.chipLabel, "FAKE-DOC-2JZ · page 999")
+        XCTAssertEqual(citation.chipLabel, "FAKE-DOC-2JZ · p. 999")
     }
 
     func testPreviewFixturesMatchContractFiles() throws {

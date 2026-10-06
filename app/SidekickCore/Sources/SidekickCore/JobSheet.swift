@@ -135,10 +135,19 @@ public enum JobSheetCopy {
     }
 }
 
-/// Sheet height vs the window. Full sits below the status-bar safe area.
+/// Sheet height vs the window. Full sits below the status-bar safe area plus a gap.
 public enum JobSheetLayout {
     public static let collapsedHeight: Double = 128
-    public static let halfMaxHeight: Double = 460
+    public static let halfMaxHeight: Double = 360
+    public static let halfHeightFraction: Double = 0.40
+    public static let fallbackTopSafeArea: Double = 59
+    public static let fullTopGap: Double = 8
+    /// Tab bar (~49) + home indicator (~34) when `-showDemoChrome 1`.
+    public static let demoTabChromeHeight: Double = 83
+
+    public static func resolvedTopSafeArea(_ raw: Double) -> Double {
+        raw > 0 ? raw : fallbackTopSafeArea
+    }
 
     public static func height(
         detent: JobSheetDetent,
@@ -149,9 +158,9 @@ public enum JobSheetLayout {
         case .collapsed:
             collapsedHeight
         case .half:
-            min(screenHeight * 0.52, halfMaxHeight)
+            min(screenHeight * halfHeightFraction, halfMaxHeight)
         case .full:
-            max(screenHeight - topSafeArea, 240)
+            max(screenHeight - resolvedTopSafeArea(topSafeArea) - fullTopGap, 240)
         }
     }
 }

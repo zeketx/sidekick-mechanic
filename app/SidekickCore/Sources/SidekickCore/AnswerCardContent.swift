@@ -78,7 +78,7 @@ public struct AnswerCardContent: Hashable, Sendable {
 extension Citation {
     /// Document id and page on the chip. The snippet stays on `citation` for the page viewer.
     public var chipLabel: String {
-        "\(docID.rawValue) · page \(page.rawValue)"
+        "\(docID.rawValue) · p. \(page.rawValue)"
     }
 }
 

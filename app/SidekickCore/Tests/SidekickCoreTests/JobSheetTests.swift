@@ -199,13 +199,26 @@ final class JobSheetTests: XCTestCase {
         )
         XCTAssertEqual(
             JobSheetLayout.height(detent: .full, screenHeight: 874, topSafeArea: 62),
-            812
+            804
         )
         XCTAssertEqual(JobSheetLayout.height(detent: .collapsed, screenHeight: 874, topSafeArea: 62), 128)
         XCTAssertLessThan(
             JobSheetLayout.height(detent: .half, screenHeight: 874, topSafeArea: 62),
             874 - 62
         )
+    }
+
+    func testFullHeightLeavesTopSafeAreaPlusGap() {
+        let screen = 874.0
+        let top = 62.0
+        let full = JobSheetLayout.height(detent: .full, screenHeight: screen, topSafeArea: top)
+        XCTAssertLessThanOrEqual(full, screen - top - 8)
+        XCTAssertEqual(full, screen - top - 8)
+
+        let zeroTop = JobSheetLayout.height(detent: .full, screenHeight: screen, topSafeArea: 0)
+        XCTAssertEqual(JobSheetLayout.resolvedTopSafeArea(0), 59)
+        XCTAssertLessThanOrEqual(zeroTop, screen - 59 - 8)
+        XCTAssertEqual(zeroTop, screen - 59 - 8)
     }
 
     func testDemoChromeStaysOffUnlessLaunchArg() {
