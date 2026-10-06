@@ -388,6 +388,30 @@ final class HighlightViewerTests: XCTestCase {
         XCTAssertGreaterThan(HighlightOutlineCleanup.area(hrymx.polygons[0].points), 0.01)
     }
 
+    func testHrymxThrottleHasNoSpikeOrSelfIntersection() throws {
+        let hrymx = try XCTUnwrap(
+            DemoOutlineCatalog.geometry(photoID: "hrymx", partID: "throttle-body")
+        )
+        XCTAssertEqual(hrymx.polygons.count, 1)
+        let points = hrymx.polygons[0].points
+        XCTAssertGreaterThanOrEqual(points.count, 8)
+        XCTAssertFalse(HighlightOutlineCleanup.hasSelfIntersection(points))
+        XCTAssertGreaterThanOrEqual(
+            HighlightOutlineCleanup.minimumVertexAngleDegrees(points),
+            25,
+            "cleaned throttle still has a spike"
+        )
+        XCTAssertGreaterThan(
+            HighlightOutlineCleanup.solidity(points),
+            0.85,
+            "cleaned throttle is too concave to follow the part"
+        )
+        XCTAssertFalse(HighlightOutlineCurve.isAxisAlignedRectangle(points))
+        XCTAssertLessThan(points.map(\.x).max() ?? 1, 0.99)
+        XCTAssertLessThan(points.map(\.y).max() ?? 1, 0.62)
+        XCTAssertGreaterThan(HighlightOutlineCleanup.area(points), 0.02)
+    }
+
     func testOutlineInkThinsForThumbnails() {
         let card = HighlightOutlineInk.scaled(renderedWidth: 200)
         let thumb = HighlightOutlineInk.scaled(renderedWidth: 80)
@@ -430,5 +454,22 @@ final class HighlightViewerTests: XCTestCase {
             }
         }
         XCTAssertGreaterThan(checked, 20)
+    }
+
+    func testViewerCardMatchingPhotoAspectFillsTheRect() {
+        for photo in DemoOutlineCatalog.load() {
+            let width = 361.0
+            let height = width * Double(photo.height) / Double(photo.width)
+            let card = HighlightOutlineLayout.viewerDisplayedImage(
+                imageWidth: Double(photo.width),
+                imageHeight: Double(photo.height),
+                boundsWidth: width,
+                boundsHeight: height
+            )
+            XCTAssertEqual(card.x, 0, accuracy: 0.01)
+            XCTAssertEqual(card.y, 0, accuracy: 0.01)
+            XCTAssertEqual(card.width, width, accuracy: 0.01)
+            XCTAssertEqual(card.height, height, accuracy: 0.01)
+        }
     }
 }
