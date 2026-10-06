@@ -60,10 +60,21 @@ struct AppRootView: View {
     @Bindable var chatModel: ChatViewModel
     var launch: DemoLaunchOptions
     @AppStorage(OnboardingStorage.completedKey) private var onboardingCompleted = false
-    @State private var page: OnboardingPage = .welcome
-    @State private var isOnboardingVisible = false
+    @State private var page: OnboardingPage
+    @State private var isOnboardingVisible: Bool
     @State private var isGaragePresented = false
-    @State private var didApplyLaunchOptions = false
+
+    init(chatModel: ChatViewModel, launch: DemoLaunchOptions) {
+        self.chatModel = chatModel
+        self.launch = launch
+        let onboarding = OnboardingLaunchOptions.parse()
+        if onboarding.resetOnboarding {
+            UserDefaults.standard.set(false, forKey: OnboardingStorage.completedKey)
+        }
+        let completed = UserDefaults.standard.bool(forKey: OnboardingStorage.completedKey)
+        _page = State(initialValue: onboarding.screen ?? .welcome)
+        _isOnboardingVisible = State(initialValue: onboarding.screen != nil || !completed)
+    }
 
     var body: some View {
         Group {
@@ -73,7 +84,6 @@ struct AppRootView: View {
                 mainContent
             }
         }
-        .onAppear(perform: applyLaunchOptions)
     }
 
     @ViewBuilder
@@ -110,22 +120,6 @@ struct AppRootView: View {
                         }
                     }
             }
-        }
-    }
-
-    private func applyLaunchOptions() {
-        guard !didApplyLaunchOptions else { return }
-        didApplyLaunchOptions = true
-        let onboarding = OnboardingLaunchOptions.parse()
-        if onboarding.resetOnboarding {
-            onboardingCompleted = false
-        }
-        if let screen = onboarding.screen {
-            page = screen
-            isOnboardingVisible = true
-        } else if !onboardingCompleted {
-            page = .welcome
-            isOnboardingVisible = true
         }
     }
 
