@@ -119,7 +119,7 @@ struct JobHistoryView: View {
     }
 }
 
-/// Square fill thumb. Size-aware #112 ink; empty attribution so the overlay stays off.
+/// Square thumb. Size-aware #112 ink. Aspect-fit keeps the outlined part fully visible.
 struct LookBackThumb: View {
     var image: UIImage
     var geometry: HighlightGeometry?
@@ -140,7 +140,7 @@ struct LookBackThumb: View {
             notFound: notFound,
             cornerRadius: 0,
             outlineInk: .scaled(renderedWidth: Double(renderedWidth), dashed: confirm),
-            fillsContainer: true
+            fillsContainer: false
         )
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         .clipped()
