@@ -30,15 +30,17 @@ struct JobSheetView: View {
         }
         .frame(maxWidth: .infinity)
         .frame(height: sheetHeight)
+        .clipShape(sheetShape)
         .background {
-            UnevenRoundedRectangle(topLeadingRadius: 20, topTrailingRadius: 20)
+            sheetShape
                 .fill(JobSheetChrome.paper)
                 .shadow(color: Color.black.opacity(0.12), radius: 12, y: -2)
         }
-        .overlay(alignment: .top) {
-            UnevenRoundedRectangle(topLeadingRadius: 20, topTrailingRadius: 20)
-                .strokeBorder(Color.secondary.opacity(0.22))
+        .overlay {
+            sheetShape.strokeBorder(Color.secondary.opacity(0.18))
         }
+        .padding(.horizontal, CGFloat(JobSheetLayout.horizontalInset))
+        .ignoresSafeArea(edges: .bottom)
         .animation(.easeInOut(duration: 0.22), value: model.detent)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(detentIdentifier)
@@ -65,6 +67,16 @@ struct JobSheetView: View {
                 screenHeight: Double(screen),
                 topSafeArea: Double(topSafeArea)
             )
+        )
+    }
+
+    private var sheetShape: UnevenRoundedRectangle {
+        UnevenRoundedRectangle(
+            topLeadingRadius: CGFloat(JobSheetLayout.topCornerRadius),
+            bottomLeadingRadius: 0,
+            bottomTrailingRadius: 0,
+            topTrailingRadius: CGFloat(JobSheetLayout.topCornerRadius),
+            style: .continuous
         )
     }
 
