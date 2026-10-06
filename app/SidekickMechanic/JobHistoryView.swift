@@ -165,6 +165,7 @@ struct LookBackPaperHeader: View {
                     .buttonStyle(.plain)
                     .font(.body)
                     .foregroundStyle(.primary)
+                    .fixedSize()
                     .accessibilityIdentifier("lookBack.back")
                 Spacer(minLength: 8)
                 if showScanLog {
@@ -172,6 +173,7 @@ struct LookBackPaperHeader: View {
                         .buttonStyle(.plain)
                         .font(.body)
                         .foregroundStyle(.primary)
+                        .fixedSize()
                         .accessibilityIdentifier("jobHistory.scanLog")
                 }
             }

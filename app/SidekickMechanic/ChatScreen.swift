@@ -7,7 +7,6 @@ struct ChatScreen: View {
     @Bindable var model: ChatViewModel
     var backendURL: URL = AppConfig.backendURL
     var launch: DemoLaunchOptions = DemoLaunchOptions.parse()
-    @Environment(\.colorScheme) private var colorScheme
     @State private var demoImages = DemoImageStore()
     @State private var presentedViewer: HighlightViewerSession?
     @State private var jobSheet = JobSheetViewModel()
@@ -24,12 +23,17 @@ struct ChatScreen: View {
         NavigationStack(path: $lookBackPath) {
             messageList
                 .safeAreaInset(edge: .top, spacing: 0) {
-                    if launch.showDemoChrome, model.isDemoMode {
-                        DemoModeChrome(
-                            model: model,
-                            store: demoImages,
-                            configuration: configuration
-                        )
+                    VStack(spacing: 0) {
+                        if lookBackPath.isEmpty {
+                            chatPaperHeader
+                        }
+                        if launch.showDemoChrome, model.isDemoMode {
+                            DemoModeChrome(
+                                model: model,
+                                store: demoImages,
+                                configuration: configuration
+                            )
+                        }
                     }
                 }
                 .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -38,52 +42,7 @@ struct ChatScreen: View {
                         .allowsHitTesting(false)
                         .accessibilityHidden(true)
                 }
-                .navigationTitle("Sidekick")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar(
-                    lookBackPath.isEmpty && !(jobSheet.detent == .full && jobSheet.hasJob)
-                        ? .visible
-                        : .hidden,
-                    for: .navigationBar
-                )
-                .toolbar {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button("Jobs") {
-                            if lookBackPath.last != .jobHistory {
-                                lookBackPath.append(.jobHistory)
-                            }
-                        }
-                        .buttonStyle(.plain)
-                        .font(.body)
-                        .foregroundStyle(.primary)
-                        .accessibilityIdentifier("chat.jobs")
-                    }
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button("Scan log") {
-                            if lookBackPath.last != .scanLog {
-                                lookBackPath.append(.scanLog)
-                            }
-                        }
-                        .buttonStyle(.plain)
-                        .font(.body)
-                        .foregroundStyle(.primary)
-                        .accessibilityIdentifier("chat.scanLog")
-                    }
-                    if launch.showDemoChrome {
-                        ToolbarItem(placement: .topBarTrailing) {
-                            Button(model.isDemoMode ? "Demo on" : "Demo mode") {
-                                model.isDemoMode.toggle()
-                            }
-                            .buttonStyle(.plain)
-                            .font(.body)
-                            .foregroundStyle(.primary)
-                            .accessibilityIdentifier("demo.toggle")
-                        }
-                    }
-                }
-                .toolbarBackground(JobSheetChrome.screen, for: .navigationBar)
-                .toolbarBackground(jobSheet.hasJob ? .hidden : .visible, for: .navigationBar)
-                .toolbarColorScheme(colorScheme == .dark ? .dark : .light, for: .navigationBar)
+                .toolbar(.hidden, for: .navigationBar)
                 .background(JobSheetChrome.screen)
                 .navigationDestination(for: LookBackScreen.self) { screen in
                     lookBackDestination(screen)
@@ -132,6 +91,53 @@ struct ChatScreen: View {
 
     private var demoLoadToken: String {
         "\(model.isDemoMode)-\(launch.opensJobSheet)-\(launch.opensLookBack)-\(launch.showDemoChrome)"
+    }
+
+    /// Plain Jobs / Scan log on paper. Avoids iOS 26 toolbar glass capsules.
+    private var chatPaperHeader: some View {
+        ZStack {
+            Text("Sidekick")
+                .font(.headline)
+                .foregroundStyle(.primary)
+                .accessibilityAddTraits(.isHeader)
+            HStack {
+                Button(JobHistoryCopy.title) {
+                    if lookBackPath.last != .jobHistory {
+                        lookBackPath.append(.jobHistory)
+                    }
+                }
+                .buttonStyle(.plain)
+                .font(.body)
+                .foregroundStyle(.primary)
+                .fixedSize()
+                .accessibilityIdentifier("chat.jobs")
+                Spacer(minLength: 8)
+                Button(ScanLogCopy.title) {
+                    if lookBackPath.last != .scanLog {
+                        lookBackPath.append(.scanLog)
+                    }
+                }
+                .buttonStyle(.plain)
+                .font(.body)
+                .foregroundStyle(.primary)
+                .fixedSize()
+                .accessibilityIdentifier("chat.scanLog")
+                if launch.showDemoChrome {
+                    Button(model.isDemoMode ? "Demo on" : "Demo mode") {
+                        model.isDemoMode.toggle()
+                    }
+                    .buttonStyle(.plain)
+                    .font(.body)
+                    .foregroundStyle(.primary)
+                    .fixedSize()
+                    .accessibilityIdentifier("demo.toggle")
+                }
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity)
+        .background(JobSheetChrome.screen)
     }
 
     @ViewBuilder
