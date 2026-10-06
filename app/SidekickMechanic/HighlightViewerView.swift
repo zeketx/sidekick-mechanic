@@ -51,7 +51,7 @@ struct HighlightViewerView: View {
                     bannerPill(banner)
                 }
                 photos
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 footer
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -108,14 +108,12 @@ struct HighlightViewerView: View {
                     inFrameBanner: presentation.userPhotoBanner,
                     zoomable: false
                 )
-                .frame(maxHeight: .infinity)
                 photoCard(
                     image: referenceImage ?? image,
                     geometry: presentation.showsOutlineOnReferencePhoto ? outlineGeometry : nil,
                     inFrameBanner: nil,
                     zoomable: true
                 )
-                .frame(maxHeight: .infinity)
             } else {
                 photoCard(
                     image: image,
@@ -123,7 +121,6 @@ struct HighlightViewerView: View {
                     inFrameBanner: nil,
                     zoomable: true
                 )
-                .frame(maxHeight: .infinity)
             }
             HStack(alignment: .center, spacing: 8) {
                 chipRow
@@ -157,42 +154,40 @@ struct HighlightViewerView: View {
             attribution: attribution,
             shareAlike: shareAlike,
             notFound: geometry == nil,
-            cornerRadius: 0,
+            cornerRadius: 16,
             fillsContainer: false
         )
-        return Color.clear
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .overlay {
-                Group {
-                    if zoomable {
-                        photo
-                            .scaleEffect(scale)
-                            .offset(offset)
-                            .gesture(magnifyGesture)
-                            .simultaneousGesture(panGesture)
-                            .onTapGesture(count: 2, perform: toggleZoom)
-                            .animation(.easeInOut(duration: 0.2), value: scale)
-                    } else {
-                        photo
-                    }
-                }
+        return Group {
+            if zoomable {
+                photo
+                    .scaleEffect(scale)
+                    .offset(offset)
+                    .gesture(magnifyGesture)
+                    .simultaneousGesture(panGesture)
+                    .onTapGesture(count: 2, perform: toggleZoom)
+                    .animation(.easeInOut(duration: 0.2), value: scale)
+            } else {
+                photo
             }
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            .overlay(alignment: .top) {
-                if let inFrameBanner {
-                    Text(inFrameBanner)
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.white)
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
-                        .padding(.horizontal, 12)
-                        .background(Color.black.opacity(0.72))
-                        .accessibilityIdentifier("highlightViewer.userPhotoBanner")
-                }
+        }
+        .frame(maxWidth: .infinity)
+        .aspectRatio(image.size, contentMode: .fit)
+        .overlay(alignment: .top) {
+            if let inFrameBanner {
+                Text(inFrameBanner)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 12)
+                    .background(Color.black.opacity(0.72))
+                    .accessibilityIdentifier("highlightViewer.userPhotoBanner")
             }
-            .accessibilityElement(children: .contain)
-            .accessibilityIdentifier("highlightViewer.photo")
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("highlightViewer.photo")
     }
 
     private var chipRow: some View {

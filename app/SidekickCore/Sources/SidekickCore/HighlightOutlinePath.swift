@@ -1,3 +1,5 @@
+import Foundation
+
 /// Fitted image rect in the same space the outline is drawn.
 public struct OutlineRect: Equatable, Sendable {
     public var x: Double
@@ -189,6 +191,9 @@ public enum HighlightOutlineCurve {
 /// Drop tiny rings and thin spurs from SAM masks. Keeps the overall part shape.
 public enum HighlightOutlineCleanup {
     public static let minRingArea = 0.0004
+    static let significantRingFraction = 0.2
+    static let minConvexAngleDegrees = 75.0
+    static let thinWidthFraction = 0.05
 
     public static func cleaned(_ geometry: HighlightGeometry) -> HighlightGeometry? {
         let rings = geometry.polygons.compactMap { ring -> HighlightPolygon? in
@@ -196,7 +201,8 @@ public enum HighlightOutlineCleanup {
             guard points.count >= 3, area(points) >= minRingArea else { return nil }
             return HighlightPolygon(points: points)
         }
-        return rings.isEmpty ? nil : HighlightGeometry(polygons: rings)
+        let kept = largestContours(rings)
+        return kept.isEmpty ? nil : HighlightGeometry(polygons: kept)
     }
 
     public static func cleaned(points: [HighlightPoint]) -> [HighlightPoint] {
@@ -206,7 +212,9 @@ public enum HighlightOutlineCleanup {
         }
         guard pts.count >= 3 else { return pts }
         pts = removeSpikes(pts)
+        pts = removeThinProtrusions(pts)
         pts = simplify(pts, epsilon: 0.008)
+        pts = smooth(pts)
         return pts.count >= 5 ? pts : points
     }
 
@@ -219,6 +227,61 @@ public enum HighlightOutlineCleanup {
             acc += a.x * b.y - b.x * a.y
         }
         return abs(acc) / 2
+    }
+
+    /// Smaller angle at each vertex, in degrees (0...180).
+    static func vertexAngleDegrees(_ points: [HighlightPoint]) -> [Double] {
+        let count = points.count
+        guard count >= 3 else { return [] }
+        return (0..<count).map { index in
+            angleDegrees(
+                prev: points[(index - 1 + count) % count],
+                point: points[index],
+                next: points[(index + 1) % count]
+            )
+        }
+    }
+
+    static func minimumVertexAngleDegrees(_ points: [HighlightPoint]) -> Double {
+        vertexAngleDegrees(points).min() ?? 180
+    }
+
+    static func solidity(_ points: [HighlightPoint]) -> Double {
+        let hull = convexHullArea(points)
+        guard hull > 1e-12 else { return 0 }
+        return area(points) / hull
+    }
+
+    static func hasSelfIntersection(_ points: [HighlightPoint]) -> Bool {
+        let count = points.count
+        guard count >= 4 else { return false }
+        for i in 0..<count {
+            let a = points[i]
+            let b = points[(i + 1) % count]
+            var j = i + 2
+            while j < count {
+                if i == 0, j == count - 1 {
+                    j += 1
+                    continue
+                }
+                let c = points[j]
+                let d = points[(j + 1) % count]
+                if segmentsIntersect(a, b, c, d) {
+                    return true
+                }
+                j += 1
+            }
+        }
+        return false
+    }
+
+    private static func largestContours(_ rings: [HighlightPolygon]) -> [HighlightPolygon] {
+        guard let largest = rings.map({ area($0.points) }).max(), largest > 0 else {
+            return []
+        }
+        let floor = max(minRingArea, significantRingFraction * largest)
+        return rings.filter { area($0.points) >= floor }
+            .sorted { area($0.points) > area($1.points) }
     }
 
     private static func removeSpikes(_ points: [HighlightPoint]) -> [HighlightPoint] {
@@ -269,6 +332,179 @@ public enum HighlightOutlineCleanup {
 
     private static func onBorder(_ point: HighlightPoint) -> Bool {
         point.x < 0.02 || point.x > 0.98 || point.y < 0.02 || point.y > 0.98
+    }
+
+    /// Drop thin convex protrusions (SAM tails / squiggles). Leaves the part body.
+    private static func removeThinProtrusions(_ points: [HighlightPoint]) -> [HighlightPoint] {
+        var pts = points
+        var guardCount = 0
+        while pts.count > 8, guardCount < 32 {
+            guardCount += 1
+            let box = boundingBox(pts)
+            let maxSide = max(box.width, box.height)
+            let widthFloor = thinWidthFraction * maxSide
+            let count = pts.count
+            var worstIndex: Int?
+            var worstScore = Double.greatestFiniteMagnitude
+            for index in 0..<count {
+                let prev = pts[(index - 1 + count) % count]
+                let point = pts[index]
+                let next = pts[(index + 1) % count]
+                guard isConvexVertex(prev: prev, point: point, next: next, winding: signedArea(pts)) else {
+                    continue
+                }
+                let angle = angleDegrees(prev: prev, point: point, next: next)
+                let width = localWidth(at: index, points: pts)
+                let sharp = angle < minConvexAngleDegrees
+                let thin = width < widthFloor && angle < 110
+                guard sharp || thin else { continue }
+                let score = sharp ? angle : width
+                if score < worstScore {
+                    worstScore = score
+                    worstIndex = index
+                }
+            }
+            guard let worstIndex else { break }
+            pts.remove(at: worstIndex)
+        }
+        return pts
+    }
+
+    /// Mild Laplacian so Catmull-Rom does not loop on leftover corners.
+    private static func smooth(_ points: [HighlightPoint], passes: Int = 2, weight: Double = 0.25) -> [HighlightPoint] {
+        var pts = points
+        guard pts.count >= 5 else { return pts }
+        let kept = 1 - weight
+        for _ in 0..<passes {
+            let count = pts.count
+            pts = (0..<count).map { index in
+                let prev = pts[(index - 1 + count) % count]
+                let point = pts[index]
+                let next = pts[(index + 1) % count]
+                return HighlightPoint(
+                    x: kept * point.x + weight * 0.5 * (prev.x + next.x),
+                    y: kept * point.y + weight * 0.5 * (prev.y + next.y)
+                )
+            }
+        }
+        return pts
+    }
+
+    private static func angleDegrees(prev: HighlightPoint, point: HighlightPoint, next: HighlightPoint) -> Double {
+        let v1x = prev.x - point.x
+        let v1y = prev.y - point.y
+        let v2x = next.x - point.x
+        let v2y = next.y - point.y
+        let n1 = (v1x * v1x + v1y * v1y).squareRoot()
+        let n2 = (v2x * v2x + v2y * v2y).squareRoot()
+        guard n1 > 1e-12, n2 > 1e-12 else { return 0 }
+        let cosine = max(-1, min(1, (v1x * v2x + v1y * v2y) / (n1 * n2)))
+        return acos(cosine) * 180 / Double.pi
+    }
+
+    private static func signedArea(_ points: [HighlightPoint]) -> Double {
+        var acc = 0.0
+        for index in points.indices {
+            let a = points[index]
+            let b = points[(index + 1) % points.count]
+            acc += a.x * b.y - b.x * a.y
+        }
+        return acc / 2
+    }
+
+    private static func isConvexVertex(
+        prev: HighlightPoint,
+        point: HighlightPoint,
+        next: HighlightPoint,
+        winding: Double
+    ) -> Bool {
+        let cross = (point.x - prev.x) * (next.y - prev.y) - (point.y - prev.y) * (next.x - prev.x)
+        return cross * winding > 0
+    }
+
+    private static func boundingBox(_ points: [HighlightPoint]) -> OutlineRect {
+        let xs = points.map(\.x)
+        let ys = points.map(\.y)
+        let minX = xs.min() ?? 0
+        let minY = ys.min() ?? 0
+        return OutlineRect(
+            x: minX,
+            y: minY,
+            width: (xs.max() ?? 0) - minX,
+            height: (ys.max() ?? 0) - minY
+        )
+    }
+
+    private static func localWidth(at index: Int, points: [HighlightPoint]) -> Double {
+        let count = points.count
+        let point = points[index]
+        var best = Double.greatestFiniteMagnitude
+        for edge in 0..<count {
+            let next = (edge + 1) % count
+            if edge == index || next == index { continue }
+            if edge == (index - 1 + count) % count { continue }
+            let distance = pointToSegmentDistance(point, a: points[edge], b: points[next])
+            if distance < best { best = distance }
+        }
+        return best
+    }
+
+    private static func pointToSegmentDistance(
+        _ point: HighlightPoint,
+        a: HighlightPoint,
+        b: HighlightPoint
+    ) -> Double {
+        let dx = b.x - a.x
+        let dy = b.y - a.y
+        let lengthSq = dx * dx + dy * dy
+        guard lengthSq > 1e-18 else { return distance(point, a) }
+        let t = max(0, min(1, ((point.x - a.x) * dx + (point.y - a.y) * dy) / lengthSq))
+        return distance(point, HighlightPoint(x: a.x + t * dx, y: a.y + t * dy))
+    }
+
+    private static func convexHullArea(_ points: [HighlightPoint]) -> Double {
+        let unique = Array(Set(points)).sorted { lhs, rhs in
+            lhs.x == rhs.x ? lhs.y < rhs.y : lhs.x < rhs.x
+        }
+        guard unique.count >= 3 else { return 0 }
+        var lower: [HighlightPoint] = []
+        for point in unique {
+            while lower.count >= 2,
+                  cross(lower[lower.count - 2], lower[lower.count - 1], point) <= 0
+            {
+                lower.removeLast()
+            }
+            lower.append(point)
+        }
+        var upper: [HighlightPoint] = []
+        for point in unique.reversed() {
+            while upper.count >= 2,
+                  cross(upper[upper.count - 2], upper[upper.count - 1], point) <= 0
+            {
+                upper.removeLast()
+            }
+            upper.append(point)
+        }
+        lower.removeLast()
+        upper.removeLast()
+        return area(lower + upper)
+    }
+
+    private static func cross(_ origin: HighlightPoint, _ a: HighlightPoint, _ b: HighlightPoint) -> Double {
+        (a.x - origin.x) * (b.y - origin.y) - (a.y - origin.y) * (b.x - origin.x)
+    }
+
+    private static func segmentsIntersect(
+        _ a: HighlightPoint,
+        _ b: HighlightPoint,
+        _ c: HighlightPoint,
+        _ d: HighlightPoint
+    ) -> Bool {
+        if a == c || a == d || b == c || b == d { return false }
+        func ccw(_ p: HighlightPoint, _ q: HighlightPoint, _ r: HighlightPoint) -> Bool {
+            (r.y - p.y) * (q.x - p.x) > (q.y - p.y) * (r.x - p.x)
+        }
+        return ccw(a, c, d) != ccw(b, c, d) && ccw(a, b, c) != ccw(a, b, d)
     }
 
     private static func simplify(_ points: [HighlightPoint], epsilon: Double) -> [HighlightPoint] {
