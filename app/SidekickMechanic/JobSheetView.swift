@@ -30,11 +30,16 @@ struct JobSheetView: View {
         }
         .frame(maxWidth: .infinity)
         .frame(height: sheetHeight)
-        .background(JobSheetChrome.paper, in: UnevenRoundedRectangle(topLeadingRadius: 20, topTrailingRadius: 20))
+        .background {
+            UnevenRoundedRectangle(topLeadingRadius: 20, topTrailingRadius: 20)
+                .fill(JobSheetChrome.paper)
+                .shadow(color: Color.black.opacity(0.12), radius: 12, y: -2)
+        }
         .overlay(alignment: .top) {
             UnevenRoundedRectangle(topLeadingRadius: 20, topTrailingRadius: 20)
                 .strokeBorder(Color.secondary.opacity(0.22))
         }
+        .animation(.easeInOut(duration: 0.22), value: model.detent)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(detentIdentifier)
         .confirmationDialog(JobSheetCopy.creditInfo, isPresented: $showsCredit, titleVisibility: .visible) {
@@ -367,11 +372,11 @@ private struct JobSheetChipLabel: View {
     }
 }
 
-/// Figma paper: white / #f4f4f4 / #e8e8e8. Not system blue-gray.
+/// Figma paper: #FFFFFF sheet on #F4F4F4 chat. Not system blue-gray.
 enum JobSheetChrome {
     static let paper = Color(uiColor: UIColor { traits in
         if traits.userInterfaceStyle == .dark { return .systemBackground }
-        return UIColor(red: 1, green: 1, blue: 1, alpha: 1)
+        return .white
     })
 
     static let screen = Color(uiColor: UIColor { traits in

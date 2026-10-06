@@ -31,6 +31,9 @@ struct ChatScreen: View {
                         )
                     }
                 }
+                .overlay {
+                    jobSheetScrim
+                }
                 .safeAreaInset(edge: .bottom, spacing: 0) {
                     bottomBar
                 }
@@ -79,6 +82,23 @@ struct ChatScreen: View {
         "\(model.isDemoMode)-\(launch.opensJobSheet)-\(launch.showDemoChrome)"
     }
 
+    @ViewBuilder
+    private var jobSheetScrim: some View {
+        if jobSheet.hasJob {
+            Color.black
+                .opacity(JobSheetLayout.scrimOpacity(detent: jobSheet.detent))
+                .ignoresSafeArea(edges: .top)
+                .contentShape(Rectangle())
+                .allowsHitTesting(jobSheet.detent != .collapsed)
+                .onTapGesture { jobSheet.close() }
+                .accessibilityIdentifier("jobSheet.dim")
+                .accessibilityLabel("Close job sheet")
+                .accessibilityAddTraits(.isButton)
+                .accessibilityHidden(jobSheet.detent == .collapsed)
+                .animation(.easeInOut(duration: 0.22), value: jobSheet.detent)
+        }
+    }
+
     private var messageList: some View {
         ScrollViewReader { proxy in
             ScrollView {
@@ -108,12 +128,6 @@ struct ChatScreen: View {
             .defaultScrollAnchor(.bottom)
             .accessibilityIdentifier("chat.messageList")
             .allowsHitTesting(!jobSheet.blocksChat)
-            .overlay {
-                if jobSheet.blocksChat {
-                    Color.black.opacity(0.18)
-                        .accessibilityIdentifier("jobSheet.dim")
-                }
-            }
             .onAppear {
                 scrollToEnd(proxy)
                 presentLaunchViewerIfNeeded()

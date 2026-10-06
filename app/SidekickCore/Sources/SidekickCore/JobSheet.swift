@@ -149,6 +149,15 @@ public enum JobSheetLayout {
         raw > 0 ? raw : fallbackTopSafeArea
     }
 
+    /// Darkens chat behind the sheet. Half/full stay in the 0.25…0.40 band.
+    public static func scrimOpacity(detent: JobSheetDetent) -> Double {
+        return switch detent {
+        case .collapsed: 0.12
+        case .half: 0.30
+        case .full: 0.40
+        }
+    }
+
     public static func height(
         detent: JobSheetDetent,
         screenHeight: Double,
