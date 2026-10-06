@@ -12,6 +12,7 @@ struct HighlightViewerView: View {
     @State private var lastOffset: CGSize = .zero
 
     var image: UIImage
+    var referenceImage: UIImage?
     var geometry: HighlightGeometry?
     var attribution: String
     var shareAlike: Bool
@@ -21,6 +22,7 @@ struct HighlightViewerView: View {
     init(
         presentation: HighlightViewerPresentation,
         image: UIImage,
+        referenceImage: UIImage? = nil,
         geometry: HighlightGeometry?,
         attribution: String,
         shareAlike: Bool,
@@ -29,6 +31,7 @@ struct HighlightViewerView: View {
     ) {
         _presentation = State(initialValue: presentation)
         self.image = image
+        self.referenceImage = referenceImage
         self.geometry = geometry
         self.attribution = attribution
         self.shareAlike = shareAlike
@@ -39,25 +42,29 @@ struct HighlightViewerView: View {
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
+                ScrollView {
+                    photos
+                }
+                footer
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .background(Color(.systemGroupedBackground))
+            .safeAreaInset(edge: .top, spacing: 0) {
                 if let banner = presentation.banner {
                     Text(banner)
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(presentation.kind == .unsure ? .white : .primary)
+                        .multilineTextAlignment(.center)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 8)
                         .padding(.horizontal, 16)
                         .background(presentation.kind == .unsure ? Color.black : Color.yellow.opacity(0.35))
                         .accessibilityIdentifier("highlightViewer.banner")
                 }
-
-                photoStage
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-                footer
             }
-            .background(Color(.systemGroupedBackground))
             .navigationTitle(presentation.title)
             .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(.visible, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close") { dismiss() }
@@ -68,43 +75,111 @@ struct HighlightViewerView: View {
         }
     }
 
-    private var photoStage: some View {
-        GeometryReader { proxy in
-            ZStack {
-                Color(.systemGray6)
-                zoomablePhoto
-                    .frame(width: proxy.size.width, height: proxy.size.height)
+    private var photos: some View {
+        VStack(spacing: 12) {
+            if presentation.kind == .reference {
+                photoCard(
+                    image: image,
+                    geometry: nil,
+                    inFrameBanner: presentation.userPhotoBanner,
+                    zoomable: false
+                )
+                photoCard(
+                    image: referenceImage ?? image,
+                    geometry: presentation.showsOutlineOnReferencePhoto ? outlineGeometry : nil,
+                    inFrameBanner: nil,
+                    zoomable: true
+                )
+            } else {
+                photoCard(
+                    image: image,
+                    geometry: presentation.showsOutlineOnUserPhoto ? outlineGeometry : nil,
+                    inFrameBanner: nil,
+                    zoomable: true
+                )
             }
-            .overlay(alignment: .bottomTrailing) {
-                zoomButton
-                    .padding(16)
+            HStack(alignment: .top, spacing: 8) {
+                chipRow
+                pinchControl
             }
-            .clipped()
         }
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("highlightViewer.photo")
+        .padding(.horizontal, 16)
+        .padding(.top, 12)
     }
 
-    private var zoomablePhoto: some View {
-        DemoHighlightView(
+    private var outlineGeometry: HighlightGeometry? {
+        geometry
+            ?? DemoOutlineCatalog.geometry(
+                photoID: presentation.outlinePhotoID,
+                partID: presentation.partID
+            )
+    }
+
+    private func photoCard(
+        image: UIImage,
+        geometry: HighlightGeometry?,
+        inFrameBanner: String?,
+        zoomable: Bool
+    ) -> some View {
+        let photo = DemoHighlightView(
             image: image,
-            geometry: presentation.showsOutline
-                ? (geometry ?? HighlightViewerScript.airBoxGeometry)
-                : nil,
+            geometry: geometry,
             style: .outline,
             confirm: presentation.outlineStroke == .dashed,
             dashed: presentation.outlineStroke == .dashed,
             attribution: attribution,
             shareAlike: shareAlike,
-            notFound: !presentation.showsOutline,
+            notFound: geometry == nil,
             cornerRadius: 0
         )
-        .scaleEffect(scale)
-        .offset(offset)
-        .gesture(magnifyGesture)
-        .simultaneousGesture(panGesture)
-        .onTapGesture(count: 2, perform: toggleZoom)
-        .animation(.easeInOut(duration: 0.2), value: scale)
+        return Color.clear
+            .aspectRatio(image.size, contentMode: .fit)
+            .overlay {
+                Group {
+                    if zoomable {
+                        photo
+                            .scaleEffect(scale)
+                            .offset(offset)
+                            .gesture(magnifyGesture)
+                            .simultaneousGesture(panGesture)
+                            .onTapGesture(count: 2, perform: toggleZoom)
+                            .animation(.easeInOut(duration: 0.2), value: scale)
+                    } else {
+                        photo
+                    }
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(alignment: .top) {
+                if let inFrameBanner {
+                    Text(inFrameBanner)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 12)
+                        .background(Color.black.opacity(0.72))
+                        .accessibilityIdentifier("highlightViewer.userPhotoBanner")
+                }
+            }
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("highlightViewer.photo")
+    }
+
+    private var chipRow: some View {
+        HStack(spacing: 8) {
+            ForEach(presentation.tags, id: \.self) { tag in
+                Text(tag)
+                    .font(.subheadline)
+                    .foregroundStyle(.primary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(Color.secondary.opacity(0.14), in: Capsule())
+            }
+            Spacer(minLength: 0)
+        }
+        .accessibilityIdentifier("highlightViewer.tags")
     }
 
     private var magnifyGesture: some Gesture {
@@ -134,13 +209,18 @@ struct HighlightViewerView: View {
             }
     }
 
-    private var zoomButton: some View {
+    private var pinchControl: some View {
         Button(action: toggleZoom) {
-            Image(systemName: scale > 1 ? "minus.magnifyingglass" : "plus.magnifyingglass")
-                .font(.title3)
-                .foregroundStyle(.primary)
-                .padding(10)
-                .background(.thinMaterial, in: Circle())
+            VStack(spacing: 2) {
+                Image(systemName: scale > 1 ? "minus.magnifyingglass" : "plus.magnifyingglass")
+                    .font(.title3)
+                    .foregroundStyle(.primary)
+                    .padding(10)
+                    .background(.thinMaterial, in: Circle())
+                Text(HighlightViewerCopy.pinchLabel)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("highlightViewer.zoom")
@@ -185,22 +265,54 @@ struct HighlightViewerView: View {
             }
 
             if presentation.showsConfirmPrompt {
-                DemoConfirmBar(
-                    onYes: {
-                        presentation = .make(.confident)
+                Text(HighlightViewerCopy.unsurePrompt)
+                    .font(.title3.weight(.semibold))
+                    .frame(maxWidth: .infinity)
+                    .accessibilityIdentifier("highlightViewer.unsurePrompt")
+
+                HStack(spacing: 12) {
+                    Button("Yes") {
+                        presentation = .make(.confident, pick: DemoOutlineCatalog.selection(
+                            photoID: presentation.photoID,
+                            partID: presentation.partID,
+                            state: .confident
+                        ))
                         onYes?()
-                    },
-                    onNotThis: {
-                        presentation = .make(.notFound)
+                    }
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(Color.black, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .accessibilityIdentifier("demo.confirm.yes")
+
+                    Button("Not this") {
+                        presentation = .make(.notFound, pick: DemoOutlineCatalog.selection(
+                            photoID: presentation.photoID,
+                            partID: presentation.partID,
+                            state: .notFound
+                        ))
                         onNotThis?()
                     }
-                )
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .strokeBorder(Color.primary, lineWidth: 1.5)
+                    )
+                    .accessibilityIdentifier("demo.confirm.notThis")
+                }
+                .accessibilityIdentifier("demo.confirmBar")
             }
 
-            Text(presentation.footer)
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-                .accessibilityIdentifier("highlightViewer.footer")
+            if !presentation.footer.isEmpty {
+                Text(presentation.footer)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("highlightViewer.footer")
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
@@ -247,7 +359,7 @@ enum HighlightPlaceholderImage {
     HighlightViewerView(
         presentation: .make(.confident),
         image: HighlightPlaceholderImage.make(),
-        geometry: HighlightViewerScript.airBoxGeometry,
+        geometry: DemoOutlineCatalog.geometry(photoID: "hilux", partID: "fuse-relay-box"),
         attribution: "Demo data. Not Zeke's truck.",
         shareAlike: false
     )
@@ -257,7 +369,7 @@ enum HighlightPlaceholderImage {
     HighlightViewerView(
         presentation: .make(.unsure),
         image: HighlightPlaceholderImage.make(),
-        geometry: HighlightViewerScript.airBoxGeometry,
+        geometry: DemoOutlineCatalog.geometry(photoID: "hilux", partID: "radiator-cap-upper-hose"),
         attribution: "Demo data. Not Zeke's truck.",
         shareAlike: false
     )
@@ -277,7 +389,8 @@ enum HighlightPlaceholderImage {
     HighlightViewerView(
         presentation: .make(.reference),
         image: HighlightPlaceholderImage.make(),
-        geometry: HighlightViewerScript.airBoxGeometry,
+        referenceImage: HighlightPlaceholderImage.make(),
+        geometry: DemoOutlineCatalog.geometry(photoID: "supra", partID: "fuse-relay-box"),
         attribution: "Demo data. Not Zeke's truck.",
         shareAlike: false
     )
@@ -287,7 +400,7 @@ enum HighlightPlaceholderImage {
     HighlightViewerView(
         presentation: .make(.confident),
         image: HighlightPlaceholderImage.make(),
-        geometry: HighlightViewerScript.airBoxGeometry,
+        geometry: DemoOutlineCatalog.geometry(photoID: "hilux", partID: "fuse-relay-box"),
         attribution: "Demo data. Not Zeke's truck.",
         shareAlike: false
     )
@@ -298,7 +411,7 @@ enum HighlightPlaceholderImage {
     HighlightViewerView(
         presentation: .make(.reference),
         image: HighlightPlaceholderImage.make(),
-        geometry: HighlightViewerScript.airBoxGeometry,
+        geometry: DemoOutlineCatalog.geometry(photoID: "supra", partID: "fuse-relay-box"),
         attribution: "Demo data. Not Zeke's truck.",
         shareAlike: false
     )

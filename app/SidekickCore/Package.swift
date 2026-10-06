@@ -19,7 +19,8 @@ let package = Package(
         .target(
             name: "SidekickCore",
             resources: [
-                .copy("Resources/Scenarios")
+                .copy("Resources/Scenarios"),
+                .copy("Resources/demo_bay_photos.json"),
             ]
         ),
         .testTarget(

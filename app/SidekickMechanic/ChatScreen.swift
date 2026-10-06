@@ -81,6 +81,7 @@ struct ChatScreen: View {
                     HighlightViewerView(
                         presentation: session.presentation,
                         image: session.image,
+                        referenceImage: session.referenceImage,
                         geometry: session.geometry,
                         attribution: session.attribution,
                         shareAlike: session.shareAlike,
@@ -216,11 +217,19 @@ struct ChatScreen: View {
     private func presentViewer(for message: Message) {
         guard let demo = demoContext(for: message), let image = demo.photo else { return }
         let presentation = demo.viewerPresentation
+        let photoID = demo.highlight?.bayPhotoID.rawValue ?? presentation.photoID
+        let partID = demo.highlight?.partID.rawValue ?? presentation.partID
         presentedViewer = HighlightViewerSession(
             presentation: presentation,
             image: image,
+            referenceImage: presentation.referencePhotoID.flatMap { demoImages.images[$0] },
             geometry: presentation.showsOutline
-                ? (demo.highlight?.geometry ?? HighlightViewerScript.airBoxGeometry)
+                ? (demo.highlight?.geometry ?? DemoOutlineCatalog.geometry(
+                    photoID: presentation.kind == .reference
+                        ? (presentation.outlinePhotoID)
+                        : photoID,
+                    partID: partID
+                ))
                 : nil,
             attribution: demo.attribution,
             shareAlike: demo.shareAlike,
@@ -233,12 +242,19 @@ struct ChatScreen: View {
         guard presentedViewer == nil, let screen = launch.screen else { return }
         let presentation = HighlightViewerPresentation.resolve(
             source: screen.source,
-            flags: launch.featureFlags
+            flags: launch.featureFlags,
+            photoID: launch.resolvedPhotoID,
+            partID: launch.partID
         )
         presentedViewer = HighlightViewerSession(
             presentation: presentation,
             image: demoImages.images[launch.resolvedPhotoID] ?? HighlightPlaceholderImage.make(),
-            geometry: HighlightViewerScript.geometry(showingOutline: presentation.showsOutline),
+            referenceImage: presentation.referencePhotoID.flatMap { demoImages.images[$0] },
+            geometry: HighlightViewerScript.geometry(
+                photoID: presentation.outlinePhotoID,
+                partID: presentation.partID,
+                showingOutline: presentation.showsOutline
+            ),
             attribution: "Demo data. Not Zeke's truck.",
             shareAlike: false
         )
@@ -253,8 +269,13 @@ struct ChatScreen: View {
 
     private func refreshLaunchViewerImage() {
         guard launch.screen != nil, var session = presentedViewer else { return }
-        guard let image = demoImages.images[launch.resolvedPhotoID] else { return }
-        session.image = image
+        if let image = demoImages.images[launch.resolvedPhotoID] {
+            session.image = image
+        }
+        if let referenceID = session.presentation.referencePhotoID,
+           let reference = demoImages.images[referenceID] {
+            session.referenceImage = reference
+        }
         presentedViewer = session
     }
 }
@@ -263,6 +284,7 @@ private struct HighlightViewerSession {
     let id = UUID()
     var presentation: HighlightViewerPresentation
     var image: UIImage
+    var referenceImage: UIImage?
     var geometry: HighlightGeometry?
     var attribution: String
     var shareAlike: Bool

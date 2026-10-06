@@ -62,7 +62,9 @@ struct DemoHighlightView: View {
             switch style {
             case .outline:
                 Canvas { context, size in
-                    for path in Self.paths(rings, in: size) {
+                    let fitted = Self.fittedRect(imageSize: image.size, bounds: size)
+                    for path in Self.smoothPaths(rings, in: fitted) {
+                        context.fill(path, with: .color(Self.fillFuchsia))
                         context.stroke(
                             path,
                             with: .color(Self.fuchsia),
@@ -101,7 +103,8 @@ struct DemoHighlightView: View {
 
     private func polygonFill(_ rings: [HighlightPolygon]) -> some View {
         Canvas { context, size in
-            for path in Self.paths(rings, in: size) {
+            let fitted = Self.fittedRect(imageSize: image.size, bounds: size)
+            for path in Self.smoothPaths(rings, in: fitted) {
                 context.fill(path, with: .color(.white))
             }
         }
@@ -109,8 +112,9 @@ struct DemoHighlightView: View {
 
     private func inverseFill(_ rings: [HighlightPolygon]) -> some View {
         Canvas { context, size in
+            let fitted = Self.fittedRect(imageSize: image.size, bounds: size)
             var path = Path(CGRect(origin: .zero, size: size))
-            for ring in Self.paths(rings, in: size) {
+            for ring in Self.smoothPaths(rings, in: fitted) {
                 path.addPath(ring)
             }
             context.fill(path, with: .color(.white), style: FillStyle(eoFill: true))
@@ -118,15 +122,33 @@ struct DemoHighlightView: View {
     }
 
     private static let fuchsia = Color(red: 1, green: 0, blue: 1)
+    private static let fillFuchsia = Color(red: 1, green: 0.45, blue: 0.95).opacity(0.22)
 
-    private static func paths(_ rings: [HighlightPolygon], in size: CGSize) -> [Path] {
+    private static func fittedRect(imageSize: CGSize, bounds: CGSize) -> OutlineRect {
+        HighlightOutlineLayout.aspectFit(
+            imageWidth: imageSize.width,
+            imageHeight: imageSize.height,
+            boundsWidth: bounds.width,
+            boundsHeight: bounds.height
+        )
+    }
+
+    private static func smoothPaths(_ rings: [HighlightPolygon], in rect: OutlineRect) -> [Path] {
         rings.compactMap { ring in
-            guard ring.points.count >= 3 else { return nil }
+            let cubics = HighlightOutlineCurve.closedCubics(points: ring.points)
+            guard let first = cubics.first else { return nil }
             var path = Path()
-            let first = CGPoint(x: ring.points[0].x * size.width, y: ring.points[0].y * size.height)
-            path.move(to: first)
-            for point in ring.points.dropFirst() {
-                path.addLine(to: CGPoint(x: point.x * size.width, y: point.y * size.height))
+            let start = HighlightOutlineLayout.map(first.start, in: rect)
+            path.move(to: CGPoint(x: start.x, y: start.y))
+            for cubic in cubics {
+                let c1 = HighlightOutlineLayout.map(cubic.control1, in: rect)
+                let c2 = HighlightOutlineLayout.map(cubic.control2, in: rect)
+                let end = HighlightOutlineLayout.map(cubic.end, in: rect)
+                path.addCurve(
+                    to: CGPoint(x: end.x, y: end.y),
+                    control1: CGPoint(x: c1.x, y: c1.y),
+                    control2: CGPoint(x: c2.x, y: c2.y)
+                )
             }
             path.closeSubpath()
             return path
@@ -138,9 +160,13 @@ struct DemoHighlightView: View {
         in size: CGSize,
         padding: CGFloat
     ) -> CGRect? {
+        let fitted = fittedRect(imageSize: size, bounds: size)
         let points = rings.flatMap(\.points)
         guard !points.isEmpty else { return nil }
-        let mapped = points.map { CGPoint(x: $0.x * size.width, y: $0.y * size.height) }
+        let mapped = points.map {
+            let point = HighlightOutlineLayout.map($0, in: fitted)
+            return CGPoint(x: point.x, y: point.y)
+        }
         let minX = mapped.map(\.x).min() ?? 0
         let maxX = mapped.map(\.x).max() ?? 0
         let minY = mapped.map(\.y).min() ?? 0

@@ -1,0 +1,1258 @@
+{
+ "what": "Sidekick demo-mode dataset (UX playground). Polygons come from spike #85 masks the agent judged correct on overlays (preliminary, not hand-traced). demo_state is SCRIPTED for the demo, not a measured gate result. Not Zeke's truck.",
+ "coords": "normalized 0-1, origin top-left, y down; multiple rings allowed for group parts; rings are open (first point not repeated)",
+ "generated": "2026-10-03",
+ "photos": [
+  {
+   "photo_id": "hrymx-2jz-ge-25308847029",
+   "image_file": "photos/hrymx-2jz-ge-25308847029.jpg",
+   "source_page_url": "https://www.flickr.com/photos/henrymaxm/25308847029/",
+   "image_url": "https://live.staticflickr.com/5713/25308847029_ee56ff65af_o.jpg",
+   "author": "HRYMX",
+   "author_url": "https://www.flickr.com/photos/henrymaxm/",
+   "license": "CC BY 2.0",
+   "license_url": "https://creativecommons.org/licenses/by/2.0/",
+   "attribution": "\"2JZ-GE Engine\" by HRYMX, licensed under CC BY 2.0. https://www.flickr.com/photos/henrymaxm/25308847029/",
+   "engine_as_stated": "2JZ-GE",
+   "engine_evidence": "Flickr description: 'Toyota FRS with a 2JZ-GE Engine.'",
+   "width": 1600,
+   "height": 1067,
+   "original_width": 5184,
+   "original_height": 3456,
+   "source_sha256_verified": true,
+   "modified": "resized (long side <= 1600, JPEG q85); no other edits",
+   "parts": [
+    {
+     "part_id": "throttle-body",
+     "display_name": "throttle body",
+     "demo_state": "outline",
+     "polygons": [
+      {
+       "points": [
+        {
+         "x": 0.75586,
+         "y": 0.46413
+        },
+        {
+         "x": 0.75586,
+         "y": 0.50073
+        },
+        {
+         "x": 0.76465,
+         "y": 0.52709
+        },
+        {
+         "x": 0.78125,
+         "y": 0.54758
+        },
+        {
+         "x": 0.80957,
+         "y": 0.5549
+        },
+        {
+         "x": 0.83594,
+         "y": 0.5754
+        },
+        {
+         "x": 0.85742,
+         "y": 0.56369
+        },
+        {
+         "x": 0.87305,
+         "y": 0.56515
+        },
+        {
+         "x": 0.88379,
+         "y": 0.59151
+        },
+        {
+         "x": 0.87598,
+         "y": 0.60615
+        },
+        {
+         "x": 0.875,
+         "y": 0.62372
+        },
+        {
+         "x": 0.86523,
+         "y": 0.6369
+        },
+        {
+         "x": 0.87598,
+         "y": 0.62518
+        },
+        {
+         "x": 0.8916,
+         "y": 0.62225
+        },
+        {
+         "x": 0.92285,
+         "y": 0.5754
+        },
+        {
+         "x": 0.93555,
+         "y": 0.58272
+        },
+        {
+         "x": 0.94727,
+         "y": 0.56223
+        },
+        {
+         "x": 0.95508,
+         "y": 0.56808
+        },
+        {
+         "x": 0.96777,
+         "y": 0.56076
+        },
+        {
+         "x": 0.96289,
+         "y": 0.54758
+        },
+        {
+         "x": 0.98242,
+         "y": 0.5183
+        },
+        {
+         "x": 0.98438,
+         "y": 0.53001
+        },
+        {
+         "x": 0.99902,
+         "y": 0.54026
+        },
+        {
+         "x": 0.97656,
+         "y": 0.4978
+        },
+        {
+         "x": 0.98047,
+         "y": 0.48023
+        },
+        {
+         "x": 0.97363,
+         "y": 0.46706
+        },
+        {
+         "x": 0.94531,
+         "y": 0.45974
+        },
+        {
+         "x": 0.90039,
+         "y": 0.40849
+        },
+        {
+         "x": 0.85449,
+         "y": 0.37775
+        },
+        {
+         "x": 0.84277,
+         "y": 0.37628
+        },
+        {
+         "x": 0.82715,
+         "y": 0.38799
+        },
+        {
+         "x": 0.81543,
+         "y": 0.38507
+        },
+        {
+         "x": 0.80371,
+         "y": 0.41874
+        },
+        {
+         "x": 0.76758,
+         "y": 0.43338
+        }
+       ]
+      }
+     ],
+     "provenance": "spike #85 pipeline A mask, agent-judged correct"
+    },
+    {
+     "part_id": "intake-plenum",
+     "display_name": "intake plenum",
+     "demo_state": "confirm",
+     "polygons": [
+      {
+       "points": [
+        {
+         "x": 0.53125,
+         "y": 0.22694
+        },
+        {
+         "x": 0.54492,
+         "y": 0.27672
+        },
+        {
+         "x": 0.55078,
+         "y": 0.26501
+        },
+        {
+         "x": 0.56055,
+         "y": 0.28404
+        },
+        {
+         "x": 0.5752,
+         "y": 0.29722
+        },
+        {
+         "x": 0.58496,
+         "y": 0.29575
+        },
+        {
+         "x": 0.61426,
+         "y": 0.32211
+        },
+        {
+         "x": 0.61621,
+         "y": 0.33382
+        },
+        {
+         "x": 0.61035,
+         "y": 0.33675
+        },
+        {
+         "x": 0.66699,
+         "y": 0.37042
+        },
+        {
+         "x": 0.67383,
+         "y": 0.38799
+        },
+        {
+         "x": 0.68164,
+         "y": 0.39239
+        },
+        {
+         "x": 0.69922,
+         "y": 0.38214
+        },
+        {
+         "x": 0.71484,
+         "y": 0.3836
+        },
+        {
+         "x": 0.75195,
+         "y": 0.41142
+        },
+        {
+         "x": 0.77832,
+         "y": 0.4202
+        },
+        {
+         "x": 0.7832,
+         "y": 0.41728
+        },
+        {
+         "x": 0.78809,
+         "y": 0.37775
+        },
+        {
+         "x": 0.79688,
+         "y": 0.36018
+        },
+        {
+         "x": 0.81836,
+         "y": 0.34846
+        },
+        {
+         "x": 0.79395,
+         "y": 0.32796
+        },
+        {
+         "x": 0.67285,
+         "y": 0.27086
+        },
+        {
+         "x": 0.6709,
+         "y": 0.26501
+        },
+        {
+         "x": 0.68164,
+         "y": 0.26208
+        },
+        {
+         "x": 0.65723,
+         "y": 0.26061
+        },
+        {
+         "x": 0.66309,
+         "y": 0.25622
+        },
+        {
+         "x": 0.65625,
+         "y": 0.25183
+        },
+        {
+         "x": 0.6582,
+         "y": 0.24744
+        },
+        {
+         "x": 0.6416,
+         "y": 0.25037
+        },
+        {
+         "x": 0.61035,
+         "y": 0.23133
+        },
+        {
+         "x": 0.54199,
+         "y": 0.2123
+        }
+       ]
+      }
+     ],
+     "provenance": "spike #85 pipeline A mask, agent-judged correct"
+    },
+    {
+     "part_id": "coil-packs",
+     "display_name": "coil packs",
+     "demo_state": "not_found",
+     "polygons": [],
+     "provenance": "agent judged not visible (out of frame or covered)"
+    }
+   ]
+  },
+  {
+   "photo_id": "commons-hilux-2jz",
+   "image_file": "photos/commons-hilux-2jz.jpg",
+   "source_page_url": "https://commons.wikimedia.org/wiki/File:2WD_Hilux_2JZ.jpg",
+   "image_url": "https://upload.wikimedia.org/wikipedia/commons/f/fa/2WD_Hilux_2JZ.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+   "author": "Miguel Sanchez 2JZ",
+   "author_url": "https://commons.wikimedia.org/wiki/File:2WD_Hilux_2JZ.jpg",
+   "license": "CC BY-SA 3.0",
+   "license_url": "https://creativecommons.org/licenses/by-sa/3.0",
+   "attribution": "\"2WD Hilux 2JZ.jpg\" by Miguel Sanchez 2JZ, licensed under CC BY-SA 3.0. https://commons.wikimedia.org/wiki/File:2WD_Hilux_2JZ.jpg",
+   "engine_as_stated": "2JZ (variant not stated)",
+   "engine_evidence": "Title/description '2WD Hilux 2JZ'; Commons category 'Toyota 2JZ engines'. GE vs GTE not stated by the author.",
+   "width": 1600,
+   "height": 1195,
+   "original_width": 2592,
+   "original_height": 1936,
+   "source_sha256_verified": true,
+   "modified": "resized (long side <= 1600, JPEG q85); no other edits",
+   "parts": [
+    {
+     "part_id": "fuse-relay-box",
+     "display_name": "fuse/relay box",
+     "demo_state": "outline",
+     "polygons": [
+      {
+       "points": [
+        {
+         "x": 0.12207,
+         "y": 0.44706
+        },
+        {
+         "x": 0.08398,
+         "y": 0.44837
+        },
+        {
+         "x": 0.04004,
+         "y": 0.52418
+        },
+        {
+         "x": 0.04102,
+         "y": 0.55686
+        },
+        {
+         "x": 0.05176,
+         "y": 0.58039
+        },
+        {
+         "x": 0.06152,
+         "y": 0.58824
+        },
+        {
+         "x": 0.06445,
+         "y": 0.59869
+        },
+        {
+         "x": 0.07617,
+         "y": 0.59739
+        },
+        {
+         "x": 0.08301,
+         "y": 0.60261
+        },
+        {
+         "x": 0.09473,
+         "y": 0.60261
+        },
+        {
+         "x": 0.10352,
+         "y": 0.58693
+        },
+        {
+         "x": 0.125,
+         "y": 0.58824
+        },
+        {
+         "x": 0.12988,
+         "y": 0.58431
+        },
+        {
+         "x": 0.14453,
+         "y": 0.54771
+        },
+        {
+         "x": 0.14062,
+         "y": 0.52026
+        },
+        {
+         "x": 0.14648,
+         "y": 0.49804
+        },
+        {
+         "x": 0.14551,
+         "y": 0.48758
+        },
+        {
+         "x": 0.14258,
+         "y": 0.48105
+        },
+        {
+         "x": 0.125,
+         "y": 0.48497
+        },
+        {
+         "x": 0.13086,
+         "y": 0.46797
+        },
+        {
+         "x": 0.13672,
+         "y": 0.46797
+        },
+        {
+         "x": 0.1416,
+         "y": 0.47582
+        },
+        {
+         "x": 0.14258,
+         "y": 0.46928
+        },
+        {
+         "x": 0.13965,
+         "y": 0.46536
+        },
+        {
+         "x": 0.13281,
+         "y": 0.46667
+        },
+        {
+         "x": 0.12793,
+         "y": 0.45098
+        }
+       ]
+      }
+     ],
+     "provenance": "spike #85 pipeline A mask, agent-judged correct"
+    },
+    {
+     "part_id": "intake-plenum",
+     "display_name": "intake plenum",
+     "demo_state": "outline",
+     "polygons": [
+      {
+       "points": [
+        {
+         "x": 0.50293,
+         "y": 0.40654
+        },
+        {
+         "x": 0.50586,
+         "y": 0.42745
+        },
+        {
+         "x": 0.5127,
+         "y": 0.4366
+        },
+        {
+         "x": 0.5332,
+         "y": 0.44575
+        },
+        {
+         "x": 0.58008,
+         "y": 0.48105
+        },
+        {
+         "x": 0.60742,
+         "y": 0.48889
+        },
+        {
+         "x": 0.64355,
+         "y": 0.48889
+        },
+        {
+         "x": 0.65723,
+         "y": 0.53595
+        },
+        {
+         "x": 0.65625,
+         "y": 0.5451
+        },
+        {
+         "x": 0.6709,
+         "y": 0.56209
+        },
+        {
+         "x": 0.70898,
+         "y": 0.56209
+        },
+        {
+         "x": 0.71094,
+         "y": 0.52288
+        },
+        {
+         "x": 0.70215,
+         "y": 0.49673
+        },
+        {
+         "x": 0.69336,
+         "y": 0.44575
+        },
+        {
+         "x": 0.66406,
+         "y": 0.36863
+        },
+        {
+         "x": 0.63477,
+         "y": 0.36078
+        },
+        {
+         "x": 0.6123,
+         "y": 0.37908
+        },
+        {
+         "x": 0.6084,
+         "y": 0.38954
+        },
+        {
+         "x": 0.54883,
+         "y": 0.39608
+        },
+        {
+         "x": 0.54199,
+         "y": 0.39216
+        },
+        {
+         "x": 0.5166,
+         "y": 0.40523
+        }
+       ]
+      }
+     ],
+     "provenance": "spike #85 pipeline C mask, agent-judged correct"
+    },
+    {
+     "part_id": "radiator-cap-upper-hose",
+     "display_name": "radiator cap + upper hose",
+     "demo_state": "confirm",
+     "polygons": [
+      {
+       "points": [
+        {
+         "x": 0.52832,
+         "y": 0.64183
+        },
+        {
+         "x": 0.52539,
+         "y": 0.64575
+        },
+        {
+         "x": 0.52734,
+         "y": 0.64967
+        },
+        {
+         "x": 0.52441,
+         "y": 0.65359
+        },
+        {
+         "x": 0.52734,
+         "y": 0.65621
+        },
+        {
+         "x": 0.52734,
+         "y": 0.65882
+        },
+        {
+         "x": 0.52148,
+         "y": 0.66405
+        },
+        {
+         "x": 0.51953,
+         "y": 0.67451
+        },
+        {
+         "x": 0.5166,
+         "y": 0.67712
+        },
+        {
+         "x": 0.51953,
+         "y": 0.67974
+        },
+        {
+         "x": 0.51953,
+         "y": 0.68366
+        },
+        {
+         "x": 0.5166,
+         "y": 0.68497
+        },
+        {
+         "x": 0.52051,
+         "y": 0.68366
+        },
+        {
+         "x": 0.52148,
+         "y": 0.68497
+        },
+        {
+         "x": 0.52051,
+         "y": 0.68889
+        },
+        {
+         "x": 0.52637,
+         "y": 0.69542
+        },
+        {
+         "x": 0.52734,
+         "y": 0.69935
+        },
+        {
+         "x": 0.5332,
+         "y": 0.70065
+        },
+        {
+         "x": 0.54297,
+         "y": 0.70588
+        },
+        {
+         "x": 0.55371,
+         "y": 0.70458
+        },
+        {
+         "x": 0.5625,
+         "y": 0.69804
+        },
+        {
+         "x": 0.57422,
+         "y": 0.67974
+        },
+        {
+         "x": 0.57422,
+         "y": 0.6732
+        },
+        {
+         "x": 0.57227,
+         "y": 0.66797
+        },
+        {
+         "x": 0.56738,
+         "y": 0.66667
+        },
+        {
+         "x": 0.56445,
+         "y": 0.66144
+        },
+        {
+         "x": 0.55762,
+         "y": 0.66013
+        },
+        {
+         "x": 0.55176,
+         "y": 0.65359
+        },
+        {
+         "x": 0.54688,
+         "y": 0.65229
+        },
+        {
+         "x": 0.54395,
+         "y": 0.64967
+        },
+        {
+         "x": 0.54102,
+         "y": 0.65098
+        },
+        {
+         "x": 0.53809,
+         "y": 0.64837
+        },
+        {
+         "x": 0.53418,
+         "y": 0.64837
+        },
+        {
+         "x": 0.53223,
+         "y": 0.65098
+        },
+        {
+         "x": 0.53125,
+         "y": 0.64575
+        }
+       ]
+      }
+     ],
+     "provenance": "spike #85 pipeline A mask, agent-judged correct"
+    },
+    {
+     "part_id": "coil-packs",
+     "display_name": "coil packs",
+     "demo_state": "not_found",
+     "polygons": [],
+     "provenance": "agent judged not visible (out of frame or covered)"
+    }
+   ]
+  },
+  {
+   "photo_id": "commons-supra-n5abh",
+   "image_file": "photos/commons-supra-n5abh.jpg",
+   "source_page_url": "https://commons.wikimedia.org/wiki/File:Toyota_Supra_(N5_ABH)_-_engine_-_7_June_2026.jpg",
+   "image_url": "https://upload.wikimedia.org/wikipedia/commons/1/1a/Toyota_Supra_%28N5_ABH%29_-_engine_-_7_June_2026.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=original",
+   "author": "Aethonatic",
+   "author_url": "https://commons.wikimedia.org/wiki/File:Toyota_Supra_(N5_ABH)_-_engine_-_7_June_2026.jpg",
+   "license": "CC0",
+   "license_url": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+   "attribution": "\"Toyota Supra (N5 ABH) - engine - 7 June 2026.jpg\" by Aethonatic, licensed under CC0. https://commons.wikimedia.org/wiki/File:Toyota_Supra_(N5_ABH)_-_engine_-_7_June_2026.jpg",
+   "engine_as_stated": "2JZ-GTE",
+   "engine_evidence": "Commons category 'Toyota 2JZ-GTE engine'; description: Toyota Supra at Nottingham Motor Show 2026.",
+   "width": 1600,
+   "height": 1068,
+   "original_width": 5051,
+   "original_height": 3371,
+   "source_sha256_verified": true,
+   "modified": "resized (long side <= 1600, JPEG q85); no other edits",
+   "parts": [
+    {
+     "part_id": "fuse-relay-box",
+     "display_name": "fuse/relay box",
+     "demo_state": "outline",
+     "polygons": [
+      {
+       "points": [
+        {
+         "x": 0.89746,
+         "y": 0.56662
+        },
+        {
+         "x": 0.88281,
+         "y": 0.51977
+        },
+        {
+         "x": 0.86914,
+         "y": 0.4978
+        },
+        {
+         "x": 0.79004,
+         "y": 0.49927
+        },
+        {
+         "x": 0.76562,
+         "y": 0.50805
+        },
+        {
+         "x": 0.75684,
+         "y": 0.51684
+        },
+        {
+         "x": 0.75391,
+         "y": 0.54319
+        },
+        {
+         "x": 0.75391,
+         "y": 0.61201
+        },
+        {
+         "x": 0.75879,
+         "y": 0.61786
+        },
+        {
+         "x": 0.77051,
+         "y": 0.62079
+        },
+        {
+         "x": 0.84473,
+         "y": 0.62079
+        },
+        {
+         "x": 0.84961,
+         "y": 0.59883
+        },
+        {
+         "x": 0.87891,
+         "y": 0.59883
+        },
+        {
+         "x": 0.89062,
+         "y": 0.59297
+        },
+        {
+         "x": 0.89551,
+         "y": 0.58419
+        }
+       ]
+      }
+     ],
+     "provenance": "spike #85 pipeline C mask, agent-judged correct"
+    },
+    {
+     "part_id": "radiator-cap-upper-hose",
+     "display_name": "radiator cap + upper hose",
+     "demo_state": "confirm",
+     "polygons": [
+      {
+       "points": [
+        {
+         "x": 0.68457,
+         "y": 0.77745
+        },
+        {
+         "x": 0.68652,
+         "y": 0.7877
+        },
+        {
+         "x": 0.69434,
+         "y": 0.79063
+        },
+        {
+         "x": 0.71094,
+         "y": 0.78917
+        },
+        {
+         "x": 0.73828,
+         "y": 0.78038
+        },
+        {
+         "x": 0.7666,
+         "y": 0.78184
+        },
+        {
+         "x": 0.77539,
+         "y": 0.78917
+        },
+        {
+         "x": 0.78809,
+         "y": 0.8082
+        },
+        {
+         "x": 0.79297,
+         "y": 0.82284
+        },
+        {
+         "x": 0.79492,
+         "y": 0.8448
+        },
+        {
+         "x": 0.7998,
+         "y": 0.84627
+        },
+        {
+         "x": 0.80566,
+         "y": 0.84041
+        },
+        {
+         "x": 0.80566,
+         "y": 0.8243
+        },
+        {
+         "x": 0.80078,
+         "y": 0.80673
+        },
+        {
+         "x": 0.78906,
+         "y": 0.78624
+        },
+        {
+         "x": 0.77441,
+         "y": 0.77013
+        },
+        {
+         "x": 0.75488,
+         "y": 0.76281
+        },
+        {
+         "x": 0.73633,
+         "y": 0.76281
+        },
+        {
+         "x": 0.7168,
+         "y": 0.77013
+        },
+        {
+         "x": 0.68848,
+         "y": 0.7716
+        }
+       ]
+      },
+      {
+       "points": [
+        {
+         "x": 0.64062,
+         "y": 0.74524
+        },
+        {
+         "x": 0.63477,
+         "y": 0.75256
+        },
+        {
+         "x": 0.63184,
+         "y": 0.76428
+        },
+        {
+         "x": 0.63184,
+         "y": 0.77013
+        },
+        {
+         "x": 0.63477,
+         "y": 0.77745
+        },
+        {
+         "x": 0.63574,
+         "y": 0.79063
+        },
+        {
+         "x": 0.63965,
+         "y": 0.80966
+        },
+        {
+         "x": 0.64648,
+         "y": 0.81552
+        },
+        {
+         "x": 0.66504,
+         "y": 0.81552
+        },
+        {
+         "x": 0.66992,
+         "y": 0.81259
+        },
+        {
+         "x": 0.6748,
+         "y": 0.80234
+        },
+        {
+         "x": 0.67578,
+         "y": 0.79063
+        },
+        {
+         "x": 0.67871,
+         "y": 0.78038
+        },
+        {
+         "x": 0.67871,
+         "y": 0.77599
+        },
+        {
+         "x": 0.68066,
+         "y": 0.7716
+        },
+        {
+         "x": 0.68066,
+         "y": 0.76428
+        },
+        {
+         "x": 0.67676,
+         "y": 0.75256
+        },
+        {
+         "x": 0.6709,
+         "y": 0.74524
+        },
+        {
+         "x": 0.66211,
+         "y": 0.74085
+        },
+        {
+         "x": 0.64844,
+         "y": 0.74085
+        }
+       ]
+      }
+     ],
+     "provenance": "spike #85 pipeline C mask, agent-judged correct"
+    },
+    {
+     "part_id": "coil-packs",
+     "display_name": "coil packs",
+     "demo_state": "not_found",
+     "polygons": [],
+     "provenance": "agent judged not visible (out of frame or covered)"
+    }
+   ]
+  },
+  {
+   "photo_id": "flickr-robmarson-6763892857",
+   "image_file": "photos/flickr-robmarson-6763892857.jpg",
+   "source_page_url": "https://www.flickr.com/photos/35003991@N03/6763892857",
+   "image_url": "https://live.staticflickr.com/7160/6763892857_ae8fdb5fb1_b.jpg",
+   "author": "Rob Marson",
+   "author_url": "https://www.flickr.com/photos/35003991@N03",
+   "license": "CC BY 2.0",
+   "license_url": "https://creativecommons.org/licenses/by/2.0/",
+   "attribution": "\"2JZ Power - aww yeah\" by Rob Marson, licensed under CC BY 2.0. https://www.flickr.com/photos/35003991@N03/6763892857",
+   "engine_as_stated": "2JZ (variant not stated)",
+   "engine_evidence": "Flickr title '2JZ Power - aww yeah' (D1NZ drift car).",
+   "width": 1024,
+   "height": 683,
+   "original_width": 1024,
+   "original_height": 683,
+   "source_sha256_verified": true,
+   "modified": "resized (long side <= 1600, JPEG q85); no other edits",
+   "parts": [
+    {
+     "part_id": "throttle-body",
+     "display_name": "throttle body",
+     "demo_state": "outline",
+     "polygons": [
+      {
+       "points": [
+        {
+         "x": 0.68945,
+         "y": 0.70717
+        },
+        {
+         "x": 0.67676,
+         "y": 0.70717
+        },
+        {
+         "x": 0.66113,
+         "y": 0.71596
+        },
+        {
+         "x": 0.65234,
+         "y": 0.72474
+        },
+        {
+         "x": 0.65918,
+         "y": 0.72621
+        },
+        {
+         "x": 0.65723,
+         "y": 0.73206
+        },
+        {
+         "x": 0.64453,
+         "y": 0.73939
+        },
+        {
+         "x": 0.62988,
+         "y": 0.73939
+        },
+        {
+         "x": 0.6123,
+         "y": 0.7511
+        },
+        {
+         "x": 0.61523,
+         "y": 0.76135
+        },
+        {
+         "x": 0.61426,
+         "y": 0.7716
+        },
+        {
+         "x": 0.61133,
+         "y": 0.77306
+        },
+        {
+         "x": 0.60547,
+         "y": 0.7672
+        },
+        {
+         "x": 0.59863,
+         "y": 0.77892
+        },
+        {
+         "x": 0.59375,
+         "y": 0.77892
+        },
+        {
+         "x": 0.59473,
+         "y": 0.81698
+        },
+        {
+         "x": 0.59766,
+         "y": 0.82138
+        },
+        {
+         "x": 0.59473,
+         "y": 0.84041
+        },
+        {
+         "x": 0.59668,
+         "y": 0.85798
+        },
+        {
+         "x": 0.60645,
+         "y": 0.85359
+        },
+        {
+         "x": 0.61035,
+         "y": 0.84627
+        },
+        {
+         "x": 0.62598,
+         "y": 0.83455
+        },
+        {
+         "x": 0.64062,
+         "y": 0.83309
+        },
+        {
+         "x": 0.66504,
+         "y": 0.83895
+        },
+        {
+         "x": 0.66504,
+         "y": 0.8448
+        },
+        {
+         "x": 0.67383,
+         "y": 0.85944
+        },
+        {
+         "x": 0.69434,
+         "y": 0.85652
+        },
+        {
+         "x": 0.70117,
+         "y": 0.86237
+        },
+        {
+         "x": 0.70508,
+         "y": 0.85652
+        },
+        {
+         "x": 0.70508,
+         "y": 0.85066
+        },
+        {
+         "x": 0.70996,
+         "y": 0.8448
+        },
+        {
+         "x": 0.70898,
+         "y": 0.83748
+        },
+        {
+         "x": 0.7041,
+         "y": 0.83309
+        },
+        {
+         "x": 0.69043,
+         "y": 0.7672
+        },
+        {
+         "x": 0.69531,
+         "y": 0.76281
+        },
+        {
+         "x": 0.69531,
+         "y": 0.74671
+        }
+       ]
+      }
+     ],
+     "provenance": "spike #85 pipeline A mask, agent-judged correct"
+    },
+    {
+     "part_id": "intake-plenum",
+     "display_name": "intake plenum",
+     "demo_state": "confirm",
+     "polygons": [
+      {
+       "points": [
+        {
+         "x": 0.67285,
+         "y": 0.50366
+        },
+        {
+         "x": 0.64258,
+         "y": 0.50512
+        },
+        {
+         "x": 0.60156,
+         "y": 0.5549
+        },
+        {
+         "x": 0.56738,
+         "y": 0.61054
+        },
+        {
+         "x": 0.51953,
+         "y": 0.67496
+        },
+        {
+         "x": 0.51758,
+         "y": 0.694
+        },
+        {
+         "x": 0.54395,
+         "y": 0.74963
+        },
+        {
+         "x": 0.58398,
+         "y": 0.79649
+        },
+        {
+         "x": 0.58984,
+         "y": 0.79502
+        },
+        {
+         "x": 0.5957,
+         "y": 0.77013
+        },
+        {
+         "x": 0.61621,
+         "y": 0.74085
+        },
+        {
+         "x": 0.64844,
+         "y": 0.72182
+        },
+        {
+         "x": 0.65332,
+         "y": 0.71157
+        },
+        {
+         "x": 0.66113,
+         "y": 0.62958
+        },
+        {
+         "x": 0.6748,
+         "y": 0.58565
+        },
+        {
+         "x": 0.69531,
+         "y": 0.5593
+        },
+        {
+         "x": 0.69238,
+         "y": 0.52855
+        }
+       ]
+      }
+     ],
+     "provenance": "spike #85 pipeline C mask, agent-judged correct"
+    },
+    {
+     "part_id": "battery-terminals",
+     "display_name": "battery terminals",
+     "demo_state": "not_found",
+     "polygons": [],
+     "provenance": "agent judged not visible (out of frame or covered)"
+    },
+    {
+     "part_id": "fuse-relay-box",
+     "display_name": "fuse/relay box",
+     "demo_state": "not_found",
+     "polygons": [],
+     "provenance": "agent judged not visible (out of frame or covered)"
+    }
+   ]
+  }
+ ]
+}
