@@ -9,8 +9,8 @@ struct JobSheetView: View {
     var attribution: String
     var shareAlike: Bool
     var flags: FeatureFlags = .v1
-    var screenHeight: CGFloat = UIScreen.main.bounds.height
-    var topSafeArea: CGFloat = 59
+    var screenHeight: CGFloat = 0
+    var topSafeArea: CGFloat = 0
     var onOpenHighlight: () -> Void
     var onAttachPhoto: () -> Void
     @State private var showsCredit = false
@@ -52,11 +52,13 @@ struct JobSheetView: View {
     }
 
     private var sheetHeight: CGFloat {
-        CGFloat(
+        let screen = screenHeight > 0 ? screenHeight : UIScreen.main.bounds.height
+        let top = screenHeight > 0 ? topSafeArea : 59
+        return CGFloat(
             JobSheetLayout.height(
                 detent: model.detent,
-                screenHeight: Double(screenHeight),
-                topSafeArea: Double(topSafeArea)
+                screenHeight: Double(screen),
+                topSafeArea: Double(top)
             )
         )
     }
@@ -389,16 +391,24 @@ enum JobSheetChrome {
     }
 }
 
-enum SidekickWindowMetrics {
-    static var screenHeight: CGFloat {
-        UIScreen.main.bounds.height
-    }
+/// Full-window height and top safe area, without UIKit window lookups.
+struct WindowSafeAreaProbe: View {
+    var onMeasure: (CGFloat, CGFloat) -> Void
 
-    static var topSafeArea: CGFloat {
-        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
-        let inset = scenes.flatMap(\.windows).first(where: \.isKeyWindow)?.safeAreaInsets.top
-            ?? scenes.flatMap(\.windows).first?.safeAreaInsets.top
-        return inset ?? 59
+    var body: some View {
+        GeometryReader { proxy in
+            Color.clear
+                .onAppear {
+                    onMeasure(proxy.size.height, proxy.safeAreaInsets.top)
+                }
+                .onChange(of: proxy.size.height) { _, height in
+                    onMeasure(height, proxy.safeAreaInsets.top)
+                }
+                .onChange(of: proxy.safeAreaInsets.top) { _, top in
+                    onMeasure(proxy.size.height, top)
+                }
+        }
+        .ignoresSafeArea()
     }
 }
 
