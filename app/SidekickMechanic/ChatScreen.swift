@@ -22,27 +22,13 @@ struct ChatScreen: View {
     var body: some View {
         NavigationStack(path: $lookBackPath) {
             messageList
-                .safeAreaInset(edge: .top, spacing: 0) {
-                    VStack(spacing: 0) {
-                        if lookBackPath.isEmpty {
-                            chatPaperHeader
-                        }
-                        if launch.showDemoChrome, model.isDemoMode {
-                            DemoModeChrome(
-                                model: model,
-                                store: demoImages,
-                                configuration: configuration
-                            )
-                        }
-                    }
-                }
+                .toolbar(.hidden, for: .navigationBar)
                 .safeAreaInset(edge: .bottom, spacing: 0) {
                     bottomBar
                         .hidden()
                         .allowsHitTesting(false)
                         .accessibilityHidden(true)
                 }
-                .toolbar(.hidden, for: .navigationBar)
                 .background(JobSheetChrome.screen)
                 .navigationDestination(for: LookBackScreen.self) { screen in
                     lookBackDestination(screen)
@@ -137,7 +123,11 @@ struct ChatScreen: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
         .frame(maxWidth: .infinity)
-        .background(JobSheetChrome.screen)
+        .background {
+            Rectangle()
+                .fill(JobSheetChrome.screen)
+                .ignoresSafeArea(edges: .top)
+        }
     }
 
     @ViewBuilder
@@ -188,6 +178,20 @@ struct ChatScreen: View {
                 .padding(.vertical, 12)
             }
             .defaultScrollAnchor(.bottom)
+            .safeAreaInset(edge: .top, spacing: 0) {
+                VStack(spacing: 0) {
+                    if lookBackPath.isEmpty {
+                        chatPaperHeader
+                    }
+                    if launch.showDemoChrome, model.isDemoMode {
+                        DemoModeChrome(
+                            model: model,
+                            store: demoImages,
+                            configuration: configuration
+                        )
+                    }
+                }
+            }
             .accessibilityIdentifier("chat.messageList")
             .allowsHitTesting(!jobSheet.blocksChat)
             .onAppear {
