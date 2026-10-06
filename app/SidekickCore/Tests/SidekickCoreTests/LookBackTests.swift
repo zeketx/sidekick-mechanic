@@ -25,7 +25,7 @@ final class LookBackTests: XCTestCase {
         XCTAssertEqual(LookBackScreen.allCases.map(\.rawValue), ["job-history", "scan-log"])
     }
 
-    func testJobHistoryRowsMatchFigmaAndReuseJobSheet() {
+    func testJobHistoryRowsMatchFigmaAndReuseJobSheet() throws {
         let rows = JobHistoryScript.rows
         XCTAssertEqual(rows.map(\.job.title), ["Cold idle", "Hard start", "Battery light", "Hose check"])
         XCTAssertEqual(rows.map(\.dateLabel), ["Today", "Yesterday", "Sep 28", "Sep 20"])
