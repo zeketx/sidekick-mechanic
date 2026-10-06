@@ -11,6 +11,7 @@ struct JobSheetView: View {
     var flags: FeatureFlags = .v1
     var screenHeight: CGFloat = 0
     var topSafeArea: CGFloat = 0
+    var bottomChromeInset: CGFloat = 0
     var onOpenHighlight: () -> Void
     var onAttachPhoto: () -> Void
     @State private var showsCredit = false
@@ -53,12 +54,11 @@ struct JobSheetView: View {
 
     private var sheetHeight: CGFloat {
         let screen = screenHeight > 0 ? screenHeight : UIScreen.main.bounds.height
-        let top = screenHeight > 0 ? topSafeArea : 59
         return CGFloat(
             JobSheetLayout.height(
                 detent: model.detent,
                 screenHeight: Double(screen),
-                topSafeArea: Double(top)
+                topSafeArea: Double(topSafeArea)
             )
         )
     }
@@ -178,14 +178,14 @@ struct JobSheetView: View {
                 outcomeRow
             }
             .padding(.horizontal, 16)
-            .padding(.bottom, 16)
+            .padding(.bottom, 16 + bottomChromeInset)
         }
         .accessibilityIdentifier("jobSheet.body")
     }
 
     private var photoStage: some View {
         VStack(alignment: .leading, spacing: 6) {
-            photoThumb(height: model.detent == .full ? 200 : 140, fillsWidth: true)
+            photoThumb(height: model.detent == .full ? 200 : 100, fillsWidth: true)
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(JobSheetCopy.photoCaption)
                     .font(.caption)
@@ -337,8 +337,9 @@ struct JobSheetView: View {
                         model.selectOutcome(outcome)
                     }
                     .buttonStyle(.plain)
-                    .font(.body.weight(selected ? .bold : .semibold))
-                    .foregroundStyle(selected ? Color.primary : Color.primary.opacity(0.55))
+                    .font(.body.weight(.bold))
+                    .foregroundStyle(Color.primary)
+                    .underline(selected)
                     .padding(.vertical, 12)
                     .accessibilityIdentifier("jobSheet.outcome.\(outcome.rawValue)")
                     .accessibilityAddTraits(selected ? .isSelected : [])
@@ -391,24 +392,56 @@ enum JobSheetChrome {
     }
 }
 
-/// Full-window height and top safe area, without UIKit window lookups.
+/// Full-window height from a reader that ignores the safe area, plus insets from one
+/// that does **not**. Ignoring zeros `safeAreaInsets.top`; fallback is 59 when it is 0.
 struct WindowSafeAreaProbe: View {
-    var onMeasure: (CGFloat, CGFloat) -> Void
+    var onMeasure: (_ height: CGFloat, _ top: CGFloat, _ bottom: CGFloat) -> Void
+    @State private var windowHeight: CGFloat = 0
+    @State private var topInset: CGFloat = 0
+    @State private var bottomInset: CGFloat = 0
 
     var body: some View {
-        GeometryReader { proxy in
-            Color.clear
-                .onAppear {
-                    onMeasure(proxy.size.height, proxy.safeAreaInsets.top)
-                }
-                .onChange(of: proxy.size.height) { _, height in
-                    onMeasure(height, proxy.safeAreaInsets.top)
-                }
-                .onChange(of: proxy.safeAreaInsets.top) { _, top in
-                    onMeasure(proxy.size.height, top)
-                }
+        ZStack {
+            GeometryReader { window in
+                Color.clear
+                    .onAppear {
+                        windowHeight = window.size.height
+                        report()
+                    }
+                    .onChange(of: window.size.height) { _, height in
+                        windowHeight = height
+                    }
+            }
+            .ignoresSafeArea()
+
+            GeometryReader { safe in
+                Color.clear
+                    .onAppear {
+                        topInset = safe.safeAreaInsets.top
+                        bottomInset = safe.safeAreaInsets.bottom
+                        report()
+                    }
+                    .onChange(of: safe.safeAreaInsets.top) { _, top in
+                        topInset = top
+                    }
+                    .onChange(of: safe.safeAreaInsets.bottom) { _, bottom in
+                        bottomInset = bottom
+                    }
+            }
         }
-        .ignoresSafeArea()
+        .onChange(of: windowHeight) { _, _ in report() }
+        .onChange(of: topInset) { _, _ in report() }
+        .onChange(of: bottomInset) { _, _ in report() }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
+    private func report() {
+        onMeasure(
+            windowHeight,
+            topInset > 0 ? topInset : CGFloat(JobSheetLayout.fallbackTopSafeArea),
+            bottomInset
+        )
     }
 }
 
