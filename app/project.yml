@@ -7,6 +7,7 @@ options:
 settings:
   base:
     SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
 packages:
   SidekickCore:
     path: SidekickCore
@@ -35,10 +36,32 @@ targets:
         SIDEKICK_BACKEND_URL: "http://localhost:8000"
         CODE_SIGN_STYLE: Automatic
         ASSETCATALOG_COMPILER_APPICON_NAME: ""
+        SWIFT_STRICT_CONCURRENCY: complete
+  SidekickMechanicUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: SidekickMechanicUITests
+    dependencies:
+      - target: SidekickMechanic
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.zeketx.SidekickMechanicUITests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: SidekickMechanic
+        CODE_SIGNING_ALLOWED: "NO"
+        CODE_SIGN_STYLE: Manual
+        TARGETED_DEVICE_FAMILY: "1"
+        SWIFT_STRICT_CONCURRENCY: complete
 schemes:
   SidekickMechanic:
     build:
       targets:
         SidekickMechanic: all
+        SidekickMechanicUITests: [testing]
     run:
       config: Debug
+    test:
+      config: Debug
+      targets:
+        - SidekickMechanicUITests

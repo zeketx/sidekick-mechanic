@@ -376,6 +376,7 @@ struct JobSheetView: View {
                 Spacer(minLength: 0)
             }
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("jobSheet.outcome")
     }
 }
