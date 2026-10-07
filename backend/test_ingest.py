@@ -14,6 +14,8 @@ from ingest import (
     render_report,
 )
 from manifest import ManifestError
+from retrieval import Fts5Index
+from retrieval import main as retrieval_main
 
 
 def _sha256(payload: bytes) -> str:
@@ -84,15 +86,24 @@ def make_pdf(pages: list[str | None]) -> bytes:
     return bytes(out)
 
 
-def _write_manifest(directory: Path, rows: list[tuple[str, str]]) -> Path:
+def _write_manifest(
+    directory: Path,
+    rows: list[tuple[str, str]],
+    *,
+    statuses: dict[str, str] | None = None,
+) -> Path:
+    chosen = statuses or {}
     lines = [
         "# Test inventory",
         "",
-        "| ID | Title | Edition | Page count | SHA-256 |",
-        "| --- | --- | --- | --- | --- |",
+        "| ID | Title | Edition | Page count | SHA-256 | Status |",
+        "| --- | --- | --- | --- | --- | --- |",
     ]
     for doc_id, sha256 in rows:
-        lines.append(f"| {doc_id} | Fake test manual | TBD | TBD | {sha256} |")
+        status = chosen.get(doc_id, "ingest")
+        lines.append(
+            f"| {doc_id} | Fake test manual | TBD | TBD | {sha256} | {status} |"
+        )
     lines.append("")
     path = directory / "MANUALS.md"
     path.write_text("\n".join(lines), encoding="utf-8")
@@ -234,3 +245,54 @@ def test_reingest_is_byte_identical(tmp_path: Path) -> None:
     assert b'"page":1' in chunks
     assert b'"page":3' in chunks
     assert b'"page":2' in report
+    assert b'"skipped":[]' in report
+
+
+def test_blocked_pdf_is_verified_then_omitted_from_fts(tmp_path: Path) -> None:
+    _, digest_ingest = _write_manual(tmp_path, "2jz-ge-rm", ["FAKE-PAGE-TEXT starter"])
+    blocked_path = tmp_path / "lj78-wiring.pdf"
+    blocked_path.write_bytes(b"not-a-pdf FAKE-WIRING")
+    digest_blocked = _sha256(blocked_path.read_bytes())
+    manifest = _write_manifest(
+        tmp_path,
+        [("2jz-ge-rm", digest_ingest), ("lj78-wiring", digest_blocked)],
+        statuses={"lj78-wiring": "blocked"},
+    )
+    output_dir = tmp_path / "out"
+
+    assert (
+        main(
+            [
+                "--manifest",
+                str(manifest),
+                "--manuals-dir",
+                str(tmp_path),
+                "--output-dir",
+                str(output_dir),
+            ]
+        )
+        == 0
+    )
+
+    chunks_path = output_dir / CHUNKS_FILENAME
+    chunks = chunks_path.read_text(encoding="utf-8")
+    report = (output_dir / REPORT_FILENAME).read_text(encoding="utf-8")
+    assert '"doc_id":"2jz-ge-rm"' in chunks
+    assert "FAKE-PAGE-TEXT starter" in chunks
+    assert "lj78-wiring" not in chunks
+    assert "FAKE-WIRING" not in chunks
+    assert '"skipped":["lj78-wiring"]' in report
+
+    index_path = output_dir / "index.sqlite"
+    assert (
+        retrieval_main(
+            ["build", "--chunks", str(chunks_path), "--index", str(index_path)]
+        )
+        == 0
+    )
+    with Fts5Index.open(index_path) as index:
+        hits = index.search("FAKE-PAGE-TEXT")
+        assert [(hit.doc_id, hit.page, hit.text) for hit in hits] == [
+            ("2jz-ge-rm", 1, "FAKE-PAGE-TEXT starter"),
+        ]
+        assert index.search("not-a-pdf") == ()

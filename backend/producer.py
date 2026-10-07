@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import sqlite3
 import time
 from collections.abc import Mapping, Sequence
@@ -18,6 +19,7 @@ from typing import Any, Protocol, runtime_checkable
 
 from chat_models import Conversation
 from contract import load_answer_fixture, validate_answer
+from demo import DEMO_SYSTEM_PROMPT, resolve_demo_answer
 from llm import (
     RETRIEVED_PAGES_HEADER,
     ChatTurn,
@@ -26,7 +28,7 @@ from llm import (
     TokenUsage,
     build_llm_client,
 )
-from demo import DEMO_SYSTEM_PROMPT, resolve_demo_answer
+from manifest import ManifestError, load_manifest
 from part_resolver import BayMapView, complete_selection, resolve_answer
 from retrieval import (
     DEFAULT_K,
@@ -75,8 +77,22 @@ NOT_FOUND_REFUSAL: dict[str, Any] = {
     "reason": "not_found_in_manual",
 }
 
+WIRING_NOT_INGESTED_REFUSAL: dict[str, Any] = {
+    "kind": "refusal",
+    "text": (
+        "The wiring manual is not ingested yet. I do not have a cited page for this."
+    ),
+    "reason": "not_found_in_manual",
+}
+
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+_MANIFEST_PATH = _REPO_ROOT / "docs" / "MANUALS.md"
+_WIRING_DOC_ID = "lj78-wiring"
+_WIRING_QUERY = re.compile(r"\b(?:wiring|harness|pinouts?|ewd)\b", re.IGNORECASE)
+
 validate_answer(UNAVAILABLE_ANSWER)
 validate_answer(NOT_FOUND_REFUSAL)
+validate_answer(WIRING_NOT_INGESTED_REFUSAL)
 
 
 class AnswerProducer(Protocol):
@@ -149,7 +165,7 @@ class LlmAnswerProducer:
         except (RetrievalError, sqlite3.Error):
             return dict(UNAVAILABLE_ANSWER)
         if not hits:
-            return dict(NOT_FOUND_REFUSAL)
+            return _refusal_for_miss(_last_user_text(conversation))
 
         text = self._complete(
             _chat_messages(conversation, _grounded_system_prompt(hits, conversation))
@@ -273,6 +289,23 @@ def _chat_messages(conversation: Conversation, system: str) -> list[ChatTurn]:
         for message in conversation.messages
     )
     return messages
+
+
+def _refusal_for_miss(query: str) -> dict[str, Any]:
+    if _WIRING_QUERY.search(query) and _wiring_manual_blocked():
+        return dict(WIRING_NOT_INGESTED_REFUSAL)
+    return dict(NOT_FOUND_REFUSAL)
+
+
+def _wiring_manual_blocked() -> bool:
+    try:
+        documents = load_manifest(_MANIFEST_PATH)
+    except ManifestError:
+        return False
+    return any(
+        document.id == _WIRING_DOC_ID and document.status == "blocked"
+        for document in documents
+    )
 
 
 def _last_user_text(conversation: Conversation) -> str:

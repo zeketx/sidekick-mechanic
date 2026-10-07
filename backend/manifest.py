@@ -13,10 +13,11 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 _DEFAULT_MANIFEST = _REPO_ROOT / "docs" / "MANUALS.md"
 _DEFAULT_MANUALS_DIR = _REPO_ROOT / "manuals"
 
-_REQUIRED_HEADERS = ("id", "title", "edition", "page count", "sha-256")
+_REQUIRED_HEADERS = ("id", "title", "edition", "page count", "sha-256", "status")
 _ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _SEPARATOR_RE = re.compile(r"^:?-+:?$")
+_STATUSES = frozenset({"ingest", "blocked"})
 
 
 class ManifestError(Exception):
@@ -30,6 +31,7 @@ class ManualDocument:
     edition: str
     page_count: str
     sha256: str
+    status: str
 
     @property
     def filename(self) -> str:
@@ -126,7 +128,7 @@ def _inventory_rows(text: str) -> list[dict[str, str]]:
     while index < len(lines):
         header = _cells(lines[index])
         if (
-            len(header) >= len(_REQUIRED_HEADERS)
+            len(header) >= len(_REQUIRED_HEADERS) - 1
             and index + 1 < len(lines)
             and _is_separator(_cells(lines[index + 1]))
         ):
@@ -135,6 +137,8 @@ def _inventory_rows(text: str) -> list[dict[str, str]]:
             }
             if all(name in mapping for name in _REQUIRED_HEADERS):
                 return _data_rows(lines[index + 2 :], mapping)
+            if all(name in mapping for name in _REQUIRED_HEADERS if name != "status"):
+                raise ManifestError("inventory table is missing a Status column")
         index += 1
     return []
 
@@ -170,13 +174,22 @@ def _document_from_cells(cells: dict[str, str]) -> ManualDocument:
     edition = _tbd_or_value(cells["edition"])
     page_count = _tbd_or_value(cells["page count"])
     sha256 = _parse_sha256(doc_id, cells["sha-256"])
+    status = _parse_status(doc_id, cells["status"])
     return ManualDocument(
         id=doc_id,
         title=title,
         edition=edition,
         page_count=page_count,
         sha256=sha256,
+        status=status,
     )
+
+
+def _parse_status(doc_id: str, raw: str) -> str:
+    value = raw.strip()
+    if value not in _STATUSES:
+        raise ManifestError(f"document '{doc_id}' has an invalid status: {raw!r}")
+    return value
 
 
 def _parse_sha256(doc_id: str, raw: str) -> str:

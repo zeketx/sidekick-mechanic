@@ -77,7 +77,7 @@ This script is throwaway. Leave it out of `ingest.py`. A later feature should at
 - Pinout lookup, a connector index, and wire-color lookup.
 - Any pin, color, or part number from `lj78-wiring` or `2jz-ge-rm`. Those stay `TBD`.
 - OCR inside ingestion.
-- Deciding which pages of the real PDF are diagrams. The file is absent.
+- Deciding which pages of the real PDF are diagrams. The PDF stays out of git, and the row is `blocked`.
 - Changes to the answer contract.
 
 ## How to rerun
@@ -88,7 +88,7 @@ Install `tesseract-ocr`, `poppler-utils`, and `fonts-dejavu-core`. From `backend
 python3 spikes/wiring_spike.py --output eval/results/wiring-spike.json
 ```
 
-`docs/MANUALS.md` records the SHA-256 for `lj78-wiring`. The on-disk PDF is AES-encrypted, and `backend/ingest.py` refuses encrypted PDFs. Measuring that file is a later issue. Quote a label from it only with the document id and the page.
+`docs/MANUALS.md` records the SHA-256 for `lj78-wiring` and marks that row `blocked`. The PDF stays on disk. [ewd-ingest-unblock.md](ewd-ingest-unblock.md) lists what a later ingest would take. Measuring that file is a later issue. Quote a label from it only with the document id and the page.
 
 ## Limits
 

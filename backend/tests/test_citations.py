@@ -11,7 +11,12 @@ from fastapi.testclient import TestClient
 from app import create_app
 from chat_models import Conversation, Message
 from llm import FAKE_GROUNDED_TEXT, ChatTurn, FakeLLMClient, LLMError
-from producer import SYSTEM_PROMPT, LlmAnswerProducer, _IndexRetriever
+from producer import (
+    SYSTEM_PROMPT,
+    WIRING_NOT_INGESTED_REFUSAL,
+    LlmAnswerProducer,
+    _IndexRetriever,
+)
 from retrieval import Chunk, build_index
 from safety import SAFETY_NOTE
 
@@ -509,6 +514,111 @@ def test_keyless_chat_refuses_when_the_index_has_no_hits(
     assert response.status_code == 200
     assert response.json() == _REFUSAL
     assert "llm request" not in caplog.text
+
+
+def test_keyless_chat_cites_the_indexed_manual_id(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    page_text = "FAKE-PAGE-TEXT with no real spec."
+    index_path = tmp_path / "index.sqlite"
+    build_index(
+        (Chunk(doc_id="2jz-ge-rm", page=1, text=page_text),),
+        index_path,
+    )
+    monkeypatch.setattr("producer._index_path", lambda: index_path)
+    monkeypatch.delenv("SIDEKICK_LLM_API_KEY", raising=False)
+
+    response = TestClient(create_app()).post(
+        "/chat",
+        json={"messages": [{"role": "user", "text": "FAKE-PAGE-TEXT"}]},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["citations"] == [
+        {"doc_id": "2jz-ge-rm", "page": 1, "snippet": page_text},
+    ]
+    assert "FAKE-DOC" not in response.text
+
+
+def test_wiring_miss_says_the_manual_is_not_ingested(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    index_path = tmp_path / "index.sqlite"
+    build_index(
+        (
+            Chunk(
+                doc_id="2jz-ge-rm",
+                page=1,
+                text="FAKE-PAGE-TEXT with no real spec.",
+            ),
+        ),
+        index_path,
+    )
+    monkeypatch.setattr("producer._index_path", lambda: index_path)
+    monkeypatch.delenv("SIDEKICK_LLM_API_KEY", raising=False)
+
+    response = TestClient(create_app()).post(
+        "/chat",
+        json={"messages": [{"role": "user", "text": "where is the wiring harness"}]},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == WIRING_NOT_INGESTED_REFUSAL
+    assert "LJ78" not in response.text
+    assert "FAKE-DOC" not in response.text
+
+
+def test_wiring_hit_still_cites_the_retrieved_manual(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    page_text = "FAKE-PAGE-TEXT wiring note with no real spec."
+    index_path = tmp_path / "index.sqlite"
+    build_index(
+        (Chunk(doc_id="2jz-ge-rm", page=1, text=page_text),),
+        index_path,
+    )
+    monkeypatch.setattr("producer._index_path", lambda: index_path)
+    monkeypatch.delenv("SIDEKICK_LLM_API_KEY", raising=False)
+
+    response = TestClient(create_app()).post(
+        "/chat",
+        json={"messages": [{"role": "user", "text": "wiring note"}]},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["citations"] == [
+        {"doc_id": "2jz-ge-rm", "page": 1, "snippet": page_text},
+    ]
+    assert body["kind"] == "answer"
+
+
+def test_wiring_miss_stays_generic_when_the_row_is_not_blocked(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    index_path = tmp_path / "index.sqlite"
+    build_index(
+        (
+            Chunk(
+                doc_id="2jz-ge-rm",
+                page=1,
+                text="FAKE-PAGE-TEXT with no real spec.",
+            ),
+        ),
+        index_path,
+    )
+    monkeypatch.setattr("producer._index_path", lambda: index_path)
+    monkeypatch.setattr("producer._wiring_manual_blocked", lambda: False)
+    monkeypatch.delenv("SIDEKICK_LLM_API_KEY", raising=False)
+
+    response = TestClient(create_app()).post(
+        "/chat",
+        json={"messages": [{"role": "user", "text": "where is the wiring harness"}]},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == _REFUSAL
 
 
 def test_index_retriever_cites_a_fake_chunk(tmp_path: Path) -> None:

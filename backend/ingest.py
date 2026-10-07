@@ -53,14 +53,19 @@ class IngestionResult:
     chunks: tuple[Chunk, ...]
     empty_pages: tuple[EmptyPage, ...]
     documents: tuple[DocumentStats, ...]
+    skipped: tuple[str, ...] = ()
 
 
 def ingest(manifest_path: Path, manuals_dir: Path) -> IngestionResult:
     documents = verify_inventory(manifest_path, manuals_dir)
+    selected = tuple(document for document in documents if document.status == "ingest")
+    skipped = tuple(
+        document.id for document in documents if document.status == "blocked"
+    )
     chunks: list[Chunk] = []
     empty_pages: list[EmptyPage] = []
     stats: list[DocumentStats] = []
-    for document in documents:
+    for document in selected:
         path = manuals_dir / document.filename
         doc_chunks, doc_empty, page_count = _extract_document(document.id, path)
         chunks.extend(doc_chunks)
@@ -78,6 +83,7 @@ def ingest(manifest_path: Path, manuals_dir: Path) -> IngestionResult:
         chunks=tuple(chunks),
         empty_pages=tuple(empty_pages),
         documents=tuple(stats),
+        skipped=skipped,
     )
 
 
@@ -95,6 +101,7 @@ def render_report(result: IngestionResult) -> str:
     payload = {
         "documents": [asdict(document) for document in result.documents],
         "empty_pages": [asdict(page) for page in result.empty_pages],
+        "skipped": list(result.skipped),
     }
     return _json_line(payload) + "\n"
 
@@ -118,6 +125,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     print(
         f"ingested {len(result.documents)} document(s), "
+        f"skipped {len(result.skipped)} blocked, "
         f"{len(result.chunks)} chunk(s), "
         f"{len(result.empty_pages)} empty page(s)"
     )

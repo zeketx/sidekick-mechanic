@@ -17,20 +17,23 @@ To verify local copies against this table (from `backend/`):
 ```bash
 python3 manifest.py
 python3 ingest.py
+python3 retrieval.py build
 ```
 
 ## Documents
 
 Edition, page count, and SHA-256 for these two rows were recorded on 2026-10-06 from the owner's local copies of `manuals/<id>.pdf`. Those PDFs stay out of git. Hash the file you have before you change a row (`sha256sum manuals/<id>.pdf`).
 
-| ID | Title | Edition | Page count | SHA-256 |
-| --- | --- | --- | --- | --- |
-| 2jz-ge-rm | Lexus IS300 2004 repair manual RM1054U (2JZ-GE VVTi) | RM1054U | 1959 | 4464676a7fda45ada554909dc875ce12c4554f96d45c9ef400788e5e20d6008d |
-| lj78-wiring | Toyota EWD117F Dec 1990 (LJ7x wiring) | EWD117F | 84 | eff462ba654ae488df12dbacb040771dba20d4f12eb8e5926024e8f03f632851 |
+| ID | Title | Edition | Page count | SHA-256 | Status |
+| --- | --- | --- | --- | --- | --- |
+| 2jz-ge-rm | Lexus IS300 2004 repair manual RM1054U (2JZ-GE VVTi) | RM1054U | 1959 | 4464676a7fda45ada554909dc875ce12c4554f96d45c9ef400788e5e20d6008d | ingest |
+| lj78-wiring | Toyota EWD117F Dec 1990 (LJ7x wiring) | EWD117F | 84 | eff462ba654ae488df12dbacb040771dba20d4f12eb8e5926024e8f03f632851 | blocked |
 
-`2jz-ge-rm` is a text-layer PDF. Prefer this copy over RM1140U for DI/VVT.
+`Status` is `ingest` or `blocked`. `python3 manifest.py` still requires the file and checks SHA-256 for every row, including `blocked`. `python3 ingest.py` extracts only `ingest` rows. `python3 retrieval.py build` indexes those chunks.
 
-`lj78-wiring` is image-only. Prefer this copy over EWD168F. The on-disk PDF is AES-encrypted. `backend/ingest.py` refuses encrypted PDFs. This inventory does not add a decrypt or OCR step. The EWD lists LJ70, LJ72, LJ73, LJ77, and LJ79. It does not name LJ78. The ID stays `lj78-wiring`.
+`2jz-ge-rm` is a text-layer PDF. Prefer this copy over RM1140U for DI/VVT. Status is `ingest`.
+
+`lj78-wiring` is image-only. Prefer this copy over EWD168F. The on-disk PDF is AES-encrypted. Status is `blocked`: the PDF stays at `manuals/lj78-wiring.pdf`, and this inventory does not decrypt or OCR it. The EWD lists LJ70, LJ72, LJ73, LJ77, and LJ79. It does not name LJ78. The ID stays `lj78-wiring`. What an unblock would take is in [ewd-ingest-unblock.md](design/ewd-ingest-unblock.md).
 
 IDs are lowercase, filesystem-safe, and stable. Do not invent Toyota publication numbers, years, or page counts. A new row stays `TBD` until that PDF is on disk and hashed.
 
@@ -40,4 +43,4 @@ Which documents belong in Phase 1 is taken from [VISION.md](../VISION.md) and [R
 
 ## How ingestion uses this file
 
-`backend/manifest.py` parses the table above. For each row it requires `manuals/<id>.pdf` and compares SHA-256. `backend/ingest.py` calls that verifier first, then writes page-level chunks (`doc_id`, PDF page number, text) and a report of pages with no extractable text. Extra files in `manuals/` that are not in this table are ignored. `backend/retrieval.py build` turns that JSONL into the SQLite FTS5 index (`docs/design/retrieval-index.md`).
+`backend/manifest.py` parses the table above. For each row, including `blocked`, it requires `manuals/<id>.pdf` and compares SHA-256. `backend/ingest.py` calls that verifier first, then writes page-level chunks (`doc_id`, PDF page number, text) for `ingest` rows only, plus a report of empty pages and skipped IDs. Extra files in `manuals/` that are not in this table are ignored. `backend/retrieval.py build` turns that JSONL into the SQLite FTS5 index (`docs/design/retrieval-index.md`).

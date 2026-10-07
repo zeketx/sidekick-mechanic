@@ -21,6 +21,7 @@ def _write_manifest(
     doc_id: str,
     sha256: str,
     title: str = "Fake test manual",
+    status: str = "ingest",
 ) -> Path:
     path = directory / "MANUALS.md"
     path.write_text(
@@ -28,9 +29,9 @@ def _write_manifest(
             [
                 "# Test inventory",
                 "",
-                "| ID | Title | Edition | Page count | SHA-256 |",
-                "| --- | --- | --- | --- | --- |",
-                f"| {doc_id} | {title} | TBD | TBD | {sha256} |",
+                "| ID | Title | Edition | Page count | SHA-256 | Status |",
+                "| --- | --- | --- | --- | --- | --- |",
+                f"| {doc_id} | {title} | TBD | TBD | {sha256} | {status} |",
                 "",
             ]
         ),
@@ -50,6 +51,7 @@ def test_checksum_match(tmp_path: Path) -> None:
     assert [document.id for document in documents] == ["fixture-a"]
     assert documents[0].sha256 == digest
     assert documents[0].filename == "fixture-a.pdf"
+    assert documents[0].status == "ingest"
 
 
 def test_checksum_mismatch(tmp_path: Path) -> None:
@@ -101,3 +103,86 @@ def test_committed_manifest_records_phase1_pdfs() -> None:
     assert documents[1].sha256 == (
         "eff462ba654ae488df12dbacb040771dba20d4f12eb8e5926024e8f03f632851"
     )
+    assert documents[0].status == "ingest"
+    assert documents[1].status == "blocked"
+
+
+def test_blocked_row_checksum_is_still_checked(tmp_path: Path) -> None:
+    ingest_payload = b"FAKE-MANUAL-BYTES"
+    blocked_payload = b"FAKE-BLOCKED-BYTES"
+    (tmp_path / "fixture-a.pdf").write_bytes(ingest_payload)
+    (tmp_path / "fixture-b.pdf").write_bytes(blocked_payload)
+    wrong = _sha256(b"FAKE-OTHER-BYTES")
+    manifest = tmp_path / "MANUALS.md"
+    manifest.write_text(
+        "\n".join(
+            [
+                "| ID | Title | Edition | Page count | SHA-256 | Status |",
+                "| --- | --- | --- | --- | --- | --- |",
+                f"| fixture-a | Fake test manual | TBD | TBD | {_sha256(ingest_payload)} | ingest |",
+                f"| fixture-b | Fake blocked manual | TBD | TBD | {wrong} | blocked |",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ManifestError) as caught:
+        verify_inventory(manifest, tmp_path)
+
+    message = str(caught.value)
+    assert "checksum mismatch for document 'fixture-b'" in message
+    assert wrong in message
+    assert _sha256(blocked_payload) in message
+
+
+def test_blocked_row_verifies_when_the_hash_matches(tmp_path: Path) -> None:
+    ingest_payload = b"FAKE-MANUAL-BYTES"
+    blocked_payload = b"FAKE-BLOCKED-BYTES"
+    (tmp_path / "fixture-a.pdf").write_bytes(ingest_payload)
+    (tmp_path / "fixture-b.pdf").write_bytes(blocked_payload)
+    manifest = tmp_path / "MANUALS.md"
+    manifest.write_text(
+        "\n".join(
+            [
+                "| ID | Title | Edition | Page count | SHA-256 | Status |",
+                "| --- | --- | --- | --- | --- | --- |",
+                f"| fixture-a | Fake test manual | TBD | TBD | {_sha256(ingest_payload)} | ingest |",
+                f"| fixture-b | Fake blocked manual | TBD | TBD | {_sha256(blocked_payload)} | blocked |",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    documents = verify_inventory(manifest, tmp_path)
+
+    assert [(document.id, document.status) for document in documents] == [
+        ("fixture-a", "ingest"),
+        ("fixture-b", "blocked"),
+    ]
+
+
+def test_invalid_status_rejected(tmp_path: Path) -> None:
+    manifest = _write_manifest(
+        tmp_path,
+        doc_id="fixture-a",
+        sha256=_sha256(b"FAKE-MANUAL-BYTES"),
+        status="later",
+    )
+
+    with pytest.raises(ManifestError, match="invalid status"):
+        load_manifest(manifest)
+
+
+def test_missing_status_column_rejected(tmp_path: Path) -> None:
+    manifest = tmp_path / "MANUALS.md"
+    manifest.write_text(
+        "| ID | Title | Edition | Page count | SHA-256 |\n"
+        "| --- | --- | --- | --- | --- |\n"
+        "| fixture-a | Fake test manual | TBD | TBD | TBD |\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ManifestError, match="Status column"):
+        load_manifest(manifest)
