@@ -296,3 +296,42 @@ def test_blocked_pdf_is_verified_then_omitted_from_fts(tmp_path: Path) -> None:
             ("2jz-ge-rm", 1, "FAKE-PAGE-TEXT starter"),
         ]
         assert index.search("not-a-pdf") == ()
+
+
+def test_blocked_pdf_may_be_missing(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    _, digest_ingest = _write_manual(tmp_path, "2jz-ge-rm", ["FAKE-PAGE-TEXT starter"])
+    digest_blocked = _sha256(b"FAKE-BLOCKED-BYTES")
+    manifest = _write_manifest(
+        tmp_path,
+        [("2jz-ge-rm", digest_ingest), ("lj78-wiring", digest_blocked)],
+        statuses={"lj78-wiring": "blocked"},
+    )
+    output_dir = tmp_path / "out"
+
+    result = ingest(manifest, tmp_path)
+
+    assert [chunk.doc_id for chunk in result.chunks] == ["2jz-ge-rm"]
+    assert result.skipped == ("lj78-wiring",)
+    assert result.warnings == (
+        f"missing file for blocked document 'lj78-wiring': {tmp_path / 'lj78-wiring.pdf'}",
+    )
+    assert (
+        main(
+            [
+                "--manifest",
+                str(manifest),
+                "--manuals-dir",
+                str(tmp_path),
+                "--output-dir",
+                str(output_dir),
+            ]
+        )
+        == 0
+    )
+    err = capsys.readouterr().err
+    assert "warning: missing file for blocked document 'lj78-wiring'" in err
+    report = (output_dir / REPORT_FILENAME).read_text(encoding="utf-8")
+    assert '"skipped":["lj78-wiring"]' in report
+    assert "lj78-wiring" not in (output_dir / CHUNKS_FILENAME).read_text(
+        encoding="utf-8"
+    )

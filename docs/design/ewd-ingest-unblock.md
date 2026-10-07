@@ -1,6 +1,6 @@
 # Unblocking `lj78-wiring`
 
-`docs/MANUALS.md` keeps the row. The PDF stays at `manuals/lj78-wiring.pdf` and out of git. Status is `blocked`, so `manifest.py` still checks the SHA-256 and `ingest.py` does not open the file. The ID stays `lj78-wiring`.
+`docs/MANUALS.md` keeps the row. The PDF, when present, stays at `manuals/lj78-wiring.pdf` and out of git. Status is `blocked`, so a missing file is a warning, a present file is still SHA-checked, and `ingest.py` does not open the file. The ID stays `lj78-wiring`. Chassis wiring is deferred by the owner's choice.
 
 The 2026-10-06 inventory on that row is the source for the file facts: edition EWD117F, 84 pages, image-only, AES-encrypted. That inventory says the EWD lists LJ70, LJ72, LJ73, LJ77, and LJ79, and does not name LJ78.
 

@@ -4,7 +4,7 @@
 
 The truck is a 1990 Land Cruiser LJ78 with a 2JZ-GE swap and a Lexus donor ECU. Donor year, ECU number, OBD protocol, harness, and dongle result are all `TBD` in [TRUCK.md](TRUCK.md). Do not fill those rows from this page.
 
-Citation style: every claim has a source. Claims without a source are marked **unverified**. Vehicle-specific values stay `TBD` until photographed or cited into [TRUCK.md](TRUCK.md). Phase 1 document IDs live in [`docs/MANUALS.md`](../MANUALS.md) (`2jz-ge-rm`, `lj78-wiring`). The troubleshooting and diagnostics pages cited here are not those IDs, so these citations still use title + page.
+Citation style: every claim has a source. Claims without a source are marked **unverified**. Vehicle-specific values stay `TBD` until photographed or cited into [TRUCK.md](TRUCK.md). Phase 1 document IDs live in [`docs/MANUALS.md`](../MANUALS.md) (`2jz-ge-rm`, `is300-engine-wiring`, `lj78-wiring`). The troubleshooting and diagnostics pages cited here are not those IDs, so these citations still use title + page.
 
 Do not write torque values, pinouts, wire colors, or model-year-to-protocol maps from memory. This page does not list connector pins.
 

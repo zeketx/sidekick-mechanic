@@ -12,8 +12,10 @@ from retrieval import (
     Fts5Index,
     RetrievalError,
     build_index,
+    extract_labels,
     load_chunks_jsonl,
     main,
+    snippet_matches_page,
 )
 
 
@@ -53,17 +55,97 @@ def _build(tmp_path: Path) -> Path:
     return index_path
 
 
+def test_snippet_matches_page_normalizes_whitespace_and_token_bag() -> None:
+    page = "FAKE-SNIPPET:\nno   real spec. extra"
+    assert snippet_matches_page("FAKE-SNIPPET: no real spec.", page) is True
+    assert snippet_matches_page("spec. FAKE-SNIPPET: no real", page) is True
+    assert snippet_matches_page("invented FAKE-TOKEN", page) is False
+
+
+def test_extract_labels_keeps_component_and_heading() -> None:
+    text = "-SFI INJECTOR\nINJECTOR NO. 1\nbody wire FAKE-PIN"
+    labels = extract_labels(text)
+    assert "INJECTOR NO. 1" in labels
+    assert "SFI INJECTOR" in labels
+
+
+def test_spark_plug_torque_beats_identification_and_tool_list(tmp_path: Path) -> None:
+    rows = [
+        {
+            "doc_id": "FAKE-DOC-2JZ",
+            "page": 3,
+            "text": "2JZ-GE INTRODUCTION IDENTIFICATION INFORMATION FAKE-SPEC",
+        },
+        {
+            "doc_id": "FAKE-DOC-2JZ",
+            "page": 77,
+            "text": "PREPARATION IGNITION EQUIPMENT Spark plug Torque wrench FAKE-SPEC",
+        },
+        {
+            "doc_id": "FAKE-DOC-2JZ",
+            "page": 999,
+            "text": (
+                "-IGNITION IGNITION SYSTEM\n"
+                "reinstall the spark plugs.\n"
+                "Torque: 18 FAKE-SPEC\n"
+            ),
+        },
+    ]
+    chunks = _write_chunks(tmp_path / "chunks.jsonl", rows)
+    index_path = tmp_path / "index.sqlite"
+    build_index(load_chunks_jsonl(chunks), index_path)
+
+    with Fts5Index.open(index_path) as index:
+        hits = index.search("What's the spark plug torque on the 2JZ-GE?", k=3)
+
+    assert hits[0].page == 999
+    assert hits[0].doc_id == "FAKE-DOC-2JZ"
+
+
+def test_injector_label_beats_generic_wire_pages(tmp_path: Path) -> None:
+    rows = [
+        {
+            "doc_id": "FAKE-DOC-WIRING",
+            "page": 31,
+            "text": "OVERALL ELECTRICAL WIRING DIAGRAM body harness FAKE-PIN",
+        },
+        {
+            "doc_id": "FAKE-DOC-WIRING",
+            "page": 3,
+            "text": "INJECTOR NO. 1\nINJECTOR NO. 2\nENGINE CONTROL MODULE FAKE-PIN",
+        },
+        {
+            "doc_id": "FAKE-DOC-2JZ",
+            "page": 999,
+            "text": "injector resistance FAKE-SPEC",
+        },
+    ]
+    chunks = _write_chunks(tmp_path / "chunks.jsonl", rows)
+    index_path = tmp_path / "index.sqlite"
+    build_index(load_chunks_jsonl(chunks), index_path)
+
+    with Fts5Index.open(index_path) as index:
+        hits = index.search(
+            "What fuse and wire color feed the 2JZ injectors?",
+            doc_id="FAKE-DOC-WIRING",
+        )
+
+    assert [(hit.doc_id, hit.page) for hit in hits[:1]] == [("FAKE-DOC-WIRING", 3)]
+
+
 def test_top_k_returns_chunks_with_doc_id_and_page(tmp_path: Path) -> None:
     with Fts5Index.open(_build(tmp_path)) as index:
         hits = index.search("starter motor", k=DEFAULT_K)
+        starter = index.search("starter")
 
     assert [(hit.doc_id, hit.page, hit.rank) for hit in hits] == [
         ("FAKE-DOC-2JZ", 999, 1),
-        ("FAKE-DOC-WIRING", 999, 2),
     ]
     assert hits[0].text == "starter motor inspection procedure FAKE-SPEC"
-    assert hits[1].text == "starter relay connector FAKE-PIN"
-    assert hits[0].score > hits[1].score
+    assert {(hit.doc_id, hit.page) for hit in starter} == {
+        ("FAKE-DOC-2JZ", 999),
+        ("FAKE-DOC-WIRING", 999),
+    }
 
 
 def test_k_one_returns_the_best_page_only(tmp_path: Path) -> None:
@@ -71,6 +153,13 @@ def test_k_one_returns_the_best_page_only(tmp_path: Path) -> None:
         hits = index.search("starter motor", k=1)
 
     assert [(hit.doc_id, hit.page) for hit in hits] == [("FAKE-DOC-2JZ", 999)]
+
+
+def test_search_can_limit_to_one_doc_id(tmp_path: Path) -> None:
+    with Fts5Index.open(_build(tmp_path)) as index:
+        hits = index.search("starter", doc_id="FAKE-DOC-WIRING")
+
+    assert [(hit.doc_id, hit.page) for hit in hits] == [("FAKE-DOC-WIRING", 999)]
 
 
 def test_unmatched_query_returns_empty_tuple(tmp_path: Path) -> None:

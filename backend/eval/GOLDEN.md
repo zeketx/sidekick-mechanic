@@ -2,6 +2,8 @@
 
 Issue #23. Owner approval pending. The eval harness (`python3 -m eval`) loads `eval/golden.jsonl` when it exists, otherwise `eval/golden.sample.jsonl`. CI's eval subset still runs the fake sample, so this file does not change CI.
 
+A separate, smaller retrieval-only set lives in [`fixtures/retrieval-real.jsonl`](fixtures/retrieval-real.jsonl). `python3 -m eval.retrieval_real` scores hit@1 and hit@3 against the FTS index. It skips when `manuals/2jz-ge-rm.pdf` or `manuals/is300-engine-wiring.pdf` is absent, so CI stays green without the PDFs. Expected pages were read from `pdftotext`; the fixture does not store spec values.
+
 ## Row format
 
 One JSON object per line, validated by [`golden.schema.json`](golden.schema.json) (unchanged by this PR).
@@ -25,7 +27,7 @@ Every expected page was checked by finding the answer on that page in a local te
 
 ## Document IDs
 
-The manual PDFs are copyrighted and stay outside git (`manuals/` is gitignored). The owner keeps them on the eval box. `docs/MANUALS.md` lists only `2jz-ge-rm` and `lj78-wiring` today. This set also uses three new IDs. Before ingestion can use them, they each need a row in `docs/MANUALS.md`. That is a separate change, because ingestion fails on any listed file that is missing.
+The manual PDFs are copyrighted and stay outside git (`manuals/` is gitignored). The owner keeps them on the eval box. `docs/MANUALS.md` lists `2jz-ge-rm`, `is300-engine-wiring`, and `lj78-wiring`. This set also uses three other IDs. Before ingestion can use them, they each need a row in `docs/MANUALS.md`. A `blocked` row may be missing on disk; an `ingest` row still fails if its PDF is missing.
 
 | ID | File the owner has | PDF pages | SHA-256 |
 | --- | --- | --- | --- |

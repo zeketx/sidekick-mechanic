@@ -1,0 +1,16 @@
+{"id":"spark-plug-torque","corpus":"engine","question":"What's the spark plug torque on the 2JZ-GE?","expected":[{"doc_id":"2jz-ge-rm","page":985}]}
+{"id":"spark-plug-recommended","corpus":"engine","question":"What recommended spark plug does the 2JZ-GE take?","expected":[{"doc_id":"2jz-ge-rm","page":158}]}
+{"id":"ignition-coil-primary","corpus":"engine","question":"How do I test an ignition coil, and what primary resistance should it have?","expected":[{"doc_id":"2jz-ge-rm","page":158},{"doc_id":"2jz-ge-rm","page":985}]}
+{"id":"injector-resistance","corpus":"engine","question":"What resistance should the injector read?","expected":[{"doc_id":"2jz-ge-rm","page":875}]}
+{"id":"thermostat-valve-open","corpus":"engine","question":"At what temperature should the thermostat valve start to open?","expected":[{"doc_id":"2jz-ge-rm","page":154},{"doc_id":"2jz-ge-rm","page":945}]}
+{"id":"maf-tha-e2","corpus":"engine","question":"What resistance should the MAF meter THA-E2 read at 20 C?","expected":[{"doc_id":"2jz-ge-rm","page":152}]}
+{"id":"ocv-resistance","corpus":"engine","question":"What resistance should the VVT-i oil control valve read?","expected":[{"doc_id":"2jz-ge-rm","page":897}]}
+{"id":"oil-filter-capacity","corpus":"engine","question":"How much oil does the 2JZ-GE take with a filter change?","expected":[{"doc_id":"2jz-ge-rm","page":969}]}
+{"id":"oil-drain-plug-torque","corpus":"engine","question":"What's the oil drain plug torque?","expected":[{"doc_id":"2jz-ge-rm","page":157}]}
+{"id":"valve-clearance-cold","corpus":"engine","question":"What is the cold valve clearance spec for intake and exhaust?","expected":[{"doc_id":"2jz-ge-rm","page":146}]}
+{"id":"injector-circuit","corpus":"engine-wiring","question":"What fuse and wire color feed the 2JZ injectors?","expected":[{"doc_id":"is300-engine-wiring","page":3}]}
+{"id":"ignition-coil-ewd","corpus":"engine-wiring","question":"Where is the ignition coil on the 2JZ engine wiring diagram?","expected":[{"doc_id":"is300-engine-wiring","page":1}]}
+{"id":"efi-relay-fuel-pump","corpus":"engine-wiring","question":"What fuse feeds the EFI relay and fuel pump?","expected":[{"doc_id":"is300-engine-wiring","page":2}]}
+{"id":"ocv-ecm-terminals","corpus":"engine-wiring","question":"Which ECM terminals drive the VVT-i oil control valve?","expected":[{"doc_id":"is300-engine-wiring","page":3}]}
+{"id":"maf-meter-ewd","corpus":"engine-wiring","question":"Where is the mass air flow meter on the engine wiring diagram?","expected":[{"doc_id":"is300-engine-wiring","page":4}]}
+{"id":"igt-igf-coil","corpus":"engine-wiring","question":"Where is IGT IGF on the ignition coil wiring to the ECM?","expected":[{"doc_id":"is300-engine-wiring","page":1},{"doc_id":"is300-engine-wiring","page":4}]}

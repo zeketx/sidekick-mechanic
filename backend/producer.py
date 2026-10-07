@@ -37,6 +37,7 @@ from retrieval import (
     RetrievalError,
     RetrievedChunk,
     Retriever,
+    snippet_matches_page,
 )
 
 DEFAULT_FIXTURE = "plain.json"
@@ -56,8 +57,8 @@ _GROUNDED_INSTRUCTIONS = (
     'The object has a string field "text" and an array field "citations". '
     'Each citation has "doc_id" (string), "page" (integer), and "snippet" (string). '
     "Retrieved pages is a JSON array. "
-    "snippet must be an exact case-sensitive copy of a contiguous span of the "
-    "decoded page text, not JSON escape sequences. "
+    "snippet must copy tokens from that page's decoded text, not JSON escape "
+    "sequences. Whitespace may differ; do not invent tokens. "
     "Do not add an ellipsis, quotes, or other characters. "
     f"The server shortens a snippet longer than {_SNIPPET_LIMIT} characters. "
     "Use only a doc_id and page from the retrieved pages. "
@@ -87,8 +88,25 @@ WIRING_NOT_INGESTED_REFUSAL: dict[str, Any] = {
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _MANIFEST_PATH = _REPO_ROOT / "docs" / "MANUALS.md"
-_WIRING_DOC_ID = "lj78-wiring"
+_CHASSIS_WIRING_DOC_ID = "lj78-wiring"
+_ENGINE_WIRING_DOC_ID = "is300-engine-wiring"
+# #118 miss path: a wiring question with no hits, while the chassis EWD is blocked.
 _WIRING_QUERY = re.compile(r"\b(?:wiring|harness|pinouts?|ewd)\b", re.IGNORECASE)
+_ELECTRICAL_QUERY = re.compile(
+    r"\b(?:wiring|harness|pinouts?|ewd|fuses?|relays?|wires?|pins?|connectors?)\b",
+    re.IGNORECASE,
+)
+_ENGINE_WIRING_SUBJECT = re.compile(
+    r"\b(?:2jz(?:-?ge)?|is300|ecm|ecu|injectors?|ignition\s+coils?|"
+    r"vvt(?:-?i)?|efi|ocv|oil\s+control\s+valve|"
+    r"engine\s+(?:harness|wiring|connectors?|control))\b",
+    re.IGNORECASE,
+)
+_CHASSIS_WIRING_SUBJECT = re.compile(
+    r"\b(?:lj78|lj7[0-9]|70[\s-]?series|land\s*cruisers?|glow\s*plugs?|"
+    r"(?:chassis|body)\s+(?:wiring|harness|ewd))\b",
+    re.IGNORECASE,
+)
 
 validate_answer(UNAVAILABLE_ANSWER)
 validate_answer(NOT_FOUND_REFUSAL)
@@ -158,14 +176,17 @@ class LlmAnswerProducer:
         if retriever is None:
             return self._ungrounded(conversation)
 
+        query = _last_user_text(conversation)
+        if _chassis_wiring_blocked(query):
+            return dict(WIRING_NOT_INGESTED_REFUSAL)
         try:
-            hits = retriever.search(_last_user_text(conversation))
+            hits = _search_hits(retriever, query)
         except _IndexMissing:
             return self._ungrounded(conversation)
         except (RetrievalError, sqlite3.Error):
             return dict(UNAVAILABLE_ANSWER)
         if not hits:
-            return _refusal_for_miss(_last_user_text(conversation))
+            return _refusal_for_miss(query)
 
         text = self._complete(
             _chat_messages(conversation, _grounded_system_prompt(hits, conversation))
@@ -189,8 +210,11 @@ class LlmAnswerProducer:
         retriever = self._retriever
         if retriever is None:
             return ()
+        query = _last_user_text(conversation)
+        if _chassis_wiring_blocked(query):
+            return ()
         try:
-            hits = retriever.search(_last_user_text(conversation))
+            hits = _search_hits(retriever, query)
         except (_IndexMissing, RetrievalError, sqlite3.Error):
             return ()
         return tuple(hit.text for hit in hits)
@@ -263,13 +287,19 @@ class _IndexRetriever:
     def __init__(self, index_path: Path | None = None) -> None:
         self._index_path = index_path
 
-    def search(self, query: str, k: int = DEFAULT_K) -> tuple[RetrievedChunk, ...]:
+    def search(
+        self,
+        query: str,
+        k: int = DEFAULT_K,
+        *,
+        doc_id: str | None = None,
+    ) -> tuple[RetrievedChunk, ...]:
         path = self._index_path if self._index_path is not None else _index_path()
         if not path.is_file():
             raise _IndexMissing(str(path))
         index = Fts5Index.open(path)
         try:
-            return index.search(query, k)
+            return index.search(query, k, doc_id=doc_id)
         finally:
             index.close()
 
@@ -291,10 +321,39 @@ def _chat_messages(conversation: Conversation, system: str) -> list[ChatTurn]:
     return messages
 
 
+def _search_hits(retriever: Retriever, query: str) -> tuple[RetrievedChunk, ...]:
+    if _is_engine_wiring(query):
+        if isinstance(retriever, _IndexRetriever):
+            return retriever.search(query, doc_id=_ENGINE_WIRING_DOC_ID)
+        return tuple(
+            hit for hit in retriever.search(query) if hit.doc_id == _ENGINE_WIRING_DOC_ID
+        )
+    return retriever.search(query)
+
+
 def _refusal_for_miss(query: str) -> dict[str, Any]:
+    if _is_engine_wiring(query):
+        return dict(NOT_FOUND_REFUSAL)
     if _WIRING_QUERY.search(query) and _wiring_manual_blocked():
         return dict(WIRING_NOT_INGESTED_REFUSAL)
     return dict(NOT_FOUND_REFUSAL)
+
+
+def _is_engine_wiring(query: str) -> bool:
+    return (
+        _ENGINE_WIRING_SUBJECT.search(query) is not None
+        and _ELECTRICAL_QUERY.search(query) is not None
+    )
+
+
+def _is_chassis_wiring(query: str) -> bool:
+    if _CHASSIS_WIRING_SUBJECT.search(query) is None:
+        return False
+    return not _is_engine_wiring(query)
+
+
+def _chassis_wiring_blocked(query: str) -> bool:
+    return _is_chassis_wiring(query) and _wiring_manual_blocked()
 
 
 def _wiring_manual_blocked() -> bool:
@@ -303,7 +362,7 @@ def _wiring_manual_blocked() -> bool:
     except ManifestError:
         return False
     return any(
-        document.id == _WIRING_DOC_ID and document.status == "blocked"
+        document.id == _CHASSIS_WIRING_DOC_ID and document.status == "blocked"
         for document in documents
     )
 
@@ -403,7 +462,7 @@ def _filter_citations(
         page = citation["page"]
         snippet = citation["snippet"]
         page_text = pages.get((doc_id, page))
-        if page_text is None or snippet not in page_text:
+        if page_text is None or not snippet_matches_page(snippet, page_text):
             continue
         stored = _cap_snippet(snippet)
         if not stored.strip():
