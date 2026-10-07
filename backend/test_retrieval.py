@@ -73,6 +73,13 @@ def test_k_one_returns_the_best_page_only(tmp_path: Path) -> None:
     assert [(hit.doc_id, hit.page) for hit in hits] == [("FAKE-DOC-2JZ", 999)]
 
 
+def test_search_can_limit_to_one_doc_id(tmp_path: Path) -> None:
+    with Fts5Index.open(_build(tmp_path)) as index:
+        hits = index.search("starter", doc_id="FAKE-DOC-WIRING")
+
+    assert [(hit.doc_id, hit.page) for hit in hits] == [("FAKE-DOC-WIRING", 999)]
+
+
 def test_unmatched_query_returns_empty_tuple(tmp_path: Path) -> None:
     with Fts5Index.open(_build(tmp_path)) as index:
         hits = index.search("not-a-manual-term-zzzz")

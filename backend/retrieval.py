@@ -83,22 +83,37 @@ class Fts5Index:
             raise
         return cls(connection)
 
-    def search(self, query: str, k: int = DEFAULT_K) -> tuple[RetrievedChunk, ...]:
+    def search(
+        self,
+        query: str,
+        k: int = DEFAULT_K,
+        *,
+        doc_id: str | None = None,
+    ) -> tuple[RetrievedChunk, ...]:
         if k < 1:
             raise RetrievalError(f"k must be >= 1, got {k}")
         match = _fts_match_query(query)
         if match is None:
             return ()
-        rows = self._connection.execute(
-            """
+        if doc_id is None:
+            sql = """
             SELECT doc_id, page, text, -bm25(chunks) AS score
             FROM chunks
             WHERE chunks MATCH ?
             ORDER BY bm25(chunks)
             LIMIT ?
-            """,
-            (match, k),
-        ).fetchall()
+            """
+            params: tuple[object, ...] = (match, k)
+        else:
+            sql = """
+            SELECT doc_id, page, text, -bm25(chunks) AS score
+            FROM chunks
+            WHERE chunks MATCH ? AND doc_id = ?
+            ORDER BY bm25(chunks)
+            LIMIT ?
+            """
+            params = (match, doc_id, k)
+        rows = self._connection.execute(sql, params).fetchall()
         return tuple(
             RetrievedChunk(
                 doc_id=row["doc_id"],

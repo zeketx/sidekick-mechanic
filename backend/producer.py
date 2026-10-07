@@ -179,15 +179,11 @@ class LlmAnswerProducer:
         if _chassis_wiring_blocked(query):
             return dict(WIRING_NOT_INGESTED_REFUSAL)
         try:
-            hits = retriever.search(query)
+            hits = _search_hits(retriever, query)
         except _IndexMissing:
             return self._ungrounded(conversation)
         except (RetrievalError, sqlite3.Error):
             return dict(UNAVAILABLE_ANSWER)
-        if _is_engine_wiring(query):
-            hits = tuple(
-                hit for hit in hits if hit.doc_id == _ENGINE_WIRING_DOC_ID
-            )
         if not hits:
             return _refusal_for_miss(query)
 
@@ -217,13 +213,9 @@ class LlmAnswerProducer:
         if _chassis_wiring_blocked(query):
             return ()
         try:
-            hits = retriever.search(query)
+            hits = _search_hits(retriever, query)
         except (_IndexMissing, RetrievalError, sqlite3.Error):
             return ()
-        if _is_engine_wiring(query):
-            hits = tuple(
-                hit for hit in hits if hit.doc_id == _ENGINE_WIRING_DOC_ID
-            )
         return tuple(hit.text for hit in hits)
 
     def _ungrounded(self, conversation: Conversation) -> dict[str, Any]:
@@ -294,13 +286,19 @@ class _IndexRetriever:
     def __init__(self, index_path: Path | None = None) -> None:
         self._index_path = index_path
 
-    def search(self, query: str, k: int = DEFAULT_K) -> tuple[RetrievedChunk, ...]:
+    def search(
+        self,
+        query: str,
+        k: int = DEFAULT_K,
+        *,
+        doc_id: str | None = None,
+    ) -> tuple[RetrievedChunk, ...]:
         path = self._index_path if self._index_path is not None else _index_path()
         if not path.is_file():
             raise _IndexMissing(str(path))
         index = Fts5Index.open(path)
         try:
-            return index.search(query, k)
+            return index.search(query, k, doc_id=doc_id)
         finally:
             index.close()
 
@@ -320,6 +318,16 @@ def _chat_messages(conversation: Conversation, system: str) -> list[ChatTurn]:
         for message in conversation.messages
     )
     return messages
+
+
+def _search_hits(retriever: Retriever, query: str) -> tuple[RetrievedChunk, ...]:
+    if _is_engine_wiring(query):
+        if isinstance(retriever, _IndexRetriever):
+            return retriever.search(query, doc_id=_ENGINE_WIRING_DOC_ID)
+        return tuple(
+            hit for hit in retriever.search(query) if hit.doc_id == _ENGINE_WIRING_DOC_ID
+        )
+    return retriever.search(query)
 
 
 def _refusal_for_miss(query: str) -> dict[str, Any]:
