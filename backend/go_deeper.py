@@ -76,11 +76,12 @@ def go_deeper(
     chunks_path: Path | None = None,
     manuals_dir: Path | None = None,
     client: LLMClient | None = None,
+    manifest_path: Path | None = None,
 ) -> dict[str, Any]:
     """Return a Go deeper payload grounded in one page."""
-    from manual_pages import is_safe_doc_id
+    from manual_pages import is_servable_doc_id
 
-    if not is_safe_doc_id(doc_id):
+    if not is_servable_doc_id(doc_id, manifest_path=manifest_path):
         raise GoDeeperError("This manual page is not available.", status_code=404)
     if not isinstance(page, int) or isinstance(page, bool) or page < 1:
         raise GoDeeperError("This manual page is not available.", status_code=404)

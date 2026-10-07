@@ -15,9 +15,11 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
 from go_deeper import FAKE_DOC_PREFIX, FAKE_PAGE_TEXT, is_fake_doc_id
+from manifest import ManifestError, load_manifest
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_MANUALS_DIR = _REPO_ROOT / "manuals"
+DEFAULT_MANIFEST_PATH = _REPO_ROOT / "docs" / "MANUALS.md"
 DEFAULT_CACHE_DIR = Path(__file__).resolve().parent / ".ingest" / "pages"
 RASTER_DPI = 150
 _SAFE_DOC_ID = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
@@ -40,15 +42,34 @@ def is_safe_doc_id(doc_id: str) -> bool:
     return bool(_SAFE_DOC_ID.fullmatch(doc_id))
 
 
+def is_servable_doc_id(
+    doc_id: str,
+    *,
+    manifest_path: Path | None = None,
+) -> bool:
+    """Fixture IDs and ``ingest`` rows only. Blocked and unknown IDs are not served."""
+    if not is_safe_doc_id(doc_id):
+        return False
+    if is_fake_doc_id(doc_id):
+        return True
+    path = manifest_path if manifest_path is not None else DEFAULT_MANIFEST_PATH
+    try:
+        documents = load_manifest(path)
+    except ManifestError:
+        return False
+    return any(doc.id == doc_id and doc.status == "ingest" for doc in documents)
+
+
 def page_png(
     doc_id: str,
     page: int,
     *,
     manuals_dir: Path | None = None,
     cache_dir: Path | None = None,
+    manifest_path: Path | None = None,
 ) -> bytes:
     """Return PNG bytes for one 1-based page."""
-    if not is_safe_doc_id(doc_id):
+    if not is_servable_doc_id(doc_id, manifest_path=manifest_path):
         raise ManualPageError("This manual page is not available.", status_code=404)
     if not isinstance(page, int) or isinstance(page, bool) or page < 1:
         raise ManualPageError("This manual page is not available.", status_code=404)

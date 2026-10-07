@@ -9,7 +9,7 @@ from pypdf import PdfWriter
 
 from app import create_app
 from go_deeper import FAKE_FUSE_GO_DEEPER, FAKE_PAGE_TEXT
-from manual_pages import is_png, is_safe_doc_id, page_png
+from manual_pages import is_png, is_safe_doc_id, is_servable_doc_id, page_png
 
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
@@ -19,6 +19,7 @@ def _client(
     *,
     chunks: str | None = None,
     go_deeper_client: object | None = None,
+    manifest_path: Path | None = None,
 ) -> TestClient:
     manuals = tmp_path / "manuals"
     manuals.mkdir()
@@ -32,8 +33,26 @@ def _client(
             chunks_path=chunks_path,
             page_cache_dir=cache,
             go_deeper_client=go_deeper_client,  # type: ignore[arg-type]
+            manifest_path=manifest_path,
         )
     )
+
+
+def _write_manifest(directory: Path, rows: list[tuple[str, str, str]]) -> Path:
+    path = directory / "MANUALS.md"
+    lines = [
+        "# Test inventory",
+        "",
+        "| ID | Title | Edition | Page count | SHA-256 | Status |",
+        "| --- | --- | --- | --- | --- | --- |",
+    ]
+    for doc_id, digest, status in rows:
+        lines.append(
+            f"| {doc_id} | Fake test manual | TBD | TBD | {digest} | {status} |"
+        )
+    lines.append("")
+    path.write_text("\n".join(lines), encoding="utf-8")
+    return path
 
 
 def _blank_pdf(path: Path, pages: int = 1) -> None:
@@ -51,6 +70,16 @@ def test_unsafe_document_ids_are_rejected() -> None:
     assert not is_safe_doc_id(".")
     assert not is_safe_doc_id("FAKE/DOC")
     assert not is_safe_doc_id("FAKE\\DOC")
+
+
+def test_only_ingest_and_fake_docs_are_servable() -> None:
+    assert is_servable_doc_id("FAKE-DOC-2JZ")
+    assert is_servable_doc_id("2jz-ge-rm")
+    assert is_servable_doc_id("is300-engine-wiring")
+    assert not is_servable_doc_id("lj78-wiring")
+    assert not is_servable_doc_id("not-a-manual")
+    assert not is_servable_doc_id("..")
+    assert not is_servable_doc_id("FAKE/DOC")
 
 
 def test_fake_doc_page_png_is_obviously_fake(tmp_path: Path) -> None:
@@ -71,6 +100,60 @@ def test_missing_and_unsafe_pages_are_404(tmp_path: Path) -> None:
     assert client.get("/manuals/2jz-ge-rm/pages/1.png").status_code == 404
     assert client.get("/manuals/../pages/1.png").status_code == 404
     assert client.get("/manuals/FAKE-DOC-2JZ/pages/0.png").status_code == 404
+
+
+def test_blocked_and_unknown_docs_are_404_even_when_the_pdf_exists(
+    tmp_path: Path,
+) -> None:
+    manuals = tmp_path / "manuals"
+    manuals.mkdir()
+    _blank_pdf(manuals / "lj78-wiring.pdf")
+    _blank_pdf(manuals / "not-a-manual.pdf")
+    cache = tmp_path / "pages"
+    (cache / "lj78-wiring").mkdir(parents=True)
+    (cache / "lj78-wiring" / "1.png").write_bytes(page_png("FAKE-DOC-2JZ", 999))
+    client = TestClient(
+        create_app(
+            manuals_dir=manuals,
+            page_cache_dir=cache,
+            chunks_path=tmp_path / "missing.jsonl",
+        )
+    )
+
+    assert client.get("/manuals/lj78-wiring/pages/1.png").status_code == 404
+    assert client.get("/manuals/lj78-wiring/pages/1/go-deeper").status_code == 404
+    assert client.get("/manuals/not-a-manual/pages/1.png").status_code == 404
+    assert client.get("/manuals/not-a-manual/pages/1/go-deeper").status_code == 404
+    assert client.get("/manuals/../pages/1.png").status_code == 404
+
+
+def test_non_ingest_status_is_404(tmp_path: Path) -> None:
+    digest = "a" * 64
+    manifest = _write_manifest(
+        tmp_path,
+        [
+            ("fixture-blocked", digest, "blocked"),
+            ("fixture-ok", digest, "ingest"),
+        ],
+    )
+    manuals = tmp_path / "manuals"
+    manuals.mkdir()
+    _blank_pdf(manuals / "fixture-blocked.pdf")
+    _blank_pdf(manuals / "fixture-ok.pdf")
+    client = TestClient(
+        create_app(
+            manuals_dir=manuals,
+            page_cache_dir=tmp_path / "pages",
+            chunks_path=tmp_path / "missing.jsonl",
+            manifest_path=manifest,
+        )
+    )
+    assert client.get("/manuals/fixture-blocked/pages/1.png").status_code == 404
+    assert client.get("/manuals/fixture-blocked/pages/1/go-deeper").status_code == 404
+    if shutil.which("pdftoppm") is None:
+        assert client.get("/manuals/fixture-ok/pages/1.png").status_code == 404
+    else:
+        assert client.get("/manuals/fixture-ok/pages/1.png").status_code == 200
 
 
 def test_synthetic_pdf_rasterizes_when_pdftoppm_exists(tmp_path: Path) -> None:

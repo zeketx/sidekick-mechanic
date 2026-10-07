@@ -46,22 +46,34 @@ struct CitationPageView: View {
     }
 
     private var headerBar: some View {
-        ZStack {
+        // ZStack-centered title overlaps Close at accessibility Dynamic Type.
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            closeButton
+                .accessibilityIdentifier("citation.close")
             Text("Manual page")
                 .font(.headline)
                 .foregroundStyle(.primary)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity)
                 .accessibilityAddTraits(.isHeader)
-            HStack {
-                Button("Close") { dismiss() }
-                    .buttonStyle(.plain)
-                    .font(.body)
-                    .foregroundStyle(.primary)
-                    .accessibilityIdentifier("citation.close")
-                Spacer(minLength: 0)
-            }
+            closeButton
+                .hidden()
+                .accessibilityHidden(true)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
+        .accessibilityElement(children: .contain)
+    }
+
+    private var closeButton: some View {
+        Button("Close") { dismiss() }
+            .buttonStyle(.plain)
+            .font(.body)
+            .foregroundStyle(.primary)
+            .fixedSize(horizontal: true, vertical: false)
+            .layoutPriority(1)
     }
 
     private var header: some View {

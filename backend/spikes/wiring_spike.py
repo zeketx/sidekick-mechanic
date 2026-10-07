@@ -331,12 +331,27 @@ def _flat(rows: tuple[tuple[str, ...], ...]) -> tuple[str, ...]:
     return tuple(token for row in rows for token in row)
 
 
+def missing_tools() -> str | None:
+    """Why this spike cannot run. OCR assertions need DejaVu; other fonts skip."""
+    missing: list[str] = []
+    if shutil.which("pdftoppm") is None:
+        missing.append("pdftoppm")
+    if shutil.which("tesseract") is None:
+        missing.append("tesseract")
+    if not FONT_PATH.is_file():
+        missing.append(str(FONT_PATH))
+    if not missing:
+        return None
+    return (
+        "missing " + ", ".join(missing)
+        + " (apt install poppler-utils tesseract-ocr fonts-dejavu-core)"
+    )
+
+
 def _require_tools() -> None:
-    if shutil.which("pdftoppm") is None or shutil.which("tesseract") is None:
-        raise WiringSpikeError(
-            "pdftoppm and tesseract are required "
-            "(apt install poppler-utils tesseract-ocr fonts-dejavu-core)"
-        )
+    reason = missing_tools()
+    if reason is not None:
+        raise WiringSpikeError(reason)
 
 
 def _tool_versions() -> dict[str, str]:

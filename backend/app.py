@@ -48,6 +48,7 @@ def create_app(
     chunks_path: Path | None = None,
     page_cache_dir: Path | None = None,
     go_deeper_client: LLMClient | None = None,
+    manifest_path: Path | None = None,
 ) -> FastAPI:
     answer_producer = producer if producer is not None else default_producer()
     application = FastAPI(
@@ -62,6 +63,7 @@ def create_app(
     application.state.chunks_path = chunks_path
     application.state.page_cache_dir = page_cache_dir
     application.state.go_deeper_client = go_deeper_client
+    application.state.manifest_path = manifest_path
 
     @application.get("/demo/photos")
     def get_demo_photos() -> dict[str, Any]:
@@ -89,6 +91,7 @@ def create_app(
                 page,
                 manuals_dir=application.state.manuals_dir,
                 cache_dir=application.state.page_cache_dir,
+                manifest_path=application.state.manifest_path,
             )
         except ManualPageError as exc:
             raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
@@ -103,6 +106,7 @@ def create_app(
                 chunks_path=application.state.chunks_path,
                 manuals_dir=application.state.manuals_dir,
                 client=application.state.go_deeper_client,
+                manifest_path=application.state.manifest_path,
             )
         except GoDeeperError as exc:
             raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
