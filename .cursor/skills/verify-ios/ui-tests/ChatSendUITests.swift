@@ -34,7 +34,7 @@ final class ChatSendUITests: XCTestCase {
 
         let chip = app.descendants(matching: .any)["answerCard.chip.0"]
         XCTAssertTrue(chip.waitForExistence(timeout: 5))
-        XCTAssertEqual(chip.label, "FAKE-DOC-2JZ · page 999")
+        XCTAssertEqual(chip.label, "FAKE-DOC-2JZ · p. 999")
         XCTAssertTrue(app.descendants(matching: .any)["answerCard.found"].exists)
         try writeShot("answer-card.png")
     }

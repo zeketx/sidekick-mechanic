@@ -7,8 +7,13 @@ struct ChatScreen: View {
     @Bindable var model: ChatViewModel
     var backendURL: URL = AppConfig.backendURL
     var launch: DemoLaunchOptions = DemoLaunchOptions.parse()
+    @Environment(\.colorScheme) private var colorScheme
     @State private var demoImages = DemoImageStore()
     @State private var presentedViewer: HighlightViewerSession?
+    @State private var jobSheet = JobSheetViewModel()
+    @State private var windowHeight: CGFloat = 0
+    @State private var topSafeArea: CGFloat = 0
+    @State private var bottomSafeArea: CGFloat = 0
 
     private var configuration: ChatClientConfiguration {
         ChatClientConfiguration(baseURL: backendURL)
@@ -18,7 +23,7 @@ struct ChatScreen: View {
         NavigationStack {
             messageList
                 .safeAreaInset(edge: .top, spacing: 0) {
-                    if model.isDemoMode {
+                    if launch.showDemoChrome, model.isDemoMode {
                         DemoModeChrome(
                             model: model,
                             store: demoImages,
@@ -28,16 +33,77 @@ struct ChatScreen: View {
                 }
                 .safeAreaInset(edge: .bottom, spacing: 0) {
                     bottomBar
+                        .hidden()
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
                 }
                 .navigationTitle("Sidekick")
                 .navigationBarTitleDisplayMode(.inline)
+                .toolbar(jobSheet.detent == .full && jobSheet.hasJob ? .hidden : .visible, for: .navigationBar)
                 .toolbar {
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Toggle("Demo mode", isOn: $model.isDemoMode)
+                    if launch.showDemoChrome {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button(model.isDemoMode ? "Demo on" : "Demo mode") {
+                                model.isDemoMode.toggle()
+                            }
+                            .buttonStyle(.plain)
+                            .font(.body)
+                            .foregroundStyle(.primary)
                             .accessibilityIdentifier("demo.toggle")
+                        }
                     }
                 }
-                .background(.background)
+                .toolbarBackground(JobSheetChrome.screen, for: .navigationBar)
+                .toolbarBackground(jobSheet.hasJob ? .hidden : .visible, for: .navigationBar)
+                .toolbarColorScheme(colorScheme == .dark ? .dark : .light, for: .navigationBar)
+                .background(JobSheetChrome.screen)
+        }
+        .overlay {
+            ZStack(alignment: .bottom) {
+                jobSheetScrim
+                bottomBar
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+            .ignoresSafeArea()
+        }
+        .background(JobSheetChrome.screen)
+        .background {
+            WindowSafeAreaProbe { height, top, bottom in
+                windowHeight = height
+                topSafeArea = top
+                bottomSafeArea = bottom
+            }
+        }
+        .statusBarHidden(false)
+        .persistentSystemOverlays(.visible)
+        .task(id: demoLoadToken) {
+            guard model.isDemoMode || launch.opensJobSheet || launch.showDemoChrome else { return }
+            await demoImages.load(from: configuration)
+            if model.isDemoMode, model.selectedDemoPhotoID == nil {
+                model.selectedDemoPhotoID = demoImages.catalog?.defaultPhotoID
+                    ?? DemoLaunchOptions.defaultPhotoID
+            }
+        }
+    }
+
+    private var demoLoadToken: String {
+        "\(model.isDemoMode)-\(launch.opensJobSheet)-\(launch.showDemoChrome)"
+    }
+
+    @ViewBuilder
+    private var jobSheetScrim: some View {
+        if jobSheet.hasJob, JobSheetLayout.scrimOpacity(detent: jobSheet.detent) > 0 {
+            Color.black
+                .opacity(JobSheetLayout.scrimOpacity(detent: jobSheet.detent))
+                .ignoresSafeArea()
+                .contentShape(Rectangle())
+                .allowsHitTesting(jobSheet.detent != .collapsed)
+                .onTapGesture { jobSheet.close() }
+                .accessibilityIdentifier("jobSheet.dim")
+                .accessibilityLabel("Close job sheet")
+                .accessibilityAddTraits(.isButton)
+                .accessibilityHidden(jobSheet.detent == .collapsed)
+                .animation(.easeInOut(duration: 0.22), value: jobSheet.detent)
         }
     }
 
@@ -69,9 +135,12 @@ struct ChatScreen: View {
             }
             .defaultScrollAnchor(.bottom)
             .accessibilityIdentifier("chat.messageList")
+            .allowsHitTesting(!jobSheet.blocksChat)
             .onAppear {
                 scrollToEnd(proxy)
                 presentLaunchViewerIfNeeded()
+                presentLaunchJobSheetIfNeeded()
+                jobSheet.sync(from: model.messages, photoID: jobPhotoID)
             }
             .onChange(of: demoImages.images.count) { _, _ in
                 refreshLaunchViewerImage()
@@ -92,6 +161,7 @@ struct ChatScreen: View {
             }
             .onChange(of: model.messages.count) { _, _ in
                 scrollToEnd(proxy)
+                jobSheet.sync(from: model.messages, photoID: jobPhotoID)
             }
             .onChange(of: model.isLoading) { _, _ in
                 scrollToEnd(proxy)
@@ -113,6 +183,31 @@ struct ChatScreen: View {
 
     private var bottomBar: some View {
         VStack(spacing: 0) {
+            if !jobSheet.blocksChat {
+                composerChrome
+            }
+            if jobSheet.hasJob {
+                JobSheetView(
+                    model: jobSheet,
+                    image: jobPhoto,
+                    attribution: jobAttribution,
+                    shareAlike: jobShareAlike,
+                    flags: launch.featureFlags,
+                    screenHeight: windowHeight,
+                    topSafeArea: topSafeArea,
+                    bottomChromeInset: launch.showDemoChrome
+                        ? max(bottomSafeArea, CGFloat(JobSheetLayout.demoTabChromeHeight))
+                        : 0,
+                    onOpenHighlight: presentJobViewer,
+                    onAttachPhoto: attachDemoPhotoToJob
+                )
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var composerChrome: some View {
+        VStack(spacing: 0) {
             if let errorMessage = model.errorMessage {
                 Text(errorMessage)
                     .font(.footnote)
@@ -126,11 +221,22 @@ struct ChatScreen: View {
             }
             composer
         }
-        .background(.bar)
+        .background(JobSheetChrome.screen)
+        .safeAreaPadding(.bottom, jobSheet.hasJob ? 0 : nil)
     }
 
     private var composer: some View {
         HStack(alignment: .bottom, spacing: 8) {
+            if jobSheet.hasJob, jobSheet.job?.hasPhoto != true {
+                Button(action: attachDemoPhotoToJob) {
+                    Image(systemName: "photo.badge.plus")
+                        .font(.title3)
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("chat.attach")
+                .accessibilityLabel(JobSheetCopy.attach)
+                .accessibilityHint(JobSheetCopy.attachHint)
+            }
             TextField("Describe the problem", text: $model.composerText, axis: .vertical)
                 .font(.body)
                 .lineLimit(1...5)
@@ -138,19 +244,23 @@ struct ChatScreen: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
                 .background {
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(Color.secondary.opacity(0.15))
+                    Capsule()
+                        .fill(JobSheetChrome.paper)
+                        .overlay {
+                            Capsule().strokeBorder(Color.primary.opacity(0.18), lineWidth: 1)
+                        }
                 }
                 .accessibilityIdentifier("chat.composer")
 
             Button {
                 Task { await model.send() }
             } label: {
-                Image(systemName: "arrow.up.circle.fill")
-                    .font(.title2)
-                    .symbolRenderingMode(.hierarchical)
+                Image(systemName: "arrow.up")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .frame(width: 32, height: 32)
             }
-            .buttonStyle(.borderless)
+            .buttonStyle(.plain)
             .disabled(!model.canSend)
             .accessibilityIdentifier("chat.send")
             .accessibilityLabel("Send")
@@ -278,6 +388,74 @@ struct ChatScreen: View {
         }
         presentedViewer = session
     }
+
+    private func presentLaunchJobSheetIfNeeded() {
+        guard let screen = launch.jobSheetScreen else { return }
+        jobSheet.applyLaunch(screen, photoID: launch.resolvedPhotoID)
+    }
+
+    private func presentJobViewer() {
+        guard let job = jobSheet.job, job.hasPhoto else { return }
+        let presentation = HighlightViewerPresentation.resolve(
+            source: HighlightViewerState.fromDemo(
+                display: job.highlight?.display,
+                highlight: job.highlight
+            ),
+            flags: launch.featureFlags,
+            photoID: job.photoID ?? launch.resolvedPhotoID,
+            partID: job.highlight?.partID.rawValue ?? launch.partID
+        )
+        presentedViewer = HighlightViewerSession(
+            presentation: presentation,
+            image: jobPhoto ?? HighlightPlaceholderImage.make(),
+            referenceImage: presentation.referencePhotoID.flatMap { demoImages.images[$0] },
+            geometry: presentation.showsOutline
+                ? (job.highlight?.geometry ?? HighlightViewerScript.geometry(
+                    photoID: presentation.outlinePhotoID,
+                    partID: presentation.partID,
+                    showingOutline: true
+                ))
+                : nil,
+            attribution: jobAttribution,
+            shareAlike: jobShareAlike
+        )
+    }
+
+    private func attachDemoPhotoToJob() {
+        let photoID = jobPhotoID ?? DemoLaunchOptions.defaultPhotoID
+        if !jobSheet.hasJob {
+            jobSheet.sync(from: model.messages, photoID: photoID)
+        }
+        jobSheet.attachPhoto(photoID: photoID)
+        if model.isDemoMode, model.selectedDemoPhotoID == nil {
+            model.selectedDemoPhotoID = photoID
+        }
+    }
+
+    private var jobPhotoID: String? {
+        if launch.opensJobSheet {
+            return model.selectedDemoPhotoID ?? launch.resolvedPhotoID
+        }
+        return model.activeDemoPhotoID
+    }
+
+    private var jobPhoto: UIImage? {
+        guard let photoID = jobSheet.job?.photoID else { return nil }
+        return demoImages.images[photoID]
+    }
+
+    private var jobPhotoInfo: DemoPhotoInfo? {
+        guard let photoID = jobSheet.job?.photoID else { return nil }
+        return demoImages.catalog?.photos.first { $0.photoID == photoID }
+    }
+
+    private var jobAttribution: String {
+        jobPhotoInfo?.attribution ?? "Demo data. Not Zeke's truck."
+    }
+
+    private var jobShareAlike: Bool {
+        jobPhotoInfo?.shareAlike ?? false
+    }
 }
 
 private struct HighlightViewerSession {
@@ -305,12 +483,12 @@ private struct MessageBubble: View {
                 Spacer(minLength: 32)
                 Text(user.text)
                     .font(.body)
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(Color.white)
                     .multilineTextAlignment(.leading)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
                     .background(
-                        Color.accentColor.opacity(0.18),
+                        Color.black,
                         in: RoundedRectangle(cornerRadius: 18, style: .continuous)
                     )
             }

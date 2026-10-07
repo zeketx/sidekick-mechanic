@@ -134,9 +134,11 @@ extension ChatClientConfiguration {
 ///
 /// `-demoPhoto <id> -demoPart <part_id> -demoState outline|confirm|not_found|reference -demoStyle outline|saturate|circle|dim`
 /// `-screen highlight-confident|highlight-unsure|highlight-not-found|highlight-reference`
+/// `-screen job-sheet-collapsed|job-sheet-half|job-sheet-full|job-sheet-closeout`
+/// `-showDemoChrome 1` shows the Demo mode toggle, demo banner, and Chat/Readings tabs.
 /// `-flagUnsureHighlight 1` turns on the internal unsure card. Off by default.
 /// Env: `SIDEKICK_DEMO_PHOTO`, `SIDEKICK_DEMO_PART`, `SIDEKICK_DEMO_STATE`, `SIDEKICK_DEMO_STYLE`,
-/// `SIDEKICK_SCREEN`, `SIDEKICK_FLAG_UNSURE_HIGHLIGHT`.
+/// `SIDEKICK_SCREEN`, `SIDEKICK_SHOW_DEMO_CHROME`, `SIDEKICK_FLAG_UNSURE_HIGHLIGHT`.
 public struct DemoLaunchOptions: Equatable, Sendable {
     public static let defaultPhotoID = "commons-hilux-2jz"
 
@@ -145,10 +147,17 @@ public struct DemoLaunchOptions: Equatable, Sendable {
     public var state: String?
     public var style: DemoHighlightStyle?
     public var screen: HighlightViewerScreen?
+    public var jobSheetScreen: JobSheetScreen?
+    public var showDemoChrome: Bool
     public var unsureHighlight: Bool
 
     public var enablesDemoMode: Bool {
-        photoID != nil || partID != nil || state != nil || style != nil || screen != nil
+        photoID != nil
+            || partID != nil
+            || state != nil
+            || style != nil
+            || screen != nil
+            || jobSheetScreen != nil
     }
 
     public var featureFlags: FeatureFlags {
@@ -159,11 +168,18 @@ public struct DemoLaunchOptions: Equatable, Sendable {
         screen != nil
     }
 
+    public var opensJobSheet: Bool {
+        jobSheetScreen != nil
+    }
+
     public var resolvedPhotoID: String {
         photoID ?? Self.defaultPhotoID
     }
 
     public var cannedQuestion: String {
+        if jobSheetScreen != nil {
+            return JobSheetCopy.question
+        }
         if let screen {
             switch screen {
             case .confident:
@@ -185,6 +201,8 @@ public struct DemoLaunchOptions: Equatable, Sendable {
         state: String? = nil,
         style: DemoHighlightStyle? = nil,
         screen: HighlightViewerScreen? = nil,
+        jobSheetScreen: JobSheetScreen? = nil,
+        showDemoChrome: Bool = false,
         unsureHighlight: Bool = false
     ) {
         self.photoID = photoID.map(Self.resolvePhotoID)
@@ -192,6 +210,8 @@ public struct DemoLaunchOptions: Equatable, Sendable {
         self.state = state
         self.style = style
         self.screen = screen
+        self.jobSheetScreen = jobSheetScreen
+        self.showDemoChrome = showDemoChrome
         self.unsureHighlight = unsureHighlight || screen == .unsure
     }
 
@@ -199,11 +219,9 @@ public struct DemoLaunchOptions: Equatable, Sendable {
         arguments: [String] = ProcessInfo.processInfo.arguments,
         environment: [String: String] = ProcessInfo.processInfo.environment
     ) -> DemoLaunchOptions {
-        let screen = HighlightViewerScreen(
-            rawValue: LaunchArgument.flag(arguments, "-screen")
-                ?? environment["SIDEKICK_SCREEN"]
-                ?? ""
-        )
+        let rawScreen = LaunchArgument.flag(arguments, "-screen")
+            ?? environment["SIDEKICK_SCREEN"]
+            ?? ""
         return DemoLaunchOptions(
             photoID: LaunchArgument.flag(arguments, "-demoPhoto") ?? environment["SIDEKICK_DEMO_PHOTO"],
             partID: LaunchArgument.flag(arguments, "-demoPart") ?? environment["SIDEKICK_DEMO_PART"],
@@ -213,7 +231,12 @@ public struct DemoLaunchOptions: Equatable, Sendable {
                     ?? environment["SIDEKICK_DEMO_STYLE"]
                     ?? ""
             ),
-            screen: screen,
+            screen: HighlightViewerScreen(rawValue: rawScreen),
+            jobSheetScreen: JobSheetScreen(rawValue: rawScreen),
+            showDemoChrome: FeatureFlags.isEnabled(
+                LaunchArgument.flag(arguments, "-showDemoChrome")
+                    ?? environment["SIDEKICK_SHOW_DEMO_CHROME"]
+            ),
             unsureHighlight: FeatureFlags.parse(arguments: arguments, environment: environment)
                 .unsureHighlight
         )

@@ -114,3 +114,15 @@ public final class ChatViewModel {
 
     static let unknownFailureMessage = "Something went wrong. Try again."
 }
+
+/// Pill radius for the chat composer field. Always half the field height (a Capsule).
+public enum ComposerLayout {
+    /// Single-line fields land near this; multiline must still use height/2.
+    public static let maxCornerRadius: Double = 22
+    /// Fitted radius / half-height must stay at or above this (verify-sidekick).
+    public static let pillRatioMinimum: Double = 0.75
+
+    public static func cornerRadius(height: Double) -> Double {
+        max(height, 0) / 2
+    }
+}
