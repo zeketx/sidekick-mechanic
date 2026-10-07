@@ -40,6 +40,7 @@ struct CitationPageView: View {
             }
         }
         .background(JobSheetChrome.paper)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("citation.viewer")
         .task { await model.load() }
     }
@@ -172,6 +173,7 @@ struct CitationPageView: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .contain)
             .accessibilityIdentifier("citation.goDeeper")
         }
     }

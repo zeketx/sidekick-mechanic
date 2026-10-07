@@ -47,7 +47,7 @@ Figma / #94 wireframe PNGs: [figma/](./figma/). `chat.png` and `job-sheet-closeo
 ## Features
 
 - [Onboarding](./onboarding.md) covers first-open pages 1–3, Skip, and the Garage sheet (#111, on main).
-- [Chat, answer card, and composer](./chat.md) covers the Garage nav button, pill composer, answer card, and citation chip.
+- [Chat, answer card, and composer](./chat.md) covers the Garage nav button, pill composer, answer card, and citation chip → page + Go deeper (`-screen citation-page`).
 - [Job sheet](./job-sheet.md) covers collapsed / half / full / closeout, scrim, handle drag, and Outcome.
 - [Highlight viewer](./highlight-viewer.md) covers confident, unsure (dashed), not-found, and reference.
 - [Job history and scan log](./job-history.md) covers Jobs rows, Scan log cells, and opening a sheet or highlight from them. **Later (#114).** Skip until those files are in the checkout.

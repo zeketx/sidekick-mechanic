@@ -40,7 +40,7 @@ FAKE_FUSE_GO_DEEPER: dict[str, str] = {
         "Look at the box. Check that the cover is on and nothing looks burned."
     ),
     "how_to_test": "Open the cover and look.",
-    "tools": "A flashlight.",
+    "tools": "You need a flashlight.",
 }
 
 DIAGRAM_HOW_IT_WORKS = (

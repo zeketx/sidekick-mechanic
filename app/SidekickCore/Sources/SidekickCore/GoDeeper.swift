@@ -84,7 +84,7 @@ public enum CannedGoDeeper {
         howItWorks: "The fuse/relay box is the plastic box that holds the fuses and relays for this engine bay.",
         whatToTest: "Look at the box. Check that the cover is on and nothing looks burned.",
         howToTest: "Open the cover and look.",
-        tools: "A flashlight."
+        tools: "You need a flashlight."
     )
 
     public static let fixturePage = GoDeeper(

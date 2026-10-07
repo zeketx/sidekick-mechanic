@@ -31,7 +31,7 @@ Full run (build, boot, each `-screen`, taps, Figma stitch, measured checklist, c
 .cursor/skills/verify-sidekick/scripts/verify-ios.sh run
 ```
 
-`run` exit codes: `0` harness and taps passed, no measured design FAIL (REVIEW cells still need you); `1` build, launch or a tap test failed (screenshots, side-by-sides and checklist are still written); `2` owner-only; `3` harness and taps passed but the design checklist has measured FAIL rows. It takes about 4–5 minutes on an M-series Mac (build, onboarding + chat + highlight + job sheet, UI tests). Jobs / scan log are skipped until #114.
+`run` exit codes: `0` harness and taps passed, no measured design FAIL (REVIEW cells still need you); `1` build, launch or a tap test failed (screenshots, side-by-sides and checklist are still written); `2` owner-only; `3` harness and taps passed but the design checklist has measured FAIL rows. It takes about 4–5 minutes on an M-series Mac (build, onboarding + chat + highlight + job sheet + citation page, UI tests). Jobs / scan log are skipped until #114.
 
 The last lines print the taps result, each failed test, and the checklist verdict with its path. Read `artifacts/verify/latest/compare/checklist.md` and open every `compare/<screen>.png` before reporting.
 
@@ -62,6 +62,7 @@ Launch arguments (parsed in `DemoLaunchOptions` / `OnboardingLaunchOptions`). Pa
 | `-sidekick.onboarding.completed YES` | UserDefaults key `sidekick.onboarding.completed`. Required on every non-onboarding launch so first-open does not steal the shot. |
 | `-screen highlight-confident\|highlight-unsure\|highlight-not-found\|highlight-reference` | Full-bleed highlight card. `-screen highlight-unsure` also turns on the internal unsure flag. |
 | `-screen job-sheet-collapsed\|job-sheet-half\|job-sheet-full\|job-sheet-closeout` | Job sheet detents. Closeout is half height with Outcome = Worked. |
+| `-screen citation-page` | White citation sheet for `FAKE-DOC-2JZ · p. 999` plus Go deeper. Also opens the job sheet at half so Close returns to the job. |
 | `-screen job-history` | Jobs list. **Later (#114).** Helper XCTSkips / records `skipped.json` when `JobHistoryView.swift` is absent. |
 | `-screen scan-log` | Scan log grid. **Later (#114).** Same skip when `ScanLogView.swift` is absent. |
 | `-demoPhoto hilux\|supra\|hrymx\|flickr` | Demo bay photo. Default `hilux` → `commons-hilux-2jz`. |
@@ -138,6 +139,7 @@ xcodebuild test \
 | `testDragSheetCollapsedToHalf` | Drag the sheet handle up | `jobSheet.handle` | `jobSheet.collapsed` → `jobSheet.half` |
 | `testTapScrimCollapsesHalfSheet` | Tap the dimmed chat | `jobSheet.dim` | `jobSheet.half` → `jobSheet.collapsed` |
 | `testScanLogFromJobsHeader` | Jobs → Scan log | `jobHistory.scanLog` | `scanLog.grid`. **Later (#114).** XCTSkip when `jobHistory.list` is missing. |
+| `testOpenCitationFromJobChip` | Half sheet → tap `jobSheet.chip.0` → Close | `citation.viewer`, `citation.goDeeper`, `citation.close` | Page + Go deeper, then `jobSheet.half` still there. Shots `taps-citation-page.png`, `taps-citation-closed.png`. |
 | `testComposerStaysPillWhenMultiline` | Tap the composer, type a long problem | `chat.composer` | `taps/taps-composer-multiline.png` + `taps/layout-composer-multiline.json` for the pill check |
 | `testRecordLayoutFrames` | Launch chat, collapsed / half / full (Jobs if present) | leaf ids per screen | `taps/layout-frames.json` (points) for the composer and nav-button checks |
 | `testIdentifierAudit` | Launch each screen | every id listed under Identifiers | `taps/identifiers.json` found / missing / skipped; fails if a documented-on-this-checkout id is unreachable |
@@ -155,7 +157,9 @@ Chat: `chat.garage`, `chat.composer`, `chat.send`, `chat.messageList`, `chat.att
 
 Onboarding: `onboarding.welcome`, `onboarding.howItWorks`, `onboarding.garage`, `onboarding.skip`, `onboarding.next`, `onboarding.start`, `garage.done`. Root id `onboarding.onboarding-1` (etc.) uses `.contain` so those leaves stay reachable.
 
-Job sheet: `jobSheet.collapsed` / `.half` / `.full` (the sheet frame itself; `horizontalInset` is 0 on main), `jobSheet.handle`, `jobSheet.title`, `jobSheet.peek`, `jobSheet.open` / `.close`, `jobSheet.dim`, `jobSheet.body`, `jobSheet.answer`, `jobSheet.photo`, `jobSheet.chips`, `jobSheet.steps`, `jobSheet.outcome`, `jobSheet.outcome.worked` / `.partly` / `.didnt`. Full also has `jobSheet.notes`, `jobSheet.tags`, `jobSheet.tags.add`, `jobSheet.whatFixed`.
+Job sheet: `jobSheet.collapsed` / `.half` / `.full` (the sheet frame itself; `horizontalInset` is 0 on main), `jobSheet.handle`, `jobSheet.title`, `jobSheet.peek`, `jobSheet.open` / `.close`, `jobSheet.dim`, `jobSheet.body`, `jobSheet.answer`, `jobSheet.photo`, `jobSheet.chips`, `jobSheet.chip.0`, `jobSheet.steps`, `jobSheet.outcome`, `jobSheet.outcome.worked` / `.partly` / `.didnt`. Full also has `jobSheet.notes`, `jobSheet.tags`, `jobSheet.tags.add`, `jobSheet.whatFixed`.
+
+Citation sheet: `citation.viewer`, `citation.close`, `citation.document`, `citation.pageNumber`, `citation.pageImage`, `citation.goDeeper`, `citation.snippet`.
 
 Highlight: `highlightViewer`, `highlightViewer.close`, `highlightViewer.photo`, `demo.confirm.yes` / `.notThis`.
 
@@ -172,6 +176,7 @@ Proof goes to `artifacts/verify/<run-id>/` (gitignored). `latest` is a symlink t
 | `doctor.json` | Xcode, sim, app, backend, branch, SHA |
 | `manifest.json` | Command, git, shot lists, taps result and checklist verdict |
 | `screenshots/<screen>.png` | That `-screen` after terminate + wait, status bar 9:41 |
+| `screenshots/citation-page.png` | Cited page + Go deeper (`-screen citation-page`) |
 | `taps/result.json` | Which UI tests passed / failed / skipped, assertion lines |
 | `taps/taps-jobs-list.png` | Jobs list after tapping `chat.jobs` |
 | `taps/taps-job-row-opened.png` | Cold idle sheet at half after the row tap |
@@ -180,6 +185,7 @@ Proof goes to `artifacts/verify/<run-id>/` (gitignored). `latest` is a symlink t
 | `taps/taps-scan-log.png` | Scan log after Jobs → Scan log |
 | `taps/taps-composer-multiline.png` | Composer after typing a long problem |
 | `taps/taps-chat-axxxl.png`, `taps-job-sheet-half-axxxl.png`, `taps-job-sheet-closeout-axxxl.png` | Accessibility XXXL: Garage vs title, half/closeout below the island with a chat sliver |
+| `taps/taps-citation-page.png`, `taps-citation-closed.png` | Chip → page + Go deeper, then Close back on the job |
 | `taps/layout-frames.json`, `layout-composer-multiline.json` | XCUITest element frames (points) the checklist measures against |
 | `taps/identifiers.json` | Documented ids found / missing per screen |
 | `taps/DriveUITests.xcresult` | Full XCTest result bundle |

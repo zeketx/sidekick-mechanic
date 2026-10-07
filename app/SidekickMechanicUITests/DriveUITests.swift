@@ -65,6 +65,29 @@ final class DriveUITests: XCTestCase {
         try writeShot("taps-sheet-after-drag.png")
     }
 
+    func testOpenCitationFromJobChip() throws {
+        let app = launchApp(arguments: [
+            "-screen", "job-sheet-half",
+            "-demoPhoto", "hilux",
+        ])
+        XCTAssertTrue(element(app, "jobSheet.half").waitForExistence(timeout: 8))
+        let chip = element(app, "jobSheet.chip.0")
+        XCTAssertTrue(chip.waitForExistence(timeout: 5), "jobSheet.chip.0 is missing")
+        chip.tap()
+
+        XCTAssertTrue(element(app, "citation.viewer").waitForExistence(timeout: 5))
+        XCTAssertTrue(element(app, "citation.goDeeper").waitForExistence(timeout: 5))
+        try writeShot("taps-citation-page.png")
+        element(app, "citation.close").tap()
+
+        XCTAssertTrue(
+            element(app, "jobSheet.half").waitForExistence(timeout: 5),
+            "Close should return to the job sheet"
+        )
+        XCTAssertTrue(element(app, "jobSheet.chip.0").waitForExistence(timeout: 5))
+        try writeShot("taps-citation-closed.png")
+    }
+
     func testTapScrimCollapsesHalfSheet() throws {
         let app = launchApp(arguments: [
             "-screen", "job-sheet-half",
@@ -247,7 +270,8 @@ final class DriveUITests: XCTestCase {
                 ["-screen", "job-sheet-half", "-demoPhoto", "hilux"],
                 [
                     "jobSheet.half", "jobSheet.handle", "jobSheet.title", "jobSheet.close", "jobSheet.dim",
-                    "jobSheet.body", "jobSheet.answer", "jobSheet.photo", "jobSheet.chips", "jobSheet.steps",
+                    "jobSheet.body", "jobSheet.answer", "jobSheet.photo", "jobSheet.chips", "jobSheet.chip.0",
+                    "jobSheet.steps",
                     "jobSheet.step.2",
                     "jobSheet.outcome", "jobSheet.outcome.worked", "jobSheet.outcome.partly", "jobSheet.outcome.didnt",
                 ],
@@ -271,6 +295,15 @@ final class DriveUITests: XCTestCase {
                     "jobSheet.half", "jobSheet.handle", "jobSheet.title", "jobSheet.close",
                     "jobSheet.outcome", "jobSheet.outcome.worked", "jobSheet.outcome.partly",
                     "jobSheet.outcome.didnt",
+                ],
+                false
+            ),
+            (
+                "citation-page",
+                ["-screen", "citation-page", "-demoPhoto", "hilux"],
+                [
+                    "citation.viewer", "citation.close", "citation.goDeeper",
+                    "citation.pageImage", "jobSheet.half",
                 ],
                 false
             ),

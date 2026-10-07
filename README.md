@@ -21,4 +21,4 @@ Tapping a citation chip opens a white sheet (`CitationPageView`) for that cited 
 Agents prove behavior with the project-local skills in `.cursor/skills/`, then keep the maps honest with `/maintain-verification-skill`.
 
 - Linux: [verify-backend](.cursor/skills/verify-backend/SKILL.md) launches FastAPI, posts `/chat` using the `FAKE-*` fixtures, and checks the answer contract, refusals, the spec guard, and citations. The same run executes `swift test` in `app/SidekickCore` and `make eval`.
-- Owner's Mac: [verify-ios](.cursor/skills/verify-ios/SKILL.md) builds with `xcodebuild`, boots a simulator with `simctl`, and runs a UI test that sends a message. There is no `xcodeproj` in the repo yet, and Linux cannot run this skill.
+- Owner's Mac: [verify-sidekick](.cursor/skills/verify-sidekick/SKILL.md) (`scripts/verify-ios.sh run`) builds, launches each `-screen` (including `citation-page`), taps, and screenshots. [verify-ios](.cursor/skills/verify-ios/SKILL.md) still covers mock-mode chat send. Linux cannot run either.

@@ -120,6 +120,11 @@ SCREENS: dict[str, ScreenSpec] = {
         figma="job-sheet-closeout.png",
         wait_s=4.0,
     ),
+    "citation-page": ScreenSpec(
+        args=("-screen", "citation-page", "-demoPhoto", "hilux"),
+        figma="citation-page.png",
+        wait_s=4.0,
+    ),
     "job-history": ScreenSpec(
         args=("-screen", "job-history"),
         figma="job-history.png",
@@ -147,6 +152,7 @@ DEFAULT_SCREENS = (
     "job-sheet-half",
     "job-sheet-full",
     "job-sheet-closeout",
+    "citation-page",
     "job-history",
     "scan-log",
 )
