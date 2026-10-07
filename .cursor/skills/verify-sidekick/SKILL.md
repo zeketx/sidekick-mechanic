@@ -143,7 +143,7 @@ xcodebuild test \
 | `testComposerStaysPillWhenMultiline` | Tap the composer, type a long problem | `chat.composer` | `taps/taps-composer-multiline.png` + `taps/layout-composer-multiline.json` for the pill check |
 | `testRecordLayoutFrames` | Launch chat, collapsed / half / full (Jobs if present) | leaf ids per screen | `taps/layout-frames.json` (points) for the composer and nav-button checks |
 | `testIdentifierAudit` | Launch each screen | every id listed under Identifiers | `taps/identifiers.json` found / missing / skipped; fails if a documented-on-this-checkout id is unreachable |
-| `testAccessibilityXXXLHeaderAndHalfSheet` | `-dynamicTypeSize accessibility5` on chat, then job-sheet-half, then job-sheet-closeout | `chat.garage`, `jobSheet.title`, `jobSheet.close`, `jobSheet.step.2`, `jobSheet.outcome.worked` | Garage does not overlap Sidekick; last step fully visible above Outcome; Worked is tappable; title and Close sit below the island; a sliver of chat (`chat.garage`) stays visible above half and closeout |
+| `testAccessibilityXXXLHeaderAndHalfSheet` | `-dynamicTypeSize accessibility5` on chat, then job-sheet-half, then job-sheet-closeout, then citation-page | `chat.garage`, `jobSheet.title`, `jobSheet.close`, `jobSheet.step.2`, `jobSheet.outcome.worked`, `citation.close`, `citation.title` | Garage does not overlap Sidekick; last step fully visible above Outcome; Worked is tappable; job and citation headers sit below the island; a sliver of chat (`chat.garage`) stays visible above half and closeout |
 
 The drag uses a vector from `jobSheet.handle`, not a raw screen coordinate of the sheet. The drag and scrim tests also save a before shot (`taps-sheet-before-drag.png`, `taps-sheet-before-scrim.png`). Every test launches with `-sidekick.onboarding.completed YES` unless it passes an onboarding flag itself.
 
@@ -159,7 +159,7 @@ Onboarding: `onboarding.welcome`, `onboarding.howItWorks`, `onboarding.garage`, 
 
 Job sheet: `jobSheet.collapsed` / `.half` / `.full` (the sheet frame itself; `horizontalInset` is 0 on main), `jobSheet.handle`, `jobSheet.title`, `jobSheet.peek`, `jobSheet.open` / `.close`, `jobSheet.dim`, `jobSheet.body`, `jobSheet.answer`, `jobSheet.photo`, `jobSheet.chips`, `jobSheet.chip.0`, `jobSheet.steps`, `jobSheet.outcome`, `jobSheet.outcome.worked` / `.partly` / `.didnt`. Full also has `jobSheet.notes`, `jobSheet.tags`, `jobSheet.tags.add`, `jobSheet.whatFixed`.
 
-Citation sheet: `citation.viewer`, `citation.close`, `citation.document`, `citation.pageNumber`, `citation.pageImage`, `citation.goDeeper`, `citation.snippet`.
+Citation sheet: `citation.viewer`, `citation.close`, `citation.title`, `citation.document`, `citation.pageNumber`, `citation.pageImage`, `citation.goDeeper`, `citation.snippet`.
 
 Highlight: `highlightViewer`, `highlightViewer.close`, `highlightViewer.photo`, `demo.confirm.yes` / `.notThis`.
 
@@ -184,7 +184,7 @@ Proof goes to `artifacts/verify/<run-id>/` (gitignored). `latest` is a symlink t
 | `taps/taps-sheet-before-scrim.png`, `taps-sheet-after-scrim.png` | Half, then collapsed after tapping `jobSheet.dim` |
 | `taps/taps-scan-log.png` | Scan log after Jobs → Scan log |
 | `taps/taps-composer-multiline.png` | Composer after typing a long problem |
-| `taps/taps-chat-axxxl.png`, `taps-job-sheet-half-axxxl.png`, `taps-job-sheet-closeout-axxxl.png` | Accessibility XXXL: Garage vs title, half/closeout below the island with a chat sliver |
+| `taps/taps-chat-axxxl.png`, `taps-job-sheet-half-axxxl.png`, `taps-job-sheet-closeout-axxxl.png`, `taps-citation-page-axxxl.png` | Accessibility XXXL: Garage vs title, half/closeout below the island with a chat sliver, citation Close / Manual page below the island |
 | `taps/taps-citation-page.png`, `taps-citation-closed.png` | Chip → page + Go deeper, then Close back on the job |
 | `taps/layout-frames.json`, `layout-composer-multiline.json` | XCUITest element frames (points) the checklist measures against |
 | `taps/identifiers.json` | Documented ids found / missing per screen |

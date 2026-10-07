@@ -26,18 +26,18 @@ struct CitationPageView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            headerBar
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    header
-                    pageBody
-                    snippetNote
-                    goDeeperBlock
-                }
-                .padding(16)
-                .frame(maxWidth: .infinity, alignment: .leading)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                header
+                pageBody
+                snippetNote
+                goDeeperBlock
             }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            headerBar
         }
         .background(JobSheetChrome.paper)
         .accessibilityElement(children: .contain)
@@ -47,6 +47,7 @@ struct CitationPageView: View {
 
     private var headerBar: some View {
         // ZStack-centered title overlaps Close at accessibility Dynamic Type.
+        // safeAreaInset keeps Close / title below the island, like job-sheet full.
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             closeButton
                 .accessibilityIdentifier("citation.close")
@@ -58,12 +59,15 @@ struct CitationPageView: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity)
                 .accessibilityAddTraits(.isHeader)
+                .accessibilityIdentifier("citation.title")
             closeButton
                 .hidden()
                 .accessibilityHidden(true)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
+        .frame(maxWidth: .infinity)
+        .background(JobSheetChrome.paper)
         .accessibilityElement(children: .contain)
     }
 

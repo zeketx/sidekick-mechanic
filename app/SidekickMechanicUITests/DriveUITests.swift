@@ -302,7 +302,7 @@ final class DriveUITests: XCTestCase {
                 "citation-page",
                 ["-screen", "citation-page", "-demoPhoto", "hilux"],
                 [
-                    "citation.viewer", "citation.close", "citation.goDeeper",
+                    "citation.viewer", "citation.close", "citation.title", "citation.goDeeper",
                     "citation.pageImage", "jobSheet.half",
                 ],
                 false
@@ -457,6 +457,43 @@ final class DriveUITests: XCTestCase {
             screen: "job-sheet-closeout axxxl"
         )
         try writeShot("taps-job-sheet-closeout-axxxl.png")
+        closeout.terminate()
+
+        let citation = launchApp(arguments: [
+            "-screen", "citation-page",
+            "-demoPhoto", "hilux",
+            "-dynamicTypeSize", "accessibility5",
+        ])
+        XCTAssertTrue(
+            element(citation, "citation.viewer").waitForExistence(timeout: 8),
+            "citation.viewer is missing at Accessibility XXXL"
+        )
+        assertCitationHeaderClearsTopSafeArea(citation, screen: "citation-page axxxl")
+        try writeShot("taps-citation-page-axxxl.png")
+    }
+
+    private func assertCitationHeaderClearsTopSafeArea(_ app: XCUIApplication, screen: String) {
+        let inset = topSafeAreaInset(app)
+        let title = element(app, "citation.title")
+        XCTAssertTrue(title.waitForExistence(timeout: 5), "\(screen): citation.title is missing")
+        XCTAssertGreaterThanOrEqual(
+            title.frame.minY,
+            inset,
+            "\(screen): title minY \(title.frame.minY) sits under the status bar / island (safe area \(inset))"
+        )
+        let close = element(app, "citation.close")
+        XCTAssertTrue(close.waitForExistence(timeout: 3), "\(screen): citation.close is missing")
+        XCTAssertGreaterThanOrEqual(
+            close.frame.minY,
+            inset,
+            "\(screen): Close minY \(close.frame.minY) sits under the status bar / island (safe area \(inset))"
+        )
+        XCTAssertTrue(close.isHittable, "\(screen): Close must stay hittable at Accessibility XXXL")
+        XCTAssertLessThanOrEqual(
+            close.frame.maxX,
+            title.frame.minX + 4,
+            "\(screen): Close overlaps Manual page at Accessibility XXXL: \(close.frame) vs \(title.frame)"
+        )
     }
 
     private func stepFullyVisible(
