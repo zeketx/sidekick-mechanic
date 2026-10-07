@@ -159,12 +159,19 @@ def _circle_box(
     points: Sequence[tuple[float, float]],
     padding: int,
 ) -> tuple[float, float, float, float]:
-    """Circle centered on the vertex mean that covers every vertex plus padding."""
-    count = len(points)
-    cx = sum(point[0] for point in points) / count
-    cy = sum(point[1] for point in points) / count
-    reach = max(math.hypot(point[0] - cx, point[1] - cy) for point in points)
-    radius = reach + padding
+    """Circle on the axis-aligned bounding-box center.
+
+    Radius is half the bounding-box diagonal plus ``padding``. The vertex
+    mean is the wrong center for an irregular polygon: it drifts toward
+    dense edges and the ring looks oversized and off-center.
+    """
+    xs = [point[0] for point in points]
+    ys = [point[1] for point in points]
+    min_x, max_x = min(xs), max(xs)
+    min_y, max_y = min(ys), max(ys)
+    cx = (min_x + max_x) / 2.0
+    cy = (min_y + max_y) / 2.0
+    radius = math.hypot((max_x - min_x) / 2.0, (max_y - min_y) / 2.0) + padding
     return (cx - radius, cy - radius, cx + radius, cy + radius)
 
 

@@ -14,7 +14,16 @@ class Message(BaseModel):
     text: str = Field(min_length=1)
 
 
+class DemoRequest(BaseModel):
+    """Optional demo-mode context. Omit on the normal path."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    photo_id: str = Field(min_length=1)
+
+
 class Conversation(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     messages: list[Message] = Field(min_length=1)
+    demo: DemoRequest | None = None

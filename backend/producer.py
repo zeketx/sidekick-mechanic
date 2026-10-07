@@ -26,6 +26,7 @@ from llm import (
     TokenUsage,
     build_llm_client,
 )
+from demo import DEMO_SYSTEM_PROMPT, resolve_demo_answer
 from part_resolver import BayMapView, complete_selection, resolve_answer
 from retrieval import (
     DEFAULT_K,
@@ -151,7 +152,7 @@ class LlmAnswerProducer:
             return dict(NOT_FOUND_REFUSAL)
 
         text = self._complete(
-            _chat_messages(conversation, _grounded_system_prompt(hits))
+            _chat_messages(conversation, _grounded_system_prompt(hits, conversation))
         )
         if text is None:
             return dict(UNAVAILABLE_ANSWER)
@@ -164,7 +165,8 @@ class LlmAnswerProducer:
         if not citations:
             return dict(UNAVAILABLE_ANSWER)
         return self._with_part_highlight(
-            {"kind": "answer", "text": parsed.text, "citations": citations}
+            {"kind": "answer", "text": parsed.text, "citations": citations},
+            conversation,
         )
 
     def cited_chunk_texts(self, conversation: Conversation) -> tuple[str, ...]:
@@ -178,11 +180,15 @@ class LlmAnswerProducer:
         return tuple(hit.text for hit in hits)
 
     def _ungrounded(self, conversation: Conversation) -> dict[str, Any]:
-        text = self._complete(_chat_messages(conversation, SYSTEM_PROMPT))
+        system = (
+            DEMO_SYSTEM_PROMPT if conversation.demo is not None else SYSTEM_PROMPT
+        )
+        text = self._complete(_chat_messages(conversation, system))
         if text is None:
             return dict(UNAVAILABLE_ANSWER)
         return self._with_part_highlight(
-            {"kind": "answer", "text": text, "citations": []}
+            {"kind": "answer", "text": text, "citations": []},
+            conversation,
         )
 
     def _complete(self, messages: list[ChatTurn]) -> str | None:
@@ -208,7 +214,18 @@ class LlmAnswerProducer:
             return None
         return text
 
-    def _with_part_highlight(self, payload: dict[str, Any]) -> dict[str, Any]:
+    def _with_part_highlight(
+        self,
+        payload: dict[str, Any],
+        conversation: Conversation,
+    ) -> dict[str, Any]:
+        demo_photo_id = (
+            conversation.demo.photo_id if conversation.demo is not None else None
+        )
+        if demo_photo_id is not None:
+            return resolve_demo_answer(
+                payload, _last_user_text(conversation), demo_photo_id
+            )
         bay_map = self._bay_map
         if bay_map is None or not bay_map.parts:
             return payload
@@ -265,11 +282,19 @@ def _last_user_text(conversation: Conversation) -> str:
     return ""
 
 
-def _grounded_system_prompt(hits: Sequence[_RetrievedPage]) -> str:
+def _grounded_system_prompt(
+    hits: Sequence[_RetrievedPage],
+    conversation: Conversation | None = None,
+) -> str:
     pages = [{"doc_id": hit.doc_id, "page": hit.page, "text": hit.text} for hit in hits]
     rendered = json.dumps(pages, ensure_ascii=False)
+    preamble = (
+        DEMO_SYSTEM_PROMPT
+        if conversation is not None and conversation.demo is not None
+        else _GROUNDED_PREAMBLE
+    )
     return (
-        f"{_GROUNDED_PREAMBLE}\n\n{_GROUNDED_INSTRUCTIONS}\n\n"
+        f"{preamble}\n\n{_GROUNDED_INSTRUCTIONS}\n\n"
         f"{RETRIEVED_PAGES_HEADER}{rendered}"
     )
 

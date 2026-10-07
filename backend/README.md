@@ -334,6 +334,31 @@ non-empty `BayMapView`. The default producer has no bay map, so `/chat` does
 not highlight until a map is supplied. A failed selection call leaves the
 answer without a highlight.
 
+## Demo mode
+
+Optional playground for chat-to-highlight UX before the owner's bay photos
+exist. Catalog: [`data/demo/`](data/demo/). Attribution:
+[`data/demo/ATTRIBUTION.md`](data/demo/ATTRIBUTION.md). The Hilux photo is
+CC BY-SA 3.0 (share-alike). Polygons and `demo_state` are scripted, not
+measured. Same `SIDEKICK_LLM_*` config as the normal path. No keys in git.
+
+Send `demo: {"photo_id": "<id>"}` on `POST /chat`. The producer still calls
+the model (with the confirmed LJ78 / 2JZ-GE swap as context; VVT-i is TBD).
+The part is resolved from the **user's question**, constrained to that
+photo's part list — not from the reply wording. The highlight follows that
+part's `demo_state`, and the answer text agrees with that state:
+
+| State | Wire |
+| --- | --- |
+| outline | `highlight` with `display: outline`, `geometry.polygons`, `demo: true` |
+| confirm | same, `display: confirm` (softer "Is this it?" in the app) |
+| not found, or a part not on that photo | no `highlight`; text points at a placeholder manual diagram |
+
+Omit `demo` and the normal path is unchanged. Old `{bay_photo_id, part_id}`
+highlights still validate. `GET /demo/photos`, `GET /demo/photos/{id}/image`,
+`GET /demo/attribution`, and `POST /demo/feedback` (`yes` / `not_this`) are
+demo-only. Proofs: `python3 render_demo_proofs.py`.
+
 ## Highlight renderer
 
 `highlight.render_highlight(photo, polygon, style)` returns a new RGB image.
