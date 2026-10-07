@@ -156,6 +156,9 @@ struct ChatScreen: View {
                         onYes: session.onYes,
                         onNotThis: session.onNotThis
                     )
+                    .modifier(
+                        AccessibilityLaunchModifier(enabled: launch.prefersAccessibilitySize)
+                    )
                 }
             }
             .onChange(of: model.messages.count) { _, _ in

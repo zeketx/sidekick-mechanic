@@ -17,6 +17,11 @@ from pypdf import PdfReader
 from pypdf.errors import PyPdfError
 
 FONT_PATH = Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf")
+_FONT_CANDIDATES = (
+    FONT_PATH,
+    Path("/System/Library/Fonts/Supplemental/Arial.ttf"),
+    Path("/Library/Fonts/Arial.ttf"),
+)
 RASTER_DPI = 150
 _FONT_SIZE = 36
 
@@ -246,10 +251,18 @@ def _vertical_image(labels: tuple[str, ...]) -> Image.Image:
     return image
 
 
-def _font() -> ImageFont.FreeTypeFont:
-    if not FONT_PATH.is_file():
-        raise WiringSpikeError(f"missing font: {FONT_PATH}")
-    return ImageFont.truetype(str(FONT_PATH), _FONT_SIZE)
+def resolved_font_path() -> Path | None:
+    for path in _FONT_CANDIDATES:
+        if path.is_file():
+            return path
+    return None
+
+
+def _font() -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
+    path = resolved_font_path()
+    if path is not None:
+        return ImageFont.truetype(str(path), _FONT_SIZE)
+    return ImageFont.load_default()
 
 
 def _image_pdf(image: Image.Image, extra_ops: str = "") -> bytes:
@@ -332,19 +345,23 @@ def _flat(rows: tuple[tuple[str, ...], ...]) -> tuple[str, ...]:
 
 
 def missing_tools() -> str | None:
-    """Why this spike cannot run. OCR assertions need DejaVu; other fonts skip."""
+    """Skip only when raster/OCR tools are missing. Fonts fall back on macOS."""
     missing: list[str] = []
     if shutil.which("pdftoppm") is None:
         missing.append("pdftoppm")
     if shutil.which("tesseract") is None:
         missing.append("tesseract")
-    if not FONT_PATH.is_file():
-        missing.append(str(FONT_PATH))
+    try:
+        import pytesseract as _pytesseract
+    except ImportError:
+        missing.append("pytesseract")
+    else:
+        del _pytesseract
     if not missing:
         return None
     return (
         "missing " + ", ".join(missing)
-        + " (apt install poppler-utils tesseract-ocr fonts-dejavu-core)"
+        + " (apt install poppler-utils tesseract-ocr; pip install pytesseract)"
     )
 
 

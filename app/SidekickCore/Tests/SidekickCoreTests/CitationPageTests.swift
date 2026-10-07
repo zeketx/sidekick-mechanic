@@ -251,7 +251,7 @@ final class ManualPageSourceTests: XCTestCase {
         let doc = try XCTUnwrap(DocumentID(rawValue: "2jz-ge-rm"))
         let page = try XCTUnwrap(PageNumber(rawValue: 12))
 
-        let block = try await source.goDeeper(docID: doc, page: page)
+        let block = try await source.goDeeper(docID: doc, page: page, snippet: "")
 
         XCTAssertEqual(block.howItWorks, "From this page: FAKE-CHUNK.")
         XCTAssertEqual(block.whatToTest, "Look at the cover.")
@@ -269,7 +269,7 @@ final class ManualPageSourceTests: XCTestCase {
             remote: CachingGoDeeperSource(configuration: configuration(try makeCache()), http: http)
         )
         let doc = try XCTUnwrap(DocumentID(rawValue: "FAKE-DOC-2JZ"))
-        let block = try await source.goDeeper(docID: doc, page: fakePage())
+        let block = try await source.goDeeper(docID: doc, page: fakePage(), snippet: "")
         XCTAssertEqual(block, CannedGoDeeper.fuseBox)
         XCTAssertTrue(http.requests.isEmpty)
     }
@@ -286,6 +286,29 @@ final class ManualPageSourceTests: XCTestCase {
         XCTAssertNil(block.howToTest)
         XCTAssertEqual(block.tools, "A flashlight.")
         XCTAssertEqual(block.sections.map(\.title), ["How this works", "Tools"])
+    }
+
+    func testPageExcerptStripsControlCharactersAndCapsAroundSnippet() {
+        let raw = "Torque:\u{0001} 18 N·m\n\tmore\u{007F}"
+        XCTAssertEqual(PageExcerpt.stripControlCharacters(raw), "Torque: 18 N·m\n\tmore")
+
+        let snippet = "Torque: 18 N·m is the spec"
+        let page = "B02630\u{0001} " + String(repeating: "junk ", count: 40) + ". " + snippet + " " + String(repeating: "extra ", count: 80)
+        let excerpt = PageExcerpt.aroundSnippet(pageText: page, snippet: snippet, limit: 80)
+        XCTAssertEqual(excerpt?.contains("Torque: 18 N·m"), true)
+        XCTAssertEqual(excerpt?.contains("\u{0001}"), false)
+        XCTAssertEqual(excerpt?.contains("B02630"), false)
+        XCTAssertLessThanOrEqual(excerpt?.count ?? 0, 81)
+        XCTAssertEqual(excerpt?.hasSuffix("…"), true)
+
+        XCTAssertNil(PageExcerpt.aroundSnippet(pageText: "inspect the cover.", snippet: "spark plug torque"))
+        XCTAssertNil(PageExcerpt.aroundSnippet(pageText: "inspect the cover.", snippet: "  "))
+    }
+
+    func testGoDeeperStripsControlCharactersFromJSON() throws {
+        let data = Data("{\"how_it_works\":\"Torque:\\u0001 18 N·m\"}".utf8)
+        let block = try JSONDecoder().decode(GoDeeper.self, from: data)
+        XCTAssertEqual(block.howItWorks, "Torque: 18 N·m")
     }
 
     func testCancelledFetchIsNotAPageFailure() async throws {

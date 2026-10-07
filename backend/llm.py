@@ -263,9 +263,12 @@ def _go_deeper_from_messages(messages: list[ChatTurn]) -> dict[str, str] | None:
                     "I am not guessing pinouts or wire colors."
                 )
             }
-        excerpt = " ".join(text.split())
-        if len(excerpt) > 400:
-            excerpt = excerpt[:400].rsplit(" ", 1)[0]
+        from go_deeper import excerpt_around_snippet
+
+        snippet = page.get("snippet") if isinstance(page.get("snippet"), str) else None
+        excerpt = excerpt_around_snippet(text, snippet)
+        if excerpt is None:
+            return {}
         return {"how_it_works": excerpt}
     return None
 

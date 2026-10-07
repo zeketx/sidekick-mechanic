@@ -9,6 +9,7 @@ import UIKit
 @MainActor
 struct CitationPageView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var model: CitationPageModel
 
     init(
@@ -40,38 +41,70 @@ struct CitationPageView: View {
             headerBar
         }
         .background(JobSheetChrome.paper)
+        .modifier(
+            AccessibilityLaunchModifier(
+                enabled: DemoLaunchOptions.parse().prefersAccessibilitySize
+            )
+        )
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("citation.viewer")
         .task { await model.load() }
     }
 
+    private var isAccessibilitySize: Bool { dynamicTypeSize.isAccessibilitySize }
+
     private var headerBar: some View {
-        // ZStack-centered title overlaps Close at accessibility Dynamic Type.
-        // safeAreaInset keeps Close / title below the island, like job-sheet full.
+        Group {
+            if isAccessibilitySize {
+                accessibilityHeader
+            } else {
+                defaultHeader
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(JobSheetChrome.paper)
+        .accessibilityElement(children: .contain)
+    }
+
+    /// Centered title with a matching hidden Close so the label stays in the middle.
+    private var defaultHeader: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
-            closeButton
+            closeTextButton
                 .accessibilityIdentifier("citation.close")
             Text("Manual page")
                 .font(.headline)
                 .foregroundStyle(.primary)
                 .multilineTextAlignment(.center)
-                .lineLimit(2)
-                .fixedSize(horizontal: false, vertical: true)
+                .lineLimit(1)
                 .frame(maxWidth: .infinity)
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityIdentifier("citation.title")
-            closeButton
+            closeTextButton
                 .hidden()
                 .accessibilityHidden(true)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .frame(maxWidth: .infinity)
-        .background(JobSheetChrome.paper)
-        .accessibilityElement(children: .contain)
     }
 
-    private var closeButton: some View {
+    /// Close plus the doc/page labels already in the body; no centered title.
+    private var accessibilityHeader: some View {
+        HStack {
+            Button(action: { dismiss() }) {
+                Image(systemName: "xmark")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .frame(minWidth: 44, minHeight: 44, alignment: .leading)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Close")
+            .accessibilityIdentifier("citation.close")
+            Spacer(minLength: 0)
+        }
+    }
+
+    private var closeTextButton: some View {
         Button("Close") { dismiss() }
             .buttonStyle(.plain)
             .font(.body)
@@ -91,8 +124,7 @@ struct CitationPageView: View {
                 .foregroundStyle(.secondary)
                 .accessibilityIdentifier("citation.pageNumber")
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(model.headerDocument), \(model.headerPage)")
+        .accessibilityElement(children: .contain)
     }
 
     @ViewBuilder

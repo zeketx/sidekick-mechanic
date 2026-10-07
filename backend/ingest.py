@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -162,10 +163,14 @@ def _extract_document(
     return chunks, empty_pages, page_count
 
 
+_CONTROL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+
+
 def _normalize_page_text(raw: str | None) -> str:
     if not raw:
         return ""
-    return raw.replace("\r\n", "\n").replace("\r", "\n").strip()
+    text = raw.replace("\r\n", "\n").replace("\r", "\n")
+    return _CONTROL_RE.sub("", text).strip()
 
 
 def _json_line(obj: dict[str, object]) -> str:

@@ -66,7 +66,11 @@ public final class CitationPageModel {
 
     private func loadGoDeeper() async -> GoDeeper? {
         if Task.isCancelled { return goDeeper }
-        return try? await goDeeperSource.goDeeper(docID: citation.docID, page: citation.page)
+        return try? await goDeeperSource.goDeeper(
+            docID: citation.docID,
+            page: citation.page,
+            snippet: citation.snippet
+        )
     }
 
     private func accepted(_ image: ManualPageImage) -> Phase {

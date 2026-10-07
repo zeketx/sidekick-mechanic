@@ -19,6 +19,11 @@ extension View {
             )
         ) { presented in
             CitationPageView(citation: presented.citation)
+                .modifier(
+                    AccessibilityLaunchModifier(
+                        enabled: DemoLaunchOptions.parse().prefersAccessibilitySize
+                    )
+                )
                 .presentationDetents([.large])
                 .presentationDragIndicator(.visible)
                 .presentationBackground(JobSheetChrome.paper)

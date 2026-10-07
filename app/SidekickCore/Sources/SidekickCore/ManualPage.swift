@@ -266,14 +266,24 @@ enum ManualPageLocation {
             .appendingPathComponent("\(page.rawValue).png")
     }
 
-    static func goDeeperURL(baseURL: URL, docID: DocumentID, page: PageNumber) -> URL? {
+    static func goDeeperURL(
+        baseURL: URL,
+        docID: DocumentID,
+        page: PageNumber,
+        snippet: String = ""
+    ) -> URL? {
         guard let name = safeName(docID.rawValue) else { return nil }
-        return baseURL
+        let path = baseURL
             .appendingPathComponent("manuals")
             .appendingPathComponent(name)
             .appendingPathComponent("pages")
             .appendingPathComponent("\(page.rawValue)")
             .appendingPathComponent("go-deeper")
+        let trimmed = snippet.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return path }
+        var components = URLComponents(url: path, resolvingAgainstBaseURL: false)
+        components?.queryItems = [URLQueryItem(name: "snippet", value: trimmed)]
+        return components?.url
     }
 
     /// Document IDs become a single path component. `.` and `..` would escape the cache.

@@ -94,10 +94,24 @@ def test_fake_client_returns_canned_text() -> None:
 
 def test_fake_client_restates_one_cited_page_for_go_deeper() -> None:
     fake = FakeLLMClient()
+    page = (
+        GO_DEEPER_HEADER
+        + '{"text":"Lead-in. FAKE-CHUNK: look at the cover. After that.",'
+        + '"snippet":"FAKE-CHUNK: look at the cover."}'
+    )
+    result = fake.complete([ChatTurn(role="user", content=page)])
+    payload = json.loads(result.text)
+    assert payload["how_it_works"]
+    assert "FAKE-CHUNK: look at the cover." in payload["how_it_works"]
+    assert len(payload["how_it_works"]) <= 300
+
+
+def test_fake_client_hides_go_deeper_without_snippet_match() -> None:
+    fake = FakeLLMClient()
     page = GO_DEEPER_HEADER + '{"text":"FAKE-CHUNK: look at the cover."}'
     result = fake.complete([ChatTurn(role="user", content=page)])
     payload = json.loads(result.text)
-    assert payload == {"how_it_works": "FAKE-CHUNK: look at the cover."}
+    assert payload == {}
 
 
 def test_producer_wraps_fake_text_as_contract_answer() -> None:

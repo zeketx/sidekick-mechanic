@@ -303,7 +303,7 @@ final class DriveUITests: XCTestCase {
                 ["-screen", "citation-page", "-demoPhoto", "hilux"],
                 [
                     "citation.viewer", "citation.close", "citation.title", "citation.goDeeper",
-                    "citation.pageImage", "jobSheet.half",
+                    "citation.pageImage", "citation.document", "jobSheet.half",
                 ],
                 false
             ),
@@ -459,6 +459,19 @@ final class DriveUITests: XCTestCase {
         try writeShot("taps-job-sheet-closeout-axxxl.png")
         closeout.terminate()
 
+        let defaultCitation = launchApp(arguments: [
+            "-screen", "citation-page",
+            "-demoPhoto", "hilux",
+        ])
+        XCTAssertTrue(
+            element(defaultCitation, "citation.viewer").waitForExistence(timeout: 8),
+            "citation.viewer is missing at default size"
+        )
+        let defaultDoc = element(defaultCitation, "citation.document")
+        XCTAssertTrue(defaultDoc.waitForExistence(timeout: 5), "citation.document is missing at default size")
+        let defaultDocHeight = defaultDoc.frame.height
+        defaultCitation.terminate()
+
         let citation = launchApp(arguments: [
             "-screen", "citation-page",
             "-demoPhoto", "hilux",
@@ -468,32 +481,42 @@ final class DriveUITests: XCTestCase {
             element(citation, "citation.viewer").waitForExistence(timeout: 8),
             "citation.viewer is missing at Accessibility XXXL"
         )
-        assertCitationHeaderClearsTopSafeArea(citation, screen: "citation-page axxxl")
+        assertCitationHeaderAtAccessibilitySize(
+            citation,
+            defaultDocumentHeight: defaultDocHeight,
+            screen: "citation-page axxxl"
+        )
         try writeShot("taps-citation-page-axxxl.png")
     }
 
-    private func assertCitationHeaderClearsTopSafeArea(_ app: XCUIApplication, screen: String) {
+    private func assertCitationHeaderAtAccessibilitySize(
+        _ app: XCUIApplication,
+        defaultDocumentHeight: CGFloat,
+        screen: String
+    ) {
         let inset = topSafeAreaInset(app)
-        let title = element(app, "citation.title")
-        XCTAssertTrue(title.waitForExistence(timeout: 5), "\(screen): citation.title is missing")
-        XCTAssertGreaterThanOrEqual(
-            title.frame.minY,
-            inset,
-            "\(screen): title minY \(title.frame.minY) sits under the status bar / island (safe area \(inset))"
+        XCTAssertFalse(
+            element(app, "citation.title").waitForExistence(timeout: 1),
+            "\(screen): Manual page title should be hidden at Accessibility XXXL"
         )
         let close = element(app, "citation.close")
-        XCTAssertTrue(close.waitForExistence(timeout: 3), "\(screen): citation.close is missing")
+        XCTAssertTrue(close.waitForExistence(timeout: 5), "\(screen): citation.close is missing")
         XCTAssertGreaterThanOrEqual(
             close.frame.minY,
             inset,
             "\(screen): Close minY \(close.frame.minY) sits under the status bar / island (safe area \(inset))"
         )
         XCTAssertTrue(close.isHittable, "\(screen): Close must stay hittable at Accessibility XXXL")
-        XCTAssertLessThanOrEqual(
-            close.frame.maxX,
-            title.frame.minX + 4,
-            "\(screen): Close overlaps Manual page at Accessibility XXXL: \(close.frame) vs \(title.frame)"
+        let document = element(app, "citation.document")
+        XCTAssertTrue(document.waitForExistence(timeout: 5), "\(screen): citation.document is missing")
+        XCTAssertTrue(document.isHittable, "\(screen): document name must stay visible at Accessibility XXXL")
+        XCTAssertGreaterThan(
+            document.frame.height,
+            defaultDocumentHeight,
+            "\(screen): citation.document height \(document.frame.height) did not grow vs default \(defaultDocumentHeight); launch-arg Dynamic Type may not have reached the sheet"
         )
+        let pageNumber = element(app, "citation.pageNumber")
+        XCTAssertTrue(pageNumber.waitForExistence(timeout: 3), "\(screen): citation.pageNumber is missing")
     }
 
     private func stepFullyVisible(

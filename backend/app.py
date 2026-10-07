@@ -98,11 +98,14 @@ def create_app(
         return Response(content=png, media_type="image/png")
 
     @application.get("/manuals/{doc_id}/pages/{page}/go-deeper")
-    def get_manual_page_go_deeper(doc_id: str, page: int) -> dict[str, Any]:
+    def get_manual_page_go_deeper(
+        doc_id: str, page: int, snippet: str | None = None
+    ) -> dict[str, Any]:
         try:
             return go_deeper(
                 doc_id,
                 page,
+                snippet=snippet,
                 chunks_path=application.state.chunks_path,
                 manuals_dir=application.state.manuals_dir,
                 client=application.state.go_deeper_client,

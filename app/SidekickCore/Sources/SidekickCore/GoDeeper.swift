@@ -39,8 +39,97 @@ public struct GoDeeper: Hashable, Sendable {
 
     private static func present(_ value: String?) -> String? {
         guard let value else { return nil }
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? nil : trimmed
+        let stripped = PageExcerpt.stripControlCharacters(value)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return stripped.isEmpty ? nil : stripped
+    }
+}
+
+/// Page-text cleanup for Go deeper. Matches `backend/go_deeper.py`.
+public enum PageExcerpt {
+    public static let characterLimit = 300
+
+    /// Drop C0 controls except newline and tab.
+    public static func stripControlCharacters(_ text: String) -> String {
+        String(text.filter { ch in
+            ch.unicodeScalars.allSatisfy { scalar in
+                let value = scalar.value
+                if value == 9 || value == 10 { return true }
+                return value >= 32 && value != 127
+            }
+        })
+    }
+
+    /// One to three sentences around `snippet`, capped on a word boundary.
+    /// Nil when the snippet is missing from the page.
+    public static func aroundSnippet(
+        pageText: String,
+        snippet: String,
+        limit: Int = characterLimit
+    ) -> String? {
+        let page = collapsed(stripControlCharacters(pageText))
+        let needle = collapsed(stripControlCharacters(snippet))
+        guard !page.isEmpty, !needle.isEmpty else { return nil }
+        guard page.range(of: needle, options: .caseInsensitive) != nil else {
+            return nil
+        }
+        let sentences = splitSentences(page)
+        if let matched = sentences.firstIndex(where: {
+            $0.range(of: needle, options: .caseInsensitive) != nil
+        }) {
+            let sentence = sentences[matched]
+            if sentence.count > limit {
+                if let range = sentence.range(of: needle, options: .caseInsensitive) {
+                    return cap(String(sentence[range.lowerBound...]), limit: limit)
+                }
+                return cap(sentence, limit: limit)
+            }
+            var pieces: [String] = [sentence]
+            var index = matched + 1
+            while index < sentences.count, pieces.count < 3 {
+                let next = sentences[index]
+                let joined = (pieces + [next]).joined(separator: " ")
+                if joined.count > limit { break }
+                pieces.append(next)
+                index += 1
+            }
+            return cap(pieces.joined(separator: " "), limit: limit)
+        }
+        if let range = page.range(of: needle, options: .caseInsensitive) {
+            return cap(String(page[range.lowerBound...]), limit: limit)
+        }
+        return nil
+    }
+
+    private static func collapsed(_ text: String) -> String {
+        text.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+    }
+
+    private static func splitSentences(_ text: String) -> [String] {
+        var sentences: [String] = []
+        var current = ""
+        for character in text {
+            current.append(character)
+            if ".!?".contains(character) {
+                let trimmed = current.trimmingCharacters(in: .whitespaces)
+                if !trimmed.isEmpty { sentences.append(trimmed) }
+                current = ""
+            }
+        }
+        let trailing = current.trimmingCharacters(in: .whitespaces)
+        if !trailing.isEmpty { sentences.append(trailing) }
+        return sentences
+    }
+
+    private static func cap(_ text: String, limit: Int) -> String {
+        if text.count <= limit { return text }
+        let prefix = String(text.prefix(limit))
+        let clipped = prefix.split(separator: " ", omittingEmptySubsequences: false)
+            .dropLast()
+            .joined(separator: " ")
+            .trimmingCharacters(in: CharacterSet(charactersIn: ".,;: "))
+        let body = clipped.isEmpty ? String(prefix.trimmingCharacters(in: .whitespaces)) : clipped
+        return body + "…"
     }
 }
 
@@ -106,13 +195,14 @@ public enum CannedGoDeeper {
 }
 
 public protocol GoDeeperSource: Sendable {
-    func goDeeper(docID: DocumentID, page: PageNumber) async throws -> GoDeeper
+    func goDeeper(docID: DocumentID, page: PageNumber, snippet: String) async throws -> GoDeeper
 }
 
 public struct CannedGoDeeperSource: GoDeeperSource {
     public init() {}
 
-    public func goDeeper(docID: DocumentID, page: PageNumber) async throws -> GoDeeper {
+    public func goDeeper(docID: DocumentID, page: PageNumber, snippet: String) async throws -> GoDeeper {
+        _ = snippet
         guard let content = CannedGoDeeper.content(docID: docID, page: page) else {
             throw ManualPageError.missingPage
         }
@@ -127,7 +217,8 @@ public struct FailingGoDeeperSource: GoDeeperSource {
         self.error = error
     }
 
-    public func goDeeper(docID: DocumentID, page: PageNumber) async throws -> GoDeeper {
+    public func goDeeper(docID: DocumentID, page: PageNumber, snippet: String) async throws -> GoDeeper {
+        _ = snippet
         throw error
     }
 }
@@ -145,11 +236,12 @@ public struct CachingGoDeeperSource: GoDeeperSource {
         self.http = http
     }
 
-    public func goDeeper(docID: DocumentID, page: PageNumber) async throws -> GoDeeper {
+    public func goDeeper(docID: DocumentID, page: PageNumber, snippet: String) async throws -> GoDeeper {
         guard let remoteURL = ManualPageLocation.goDeeperURL(
             baseURL: configuration.baseURL,
             docID: docID,
-            page: page
+            page: page,
+            snippet: snippet
         ) else {
             throw ManualPageError.missingPage
         }
@@ -190,11 +282,11 @@ public struct CompositeGoDeeperSource: GoDeeperSource {
         self.remote = remote
     }
 
-    public func goDeeper(docID: DocumentID, page: PageNumber) async throws -> GoDeeper {
+    public func goDeeper(docID: DocumentID, page: PageNumber, snippet: String) async throws -> GoDeeper {
         if docID.rawValue.hasPrefix("FAKE-DOC") {
-            return try await canned.goDeeper(docID: docID, page: page)
+            return try await canned.goDeeper(docID: docID, page: page, snippet: snippet)
         }
-        return try await remote.goDeeper(docID: docID, page: page)
+        return try await remote.goDeeper(docID: docID, page: page, snippet: snippet)
     }
 }
 

@@ -23,6 +23,8 @@ FAKE_FUSE_DOC = "FAKE-DOC-2JZ"
 FAKE_FUSE_PAGE = 999
 WIRING_DOC_IDS = frozenset({"is300-engine-wiring", "lj78-wiring"})
 _SENTENCE_RE = re.compile(r"(?<=[.!?])\s+")
+_CONTROL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+EXCERPT_LIMIT = 300
 
 FAKE_PAGE_TEXT = (
     "FAKE-PAGE: The fuse/relay box is the plastic box that holds the fuses "
@@ -69,10 +71,62 @@ def is_fake_doc_id(doc_id: str) -> bool:
     return doc_id.startswith(FAKE_DOC_PREFIX)
 
 
+def strip_control_chars(text: str) -> str:
+    """Drop C0 controls except newline and tab."""
+    return _CONTROL_RE.sub("", text)
+
+
+def excerpt_around_snippet(
+    page_text: str, snippet: str | None, *, limit: int = EXCERPT_LIMIT
+) -> str | None:
+    """1–3 sentences around the cited snippet. None when the snippet is missing."""
+    page = " ".join(strip_control_chars(page_text).split())
+    needle = " ".join(strip_control_chars(snippet or "").split())
+    if not page or not needle:
+        return None
+    if needle.lower() not in page.lower():
+        return None
+    sentences = [piece.strip() for piece in _SENTENCE_RE.split(page) if piece.strip()]
+    hit = next(
+        (
+            index
+            for index, sentence in enumerate(sentences)
+            if needle.lower() in sentence.lower()
+        ),
+        None,
+    )
+    if hit is None:
+        start = page.lower().find(needle.lower())
+        return _cap_excerpt(page[start:], limit)
+    matched = sentences[hit]
+    if len(matched) > limit:
+        start = matched.lower().find(needle.lower())
+        return _cap_excerpt(matched[max(start, 0):], limit)
+    pieces = [matched]
+    index = hit + 1
+    while index < len(sentences) and len(pieces) < 3:
+        candidate = " ".join([*pieces, sentences[index]])
+        if len(candidate) > limit:
+            break
+        pieces.append(sentences[index])
+        index += 1
+    return _cap_excerpt(" ".join(pieces), limit)
+
+
+def _cap_excerpt(text: str, limit: int) -> str:
+    if len(text) <= limit:
+        return text
+    trimmed = text[:limit].rsplit(" ", 1)[0].rstrip(".,;: ")
+    if not trimmed:
+        trimmed = text[:limit]
+    return trimmed + "…"
+
+
 def go_deeper(
     doc_id: str,
     page: int,
     *,
+    snippet: str | None = None,
     chunks_path: Path | None = None,
     manuals_dir: Path | None = None,
     client: LLMClient | None = None,
@@ -92,9 +146,11 @@ def go_deeper(
     if page_text is None and not is_fake_doc_id(doc_id):
         raise GoDeeperError("This manual page is not available.", status_code=404)
 
-    text = page_text or ""
-    sections = _sections_for_page(doc_id, page, text, client=client)
-    guarded = _guard_sections(sections, text)
+    text = strip_control_chars(page_text or "")
+    sections = _sections_for_page(
+        doc_id, page, text, snippet=snippet, client=client
+    )
+    guarded = _guard_sections(sections, text, snippet=snippet)
     return {
         "doc_id": doc_id,
         "page": page,
@@ -110,12 +166,15 @@ def cited_page_text(
     manuals_dir: Path | None = None,
 ) -> str | None:
     if is_fake_doc_id(doc_id):
-        return FAKE_PAGE_TEXT
+        return strip_control_chars(FAKE_PAGE_TEXT)
     path = chunks_path if chunks_path is not None else DEFAULT_CHUNKS_PATH
     from_chunks = _text_from_chunks(path, doc_id, page)
     if from_chunks is not None:
-        return from_chunks
-    return _text_from_pdf(doc_id, page, manuals_dir)
+        return strip_control_chars(from_chunks)
+    extracted = _text_from_pdf(doc_id, page, manuals_dir)
+    if extracted is None:
+        return None
+    return strip_control_chars(extracted)
 
 
 def _sections_for_page(
@@ -123,6 +182,7 @@ def _sections_for_page(
     page: int,
     page_text: str,
     *,
+    snippet: str | None,
     client: LLMClient | None,
 ) -> dict[str, str]:
     if doc_id == FAKE_FUSE_DOC and page == FAKE_FUSE_PAGE:
@@ -136,17 +196,23 @@ def _sections_for_page(
         }
     if doc_id in WIRING_DOC_IDS or not page_text.strip():
         return {"how_it_works": DIAGRAM_HOW_IT_WORKS}
-    generated = _llm_sections(page_text, client=client)
+    generated = _llm_sections(page_text, snippet=snippet, client=client)
     if generated is not None:
         return generated
-    return {"how_it_works": _excerpt(page_text)}
+    excerpt = excerpt_around_snippet(page_text, snippet)
+    if excerpt:
+        return {"how_it_works": excerpt}
+    return {}
 
 
 def _llm_sections(
-    page_text: str, *, client: LLMClient | None
+    page_text: str, *, snippet: str | None, client: LLMClient | None
 ) -> dict[str, str] | None:
     llm = client if client is not None else build_llm_client()
-    page_json = json.dumps({"text": page_text}, ensure_ascii=False)
+    payload: dict[str, str] = {"text": page_text}
+    if snippet and snippet.strip():
+        payload["snippet"] = snippet.strip()
+    page_json = json.dumps(payload, ensure_ascii=False)
     prompt = f"{GO_DEEPER_HEADER}{page_json}"
     try:
         result = llm.complete(
@@ -181,7 +247,9 @@ def _parse_sections(raw: str) -> dict[str, str] | None:
     return sections or None
 
 
-def _guard_sections(sections: Mapping[str, str], page_text: str) -> dict[str, str]:
+def _guard_sections(
+    sections: Mapping[str, str], page_text: str, *, snippet: str | None
+) -> dict[str, str]:
     chunks = (page_text,) if page_text.strip() else ()
     kept: dict[str, str] = {}
     for key, value in sections.items():
@@ -190,38 +258,23 @@ def _guard_sections(sections: Mapping[str, str], page_text: str) -> dict[str, st
         if result.uncited:
             continue
         kept[key] = value
-    if "how_it_works" not in kept:
-        fallback = DIAGRAM_HOW_IT_WORKS if not page_text.strip() else _excerpt(page_text)
+    if "how_it_works" in kept:
+        return kept
+    if not page_text.strip():
+        fallback = DIAGRAM_HOW_IT_WORKS
         probe = {"kind": "answer", "text": fallback, "citations": []}
-        result = guard_answer(probe, chunks if page_text.strip() else ())
+        result = guard_answer(probe, ())
         if not result.uncited:
             kept["how_it_works"] = fallback
-        else:
-            kept["how_it_works"] = (
-                "This cited page does not spell out how this works in everyday words."
-            )
+        return kept
+    fallback = excerpt_around_snippet(page_text, snippet)
+    if not fallback:
+        return kept
+    probe = {"kind": "answer", "text": fallback, "citations": []}
+    result = guard_answer(probe, chunks)
+    if not result.uncited:
+        kept["how_it_works"] = fallback
     return kept
-
-
-def _excerpt(page_text: str, limit: int = 400) -> str:
-    stripped = " ".join(page_text.split())
-    sentences = _SENTENCE_RE.split(stripped)
-    if not sentences:
-        return stripped[:limit]
-    collected: list[str] = []
-    length = 0
-    for sentence in sentences[:3]:
-        piece = sentence.strip()
-        if not piece:
-            continue
-        if length + len(piece) > limit and collected:
-            break
-        collected.append(piece)
-        length += len(piece)
-    text = " ".join(collected) if collected else stripped[:limit]
-    if len(text) > limit:
-        text = text[:limit].rsplit(" ", 1)[0]
-    return text
 
 
 def _text_from_chunks(path: Path, doc_id: str, page: int) -> str | None:

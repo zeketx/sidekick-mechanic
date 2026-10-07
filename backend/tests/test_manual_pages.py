@@ -8,7 +8,13 @@ from fastapi.testclient import TestClient
 from pypdf import PdfWriter
 
 from app import create_app
-from go_deeper import FAKE_FUSE_GO_DEEPER, FAKE_PAGE_TEXT
+from go_deeper import (
+    EXCERPT_LIMIT,
+    FAKE_FUSE_GO_DEEPER,
+    FAKE_PAGE_TEXT,
+    excerpt_around_snippet,
+    strip_control_chars,
+)
 from manual_pages import is_png, is_safe_doc_id, is_servable_doc_id, page_png
 
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
@@ -206,23 +212,77 @@ def test_fake_go_deeper_is_canned_and_grounded(tmp_path: Path) -> None:
         assert value in FAKE_PAGE_TEXT
 
 
+def test_strip_control_chars_keeps_newline_and_tab() -> None:
+    raw = "Torque:\x01 18 N·m\n\tmore\x7f"
+    assert strip_control_chars(raw) == "Torque: 18 N·m\n\tmore"
+    assert "\x01" not in strip_control_chars(raw)
+
+
+def test_excerpt_around_snippet_caps_length_on_word_boundary() -> None:
+    snippet = "Torque: 18 N·m is the spec"
+    page = "B02630\x01 " + ("junk " * 40) + ". " + snippet + " " + ("extra " * 80)
+    excerpt = excerpt_around_snippet(page, snippet, limit=80)
+    assert excerpt is not None
+    assert "Torque: 18 N·m" in excerpt
+    assert "\x01" not in excerpt
+    assert "B02630" not in excerpt
+    assert len(excerpt) <= 81
+    assert excerpt.endswith("…")
+    assert not excerpt[:-1].endswith(" ")
+
+
+def test_excerpt_hides_when_snippet_does_not_match() -> None:
+    assert excerpt_around_snippet("inspect the cover.", "spark plug torque") is None
+    assert excerpt_around_snippet("inspect the cover.", None) is None
+    assert excerpt_around_snippet("inspect the cover.", "  ") is None
+
+
 def test_go_deeper_from_chunks_does_not_invent_specs(tmp_path: Path) -> None:
     chunk = (
         '{"doc_id":"2jz-ge-rm","page":12,"text":"FAKE-CHUNK: inspect the fixture cover. '
         'Use a flashlight. Value FAKE-SPEC."}\n'
     )
     client = _client(tmp_path, chunks=chunk)
-    response = client.get("/manuals/2jz-ge-rm/pages/12/go-deeper")
+    response = client.get(
+        "/manuals/2jz-ge-rm/pages/12/go-deeper",
+        params={"snippet": "inspect the fixture cover"},
+    )
 
     assert response.status_code == 200
     payload = response.json()
     assert payload["doc_id"] == "2jz-ge-rm"
     assert payload["page"] == 12
     assert payload["how_it_works"]
+    assert "inspect the fixture cover" in payload["how_it_works"]
+    assert len(payload["how_it_works"]) <= EXCERPT_LIMIT
     assert "999 Nm" not in payload["how_it_works"]
     assert "pin 999" not in payload["how_it_works"].lower()
     joined = " ".join(str(payload.get(key) or "") for key in payload)
     assert "999 Nm" not in joined
+
+
+def test_go_deeper_fallback_excerpts_around_snippet(tmp_path: Path) -> None:
+    chunk = (
+        '{"doc_id":"2jz-ge-rm","page":985,"text":"B02630\\u0001 IG0152 ohmmeter junk. '
+        'Torque: 18 N·m (180 kgf·cm, 13 ft·lbf). Then coil resistance follows."}\n'
+    )
+    payload = _client(tmp_path, chunks=chunk).get(
+        "/manuals/2jz-ge-rm/pages/985/go-deeper",
+        params={"snippet": "Torque: 18 N·m (180 kgf·cm, 13 ft·lbf)"},
+    ).json()
+    how = payload["how_it_works"]
+    assert "Torque: 18 N·m" in how
+    assert "\x01" not in how
+    assert "B02630" not in how
+    assert len(how) <= EXCERPT_LIMIT
+
+
+def test_go_deeper_hides_how_it_works_without_snippet_match(tmp_path: Path) -> None:
+    chunk = '{"doc_id":"2jz-ge-rm","page":12,"text":"FAKE-CHUNK: inspect the cover."}\n'
+    payload = _client(tmp_path, chunks=chunk).get(
+        "/manuals/2jz-ge-rm/pages/12/go-deeper"
+    ).json()
+    assert not payload.get("how_it_works")
 
 
 def test_go_deeper_drops_uncited_specs(tmp_path: Path) -> None:
