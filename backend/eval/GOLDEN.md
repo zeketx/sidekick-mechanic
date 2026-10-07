@@ -2,6 +2,8 @@
 
 Issue #23. Owner approval pending. The eval harness (`python3 -m eval`) loads `eval/golden.jsonl` when it exists, otherwise `eval/golden.sample.jsonl`. CI's eval subset still runs the fake sample, so this file does not change CI.
 
+A separate, smaller retrieval-only set lives in [`fixtures/retrieval-real.jsonl`](fixtures/retrieval-real.jsonl). `python3 -m eval.retrieval_real` scores hit@1 and hit@3 against the FTS index. It skips when `manuals/2jz-ge-rm.pdf` or `manuals/is300-engine-wiring.pdf` is absent, so CI stays green without the PDFs. Expected pages were read from `pdftotext`; the fixture does not store spec values.
+
 ## Row format
 
 One JSON object per line, validated by [`golden.schema.json`](golden.schema.json) (unchanged by this PR).

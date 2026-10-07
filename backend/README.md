@@ -8,8 +8,9 @@ Python 3.11+ and FastAPI. This is the RAG service for Sidekick Mechanic.
 `.ingest/index.sqlite` exists, the producer searches that FTS5 index and then
 calls the model. The model must reply with one JSON object. Each citation has
 `doc_id`, an integer `page`, and a `snippet` copied from that page. A citation
-stays only when that page was in the hits and the snippet is a case-sensitive
-contiguous span of the page text. An empty search, or a JSON object with an
+stays only when that page was in the hits and the snippet matches that page:
+an exact span, the same span after collapsing whitespace, or the same tokens
+as a bag (order ignored, case preserved). An empty search, or a JSON object with an
 empty `citations` array, returns a refusal with reason `not_found_in_manual`.
 Engine-wiring questions (ECM, injectors, ignition coils, VVT, EFI, the 2JZ
 engine harness) search `is300-engine-wiring` and cite that EWD. While
@@ -88,8 +89,20 @@ python3 retrieval.py query "starter motor" --k 5
 ```
 
 `build` reads `.ingest/chunks.jsonl` and replaces `.ingest/index.sqlite`. `query`
-prints top-k JSON lines with `doc_id`, `page`, `rank`, `score`, and `text`. Tests
-use generated `FAKE-*` chunks, not real manuals.
+prints top-k JSON lines with `doc_id`, `page`, `rank`, `score`, and `text`. The
+index stores a boosted `labels` column (headings and `NAME NO. N` components)
+plus page `text`, tokenized with FTS5 `porter unicode61`. Search drops
+stopwords and vehicle tokens, ANDs the rest, falls back to OR, then reranks.
+Tests use generated `FAKE-*` chunks, not real manuals.
+
+Real-PDF ranking (optional, skips without `manuals/*.pdf`):
+
+```bash
+python3 -m eval.retrieval_real
+```
+
+That scores `eval/fixtures/retrieval-real.jsonl` for hit@1 and hit@3. CI does
+not have the PDFs, so the eval exits 0 with a skip line.
 
 ## Tests
 

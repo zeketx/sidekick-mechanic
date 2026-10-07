@@ -17,7 +17,7 @@ from producer import (
     LlmAnswerProducer,
     _IndexRetriever,
 )
-from retrieval import Chunk, build_index
+from retrieval import Chunk, build_index, snippet_matches_page
 from safety import SAFETY_NOTE
 
 _DOC = "FAKE-DOC-2JZ"
@@ -100,7 +100,7 @@ def test_cited_answer_keeps_retrieved_snippet() -> None:
     assert system.role == "system"
     assert "Do not invent torque" in system.content
     assert "If you do not know, say so." not in system.content
-    assert "case-sensitive" in system.content
+    assert "do not invent tokens" in system.content.lower()
     assert '"page" (integer)' in system.content
     assert "Retrieved pages:" in system.content
     assert _SNIPPET in system.content
@@ -129,6 +129,33 @@ def test_mixed_citations_keep_only_retrieved_page() -> None:
         "text": _ANSWER,
         "citations": [_cited()],
     }
+
+
+def test_whitespace_normalized_snippet_is_kept() -> None:
+    page_text = "FAKE-SNIPPET:\nno   real spec."
+    producer, _, _ = _producer(
+        _completion(_ANSWER, [_cited("FAKE-SNIPPET: no real spec.")]),
+        (_Hit(_DOC, _PAGE, page_text),),
+    )
+
+    payload = producer.produce(_conversation())
+
+    assert payload["kind"] == "answer"
+    assert payload["citations"][0]["snippet"] == "FAKE-SNIPPET: no real spec."
+    assert snippet_matches_page("FAKE-SNIPPET: no real spec.", page_text)
+
+
+def test_token_bag_snippet_is_kept() -> None:
+    page_text = "spec. FAKE-SNIPPET: no real"
+    producer, _, _ = _producer(
+        _completion(_ANSWER, [_cited("FAKE-SNIPPET: no real spec.")]),
+        (_Hit(_DOC, _PAGE, page_text),),
+    )
+
+    payload = producer.produce(_conversation())
+
+    assert payload["kind"] == "answer"
+    assert payload["citations"][0]["doc_id"] == _DOC
 
 
 def test_invented_snippet_is_unavailable() -> None:

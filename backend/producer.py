@@ -37,6 +37,7 @@ from retrieval import (
     RetrievalError,
     RetrievedChunk,
     Retriever,
+    snippet_matches_page,
 )
 
 DEFAULT_FIXTURE = "plain.json"
@@ -56,8 +57,8 @@ _GROUNDED_INSTRUCTIONS = (
     'The object has a string field "text" and an array field "citations". '
     'Each citation has "doc_id" (string), "page" (integer), and "snippet" (string). '
     "Retrieved pages is a JSON array. "
-    "snippet must be an exact case-sensitive copy of a contiguous span of the "
-    "decoded page text, not JSON escape sequences. "
+    "snippet must copy tokens from that page's decoded text, not JSON escape "
+    "sequences. Whitespace may differ; do not invent tokens. "
     "Do not add an ellipsis, quotes, or other characters. "
     f"The server shortens a snippet longer than {_SNIPPET_LIMIT} characters. "
     "Use only a doc_id and page from the retrieved pages. "
@@ -461,7 +462,7 @@ def _filter_citations(
         page = citation["page"]
         snippet = citation["snippet"]
         page_text = pages.get((doc_id, page))
-        if page_text is None or snippet not in page_text:
+        if page_text is None or not snippet_matches_page(snippet, page_text):
             continue
         stored = _cap_snippet(snippet)
         if not stored.strip():
