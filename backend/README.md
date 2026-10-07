@@ -11,6 +11,9 @@ calls the model. The model must reply with one JSON object. Each citation has
 stays only when that page was in the hits and the snippet is a case-sensitive
 contiguous span of the page text. An empty search, or a JSON object with an
 empty `citations` array, returns a refusal with reason `not_found_in_manual`.
+While `lj78-wiring` is `blocked` in `docs/MANUALS.md`, a question about wiring,
+a harness, a pinout, or an EWD that matches nothing uses that same reason and
+says the wiring manual is not ingested yet. That refusal has no citations.
 Non-JSON completions, citations that all fail that check, provider errors, and
 a blank completion return the unavailable answer (`kind: answer`). The
 unavailable answer means the producer could not return a cited reply. With no
@@ -55,6 +58,8 @@ with `python3 retrieval.py build`. A question that matches indexed pages then
 returns those pages as citations. Each snippet is an exact span of the page
 text, and the answer sentence is a stand-in so `/chat` can be tried without a
 key. A question that matches nothing returns the refusal `not_found_in_manual`.
+A wiring question that matches nothing, while `lj78-wiring` is blocked, says
+the wiring manual is not ingested yet.
 If the index file is missing, the reply is prose and `citations` is empty.
 
 To call a real model, copy [`.env.example`](.env.example) to `.env`
