@@ -298,9 +298,34 @@ final class JobSheetTests: XCTestCase {
             isAccessibilitySize: true
         )
         XCTAssertEqual(halfDefault, min(874 * JobSheetLayout.halfHeightFraction, JobSheetLayout.halfMaxHeight))
+        XCTAssertEqual(
+            JobSheetLayout.height(
+                detent: .half,
+                screenHeight: 874,
+                topSafeArea: 0,
+                isAccessibilitySize: false
+            ),
+            halfDefault
+        )
         XCTAssertGreaterThan(halfAccess, halfDefault)
-        XCTAssertGreaterThanOrEqual(halfAccess, 800)
-        XCTAssertLessThan(halfAccess, 874)
+        let accessTop = JobSheetLayout.accessibilityHalfTopGap(topSafeArea: 62)
+        XCTAssertEqual(accessTop, 62 + JobSheetLayout.halfAccessibilityChatSliver)
+        XCTAssertEqual(
+            JobSheetLayout.accessibilityHalfTopGap(topSafeArea: 0),
+            JobSheetLayout.fallbackTopSafeArea + JobSheetLayout.halfAccessibilityChatSliver
+        )
+        XCTAssertEqual(halfAccess, 874 - accessTop)
+        XCTAssertGreaterThanOrEqual(accessTop, 62 + 24)
+        XCTAssertLessThan(halfAccess, 874 - 62)
+        XCTAssertEqual(
+            JobSheetLayout.originY(
+                detent: .half,
+                screenHeight: 874,
+                topSafeArea: 62,
+                isAccessibilitySize: true
+            ),
+            accessTop
+        )
         XCTAssertEqual(
             JobSheetLayout.originY(
                 detent: .half,

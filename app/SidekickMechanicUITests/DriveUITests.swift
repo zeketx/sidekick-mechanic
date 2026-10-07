@@ -76,6 +76,12 @@ final class DriveUITests: XCTestCase {
         let scrim = element(app, "jobSheet.dim")
         XCTAssertTrue(scrim.waitForExistence(timeout: 5), "jobSheet.dim should be hittable at half")
         try writeShot("taps-sheet-before-scrim.png")
+        assertHeaderClearsTopSafeArea(app, screen: "job-sheet-half")
+        XCTAssertGreaterThan(
+            half.frame.minY,
+            300,
+            "Default half sheet should stay a half sheet, not grow to the island. minY \(half.frame.minY)"
+        )
         scrim.tap()
 
         let collapsed = element(app, "jobSheet.collapsed")
@@ -396,7 +402,28 @@ final class DriveUITests: XCTestCase {
             160,
             "Worked is truncated at Accessibility XXXL (width \(worked.frame.width))"
         )
+        assertHeaderClearsTopSafeArea(app, screen: "job-sheet-half axxxl")
+        assertHalfSheetLeavesChatSliver(app, sheetID: "jobSheet.half", screen: "job-sheet-half axxxl")
         try writeShot("taps-job-sheet-half-axxxl.png")
+        app.terminate()
+
+        let closeout = launchApp(arguments: [
+            "-screen", "job-sheet-closeout",
+            "-demoPhoto", "hilux",
+            "-dynamicTypeSize", "accessibility5",
+        ])
+        let closeoutSheet = element(closeout, "jobSheet.half")
+        XCTAssertTrue(
+            closeoutSheet.waitForExistence(timeout: 8),
+            "job-sheet-closeout is missing at Accessibility XXXL"
+        )
+        assertHeaderClearsTopSafeArea(closeout, screen: "job-sheet-closeout axxxl")
+        assertHalfSheetLeavesChatSliver(
+            closeout,
+            sheetID: "jobSheet.half",
+            screen: "job-sheet-closeout axxxl"
+        )
+        try writeShot("taps-job-sheet-closeout-axxxl.png")
     }
 
     private func stepFullyVisible(
@@ -410,6 +437,75 @@ final class DriveUITests: XCTestCase {
         return stepFrame.minY >= sheetFrame.minY - 4
             && stepFrame.maxY <= limitY + 4
             && stepFrame.height >= 48
+    }
+
+    /// Status-bar / Dynamic Island band. XCTest does not expose window safeAreaInsets.
+    private func topSafeAreaInset(_ app: XCUIApplication) -> CGFloat {
+        let window = app.windows.firstMatch
+        XCTAssertTrue(window.waitForExistence(timeout: 8))
+        let statusBar = app.statusBars.firstMatch
+        if statusBar.exists {
+            let fromBar = statusBar.frame.maxY - window.frame.minY
+            if fromBar >= 44 {
+                return fromBar
+            }
+        }
+        return 59
+    }
+
+    private func assertHeaderClearsTopSafeArea(_ app: XCUIApplication, screen: String) {
+        let inset = topSafeAreaInset(app)
+        let title = element(app, "jobSheet.title")
+        XCTAssertTrue(title.waitForExistence(timeout: 5), "\(screen): jobSheet.title is missing")
+        XCTAssertGreaterThanOrEqual(
+            title.frame.minY,
+            inset,
+            "\(screen): title minY \(title.frame.minY) sits under the status bar / island (safe area \(inset))"
+        )
+        let close = element(app, "jobSheet.close")
+        XCTAssertTrue(close.waitForExistence(timeout: 3), "\(screen): jobSheet.close is missing")
+        XCTAssertGreaterThanOrEqual(
+            close.frame.minY,
+            inset,
+            "\(screen): Close minY \(close.frame.minY) sits under the status bar / island (safe area \(inset))"
+        )
+    }
+
+    /// Accessibility half / closeout stay below the island with a real strip of dimmed chat.
+    private func assertHalfSheetLeavesChatSliver(
+        _ app: XCUIApplication,
+        sheetID: String,
+        screen: String
+    ) {
+        let window = app.windows.firstMatch
+        let inset = topSafeAreaInset(app)
+        let sheet = element(app, sheetID)
+        XCTAssertTrue(sheet.waitForExistence(timeout: 5), "\(screen): \(sheetID) is missing")
+        let minGap = inset + 24
+        XCTAssertGreaterThanOrEqual(
+            sheet.frame.minY,
+            minGap,
+            "\(screen): sheet minY \(sheet.frame.minY) does not leave a chat sliver below the island (need >= \(minGap))"
+        )
+        XCTAssertLessThan(
+            sheet.frame.minY,
+            window.frame.height * 0.45,
+            "\(screen): accessibility half should still grow; sheet minY \(sheet.frame.minY)"
+        )
+        XCTAssertTrue(
+            element(app, "jobSheet.dim").waitForExistence(timeout: 2),
+            "\(screen): scrim should still show so this reads as a sheet over chat"
+        )
+        let garage = element(app, "chat.garage")
+        XCTAssertTrue(
+            garage.waitForExistence(timeout: 3),
+            "\(screen): chat.garage should peek above the sheet"
+        )
+        XCTAssertLessThan(
+            garage.frame.minY,
+            sheet.frame.minY,
+            "\(screen): Garage minY \(garage.frame.minY) is not above the sheet (\(sheet.frame.minY))"
+        )
     }
 
     func testSelectedOutcomeIsFilledOnFullAndCloseout() throws {
@@ -433,6 +529,15 @@ final class DriveUITests: XCTestCase {
             let didnt = element(app, "jobSheet.outcome.didnt")
             XCTAssertTrue(didnt.waitForExistence(timeout: 2))
             XCTAssertFalse(didnt.isSelected, "\(screen): Didn't should not be selected")
+            assertHeaderClearsTopSafeArea(app, screen: screen)
+            if screen == "job-sheet-closeout" {
+                let sheet = element(app, "jobSheet.half")
+                XCTAssertGreaterThan(
+                    sheet.frame.minY,
+                    300,
+                    "\(screen): default closeout should stay half height. minY \(sheet.frame.minY)"
+                )
+            }
             try writeShot("taps-\(screen)-outcome.png")
             app.terminate()
         }

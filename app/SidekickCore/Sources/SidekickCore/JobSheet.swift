@@ -154,6 +154,8 @@ public enum JobSheetLayout {
     public static let halfScrollBottomPadding: Double = 24
     public static let fullPhotoHeight: Double = 200
     public static let fallbackTopSafeArea: Double = 59
+    /// Gap of dimmed chat below the island at accessibility half / closeout.
+    public static let halfAccessibilityChatSliver: Double = 36
     /// Full paper covers the status-bar band. Header content uses `contentTopInset`.
     public static let fullTopGap: Double = 0
     /// Paper Jobs / Scan log header under the status bar. Full must cover this.
@@ -193,10 +195,10 @@ public enum JobSheetLayout {
         case .collapsed:
             collapsedHeight
         case .half:
-            // Accessibility: grow so a wrapped step sits above Outcome. Leave a
-            // sliver of chat so this is still the half detent, not full paper.
+            // Accessibility: grow for wrapped steps, but stay below the island
+            // with a real strip of dimmed chat so this still reads as a sheet.
             isAccessibilitySize
-                ? max(screenHeight - max(resolvedTopSafeArea(topSafeArea) * 0.35, 12), 240)
+                ? max(screenHeight - accessibilityHalfTopGap(topSafeArea), 240)
                 : min(screenHeight * halfHeightFraction, halfMaxHeight)
         case .full:
             // Paper fills the window so the nav / Jobs header cannot peek and
@@ -214,6 +216,11 @@ public enum JobSheetLayout {
     /// Accessibility: Outcome label above full-width segments so Worked is tappable.
     public static func stacksOutcome(isAccessibilitySize: Bool) -> Bool {
         isAccessibilitySize
+    }
+
+    /// Status-bar band plus a visible strip of chat above accessibility half paper.
+    public static func accessibilityHalfTopGap(topSafeArea: Double) -> Double {
+        resolvedTopSafeArea(topSafeArea) + halfAccessibilityChatSliver
     }
 
     /// Full detent only. Half and collapsed already sit below the status bar.

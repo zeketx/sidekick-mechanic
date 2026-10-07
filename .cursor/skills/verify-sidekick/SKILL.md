@@ -141,7 +141,7 @@ xcodebuild test \
 | `testComposerStaysPillWhenMultiline` | Tap the composer, type a long problem | `chat.composer` | `taps/taps-composer-multiline.png` + `taps/layout-composer-multiline.json` for the pill check |
 | `testRecordLayoutFrames` | Launch chat, collapsed / half / full (Jobs if present) | leaf ids per screen | `taps/layout-frames.json` (points) for the composer and nav-button checks |
 | `testIdentifierAudit` | Launch each screen | every id listed under Identifiers | `taps/identifiers.json` found / missing / skipped; fails if a documented-on-this-checkout id is unreachable |
-| `testAccessibilityXXXLHeaderAndHalfSheet` | `-dynamicTypeSize accessibility5` on chat then job-sheet-half | `chat.garage`, `jobSheet.step.2`, `jobSheet.outcome.worked` | Garage does not overlap Sidekick; last step fully visible above Outcome; Worked is tappable and not a truncated sliver |
+| `testAccessibilityXXXLHeaderAndHalfSheet` | `-dynamicTypeSize accessibility5` on chat, then job-sheet-half, then job-sheet-closeout | `chat.garage`, `jobSheet.title`, `jobSheet.close`, `jobSheet.step.2`, `jobSheet.outcome.worked` | Garage does not overlap Sidekick; last step fully visible above Outcome; Worked is tappable; title and Close sit below the island; a sliver of chat (`chat.garage`) stays visible above half and closeout |
 
 The drag uses a vector from `jobSheet.handle`, not a raw screen coordinate of the sheet. The drag and scrim tests also save a before shot (`taps-sheet-before-drag.png`, `taps-sheet-before-scrim.png`). Every test launches with `-sidekick.onboarding.completed YES` unless it passes an onboarding flag itself.
 
@@ -179,6 +179,7 @@ Proof goes to `artifacts/verify/<run-id>/` (gitignored). `latest` is a symlink t
 | `taps/taps-sheet-before-scrim.png`, `taps-sheet-after-scrim.png` | Half, then collapsed after tapping `jobSheet.dim` |
 | `taps/taps-scan-log.png` | Scan log after Jobs → Scan log |
 | `taps/taps-composer-multiline.png` | Composer after typing a long problem |
+| `taps/taps-chat-axxxl.png`, `taps-job-sheet-half-axxxl.png`, `taps-job-sheet-closeout-axxxl.png` | Accessibility XXXL: Garage vs title, half/closeout below the island with a chat sliver |
 | `taps/layout-frames.json`, `layout-composer-multiline.json` | XCUITest element frames (points) the checklist measures against |
 | `taps/identifiers.json` | Documented ids found / missing per screen |
 | `taps/DriveUITests.xcresult` | Full XCTest result bundle |
