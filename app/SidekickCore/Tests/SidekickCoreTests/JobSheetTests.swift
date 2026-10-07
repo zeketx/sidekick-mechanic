@@ -46,6 +46,8 @@ final class JobSheetTests: XCTestCase {
             XCTAssertEqual(model.job?.outcome, .didnt)
             model.selectOutcome(.worked)
             XCTAssertEqual(model.job?.outcome, .worked)
+            XCTAssertEqual(JobSheetCopy.howDidItGo, "How did it go?")
+            XCTAssertEqual(JobSheetCopy.whatFixedPlaceholder, "What fixed it? (optional)")
             XCTAssertEqual(JobSheetCopy.answer.contains("FAKE-DOC-2JZ"), true)
             XCTAssertFalse(JobSheetCopy.answer.contains("FAKE-SPEC"))
             XCTAssertFalse(JobSheetCopy.answer.contains("air box"))
@@ -61,6 +63,7 @@ final class JobSheetTests: XCTestCase {
             model.attachPhoto(photoID: "commons-hilux-2jz")
             XCTAssertEqual(model.job?.photoID, "commons-hilux-2jz")
             XCTAssertTrue(model.job?.hasPhoto == true)
+            XCTAssertEqual(model.job?.tags, ["fuse/relay", "inspected"])
             XCTAssertEqual(model.job?.highlight?.bayPhotoID.rawValue, "commons-hilux-2jz")
             XCTAssertEqual(model.job?.highlight?.partID.rawValue, "fuse-relay-box")
             XCTAssertEqual(model.job?.highlight?.isDemo, true)
@@ -78,6 +81,7 @@ final class JobSheetTests: XCTestCase {
 
             model.attachPhoto(photoID: "hrymx-2jz-ge-25308847029")
             XCTAssertEqual(model.job?.highlight?.partID.rawValue, "throttle-body")
+            XCTAssertEqual(model.job?.tags, ["throttle", "inspected"])
             XCTAssertTrue(model.job?.answerText.contains("throttle body") == true)
             XCTAssertEqual(
                 model.job?.highlight?.geometry,
@@ -106,6 +110,43 @@ final class JobSheetTests: XCTestCase {
             XCTAssertEqual(model.detent, .half)
             XCTAssertEqual(model.job?.outcome, .worked)
             XCTAssertEqual(model.job?.photoID, DemoLaunchOptions.defaultPhotoID)
+            XCTAssertEqual(model.job?.notes, "")
+            XCTAssertEqual(model.job?.whatFixed, "")
+        }
+    }
+
+    func testNotesTagsAndWhatFixedStayOnTheJob() async {
+        await MainActor.run {
+            let model = JobSheetViewModel(
+                job: JobSheetScript.makeJob(detent: .full, photoID: DemoLaunchOptions.defaultPhotoID)
+            )
+            XCTAssertEqual(model.job?.tags, ["fuse/relay", "inspected"])
+            XCTAssertEqual(model.job?.notes, "")
+            XCTAssertEqual(model.job?.whatFixed, "")
+            XCTAssertEqual(JobSheetCopy.notesHeading, "Notes")
+            XCTAssertEqual(JobSheetCopy.tagsHeading, "Tags")
+            XCTAssertEqual(JobSheetCopy.addTag, "+ add")
+            XCTAssertEqual(JobSheetCopy.notesPlaceholder, "Hoses look dry. No numbers guessed.")
+            XCTAssertFalse(JobSheetCopy.notesPlaceholder.contains("FAKE-SPEC"))
+            XCTAssertFalse(JobSheetCopy.whatFixedPlaceholder.contains("FAKE-SPEC"))
+
+            model.setNotes("Hoses look dry. No numbers guessed.")
+            model.setWhatFixed("Cleaned the connector.")
+            model.addTag("cooling")
+            model.addTag("cooling")
+            model.addTag("  ")
+            XCTAssertEqual(model.job?.notes, "Hoses look dry. No numbers guessed.")
+            XCTAssertEqual(model.job?.whatFixed, "Cleaned the connector.")
+            XCTAssertEqual(model.job?.tags, ["fuse/relay", "inspected", "cooling"])
+
+            model.removeTag("inspected")
+            XCTAssertEqual(model.job?.tags, ["fuse/relay", "cooling"])
+
+            model.sync(from: JobSheetScript.messages, photoID: "other-photo")
+            XCTAssertEqual(model.job?.notes, "Hoses look dry. No numbers guessed.")
+            XCTAssertEqual(model.job?.whatFixed, "Cleaned the connector.")
+            XCTAssertEqual(model.job?.tags, ["fuse/relay", "cooling"])
+            XCTAssertEqual(model.detent, .full)
         }
     }
 
@@ -133,6 +174,7 @@ final class JobSheetTests: XCTestCase {
             environment: [:]
         )
         XCTAssertEqual(full.jobSheetScreen?.detent, .full)
+        XCTAssertEqual(full.jobSheetScreen?.outcome, .worked)
 
         let closeout = DemoLaunchOptions.parse(
             arguments: ["SidekickMechanic"],
@@ -147,8 +189,14 @@ final class JobSheetTests: XCTestCase {
             model.applyLaunch(.closeout, photoID: DemoLaunchOptions.defaultPhotoID)
             XCTAssertEqual(model.detent, .half)
             XCTAssertEqual(model.job?.outcome, .worked)
+            XCTAssertTrue(JobSheetLayout.fillsSelectedOutcome(detent: .half, outcome: .worked))
+            model.applyLaunch(.full, photoID: DemoLaunchOptions.defaultPhotoID)
+            XCTAssertEqual(model.detent, .full)
+            XCTAssertEqual(model.job?.outcome, .worked)
+            XCTAssertTrue(JobSheetLayout.fillsSelectedOutcome(detent: .full, outcome: .worked))
             XCTAssertEqual(model.job?.photoID, DemoLaunchOptions.defaultPhotoID)
             XCTAssertEqual(model.job?.headerTitle, "Job · Cold idle")
+            XCTAssertEqual(model.job?.tags, ["fuse/relay", "inspected"])
             XCTAssertEqual(model.job?.highlight?.partID.rawValue, "fuse-relay-box")
             XCTAssertTrue(model.job?.answerText.contains("fuse/relay box") == true)
             XCTAssertFalse(model.job?.answerText.contains("air box") == true)
@@ -199,17 +247,93 @@ final class JobSheetTests: XCTestCase {
         )
         XCTAssertEqual(
             JobSheetLayout.height(detent: .full, screenHeight: 874, topSafeArea: 62),
-            812
+            874
         )
+        XCTAssertEqual(
+            JobSheetLayout.contentTopInset(detent: .full, topSafeArea: 62),
+            62
+        )
+        XCTAssertEqual(
+            JobSheetLayout.contentTopInset(detent: .half, topSafeArea: 62),
+            0
+        )
+        XCTAssertEqual(JobSheetLayout.halfOutcomeTopSpacing, 16)
+        XCTAssertEqual(JobSheetLayout.composerHomeInset(hasJob: true, bottomSafeArea: 34), 0)
+        XCTAssertEqual(JobSheetLayout.composerHomeInset(hasJob: false, bottomSafeArea: 34), 34)
+        XCTAssertEqual(JobSheetLayout.composerHomeInset(hasJob: false, bottomSafeArea: 336), 0)
         XCTAssertEqual(JobSheetLayout.height(detent: .collapsed, screenHeight: 874, topSafeArea: 62), 128)
         XCTAssertLessThan(
             JobSheetLayout.height(detent: .half, screenHeight: 874, topSafeArea: 62),
             874 - 62
         )
-        XCTAssertEqual(JobSheetLayout.halfPhotoHeight, 84)
+        XCTAssertEqual(JobSheetLayout.halfPhotoHeight, 72)
+        XCTAssertEqual(JobSheetLayout.halfScrollBottomPadding, 24)
         XCTAssertGreaterThanOrEqual(
             JobSheetLayout.height(detent: .half, screenHeight: 844, topSafeArea: 59),
             380
+        )
+        XCTAssertEqual(
+            JobSheetLayout.height(detent: .half, screenHeight: 874, topSafeArea: 62),
+            min(874 * JobSheetLayout.halfHeightFraction, JobSheetLayout.halfMaxHeight)
+        )
+        XCTAssertTrue(JobSheetLayout.fillsSelectedOutcome(detent: .full, outcome: nil))
+        XCTAssertTrue(JobSheetLayout.fillsSelectedOutcome(detent: .full, outcome: .worked))
+        XCTAssertFalse(JobSheetLayout.fillsSelectedOutcome(detent: .half, outcome: nil))
+        XCTAssertTrue(JobSheetLayout.fillsSelectedOutcome(detent: .half, outcome: .worked))
+        XCTAssertFalse(JobSheetLayout.fillsSelectedOutcome(detent: .collapsed, outcome: .worked))
+        XCTAssertEqual(JobSheetLayout.halfPhotoHeight(isAccessibilitySize: false), 72)
+        XCTAssertEqual(JobSheetLayout.halfPhotoHeight(isAccessibilitySize: true), 0)
+        XCTAssertFalse(JobSheetLayout.stacksOutcome(isAccessibilitySize: false))
+        XCTAssertTrue(JobSheetLayout.stacksOutcome(isAccessibilitySize: true))
+        let halfDefault = JobSheetLayout.height(
+            detent: .half,
+            screenHeight: 874,
+            topSafeArea: 62,
+            isAccessibilitySize: false
+        )
+        let halfAccess = JobSheetLayout.height(
+            detent: .half,
+            screenHeight: 874,
+            topSafeArea: 62,
+            isAccessibilitySize: true
+        )
+        XCTAssertEqual(halfDefault, min(874 * JobSheetLayout.halfHeightFraction, JobSheetLayout.halfMaxHeight))
+        XCTAssertEqual(
+            JobSheetLayout.height(
+                detent: .half,
+                screenHeight: 874,
+                topSafeArea: 0,
+                isAccessibilitySize: false
+            ),
+            halfDefault
+        )
+        XCTAssertGreaterThan(halfAccess, halfDefault)
+        let accessTop = JobSheetLayout.accessibilityHalfTopGap(topSafeArea: 62)
+        XCTAssertEqual(accessTop, 62 + JobSheetLayout.halfAccessibilityChatSliver)
+        XCTAssertEqual(
+            JobSheetLayout.accessibilityHalfTopGap(topSafeArea: 0),
+            JobSheetLayout.fallbackTopSafeArea + JobSheetLayout.halfAccessibilityChatSliver
+        )
+        XCTAssertEqual(halfAccess, 874 - accessTop)
+        XCTAssertGreaterThanOrEqual(accessTop, 62 + 24)
+        XCTAssertLessThan(halfAccess, 874 - 62)
+        XCTAssertEqual(
+            JobSheetLayout.originY(
+                detent: .half,
+                screenHeight: 874,
+                topSafeArea: 62,
+                isAccessibilitySize: true
+            ),
+            accessTop
+        )
+        XCTAssertEqual(
+            JobSheetLayout.originY(
+                detent: .half,
+                screenHeight: 874,
+                topSafeArea: 62,
+                isAccessibilitySize: true
+            ) + halfAccess,
+            874
         )
         XCTAssertEqual(JobSheetLayout.horizontalInset, 0)
         XCTAssertEqual(JobSheetLayout.width(screenWidth: 402), 402)
@@ -239,11 +363,16 @@ final class JobSheetTests: XCTestCase {
         }
 
         let full = JobSheetLayout.height(detent: .full, screenHeight: screenHeight, topSafeArea: top)
-        XCTAssertEqual(full, screenHeight - top)
+        XCTAssertEqual(full, screenHeight)
+        XCTAssertEqual(
+            JobSheetLayout.originY(detent: .full, screenHeight: screenHeight, topSafeArea: top),
+            0
+        )
         XCTAssertEqual(
             JobSheetLayout.originY(detent: .full, screenHeight: screenHeight, topSafeArea: top) + full,
             screenHeight
         )
+        XCTAssertEqual(JobSheetLayout.contentTopInset(detent: .full, topSafeArea: top), top)
     }
 
     func testComposerCornerRadiusStaysPillWhenMultiline() {
@@ -266,8 +395,9 @@ final class JobSheetTests: XCTestCase {
         let top = 62.0
         let full = JobSheetLayout.height(detent: .full, screenHeight: screen, topSafeArea: top)
         let uncovered = screen - full
-        XCTAssertEqual(uncovered, top)
-        XCTAssertEqual(full, screen - top)
+        XCTAssertEqual(uncovered, 0)
+        XCTAssertEqual(full, screen)
+        XCTAssertEqual(JobSheetLayout.contentTopInset(detent: .full, topSafeArea: top), top)
         XCTAssertLessThanOrEqual(uncovered, top + JobSheetLayout.fullTopGap)
         XCTAssertGreaterThanOrEqual(full, screen - top)
         XCTAssertGreaterThan(
@@ -277,8 +407,9 @@ final class JobSheetTests: XCTestCase {
 
         let zeroTop = JobSheetLayout.height(detent: .full, screenHeight: screen, topSafeArea: 0)
         XCTAssertEqual(JobSheetLayout.resolvedTopSafeArea(0), 59)
-        XCTAssertEqual(zeroTop, screen - 59)
-        XCTAssertEqual(screen - zeroTop, 59)
+        XCTAssertEqual(zeroTop, screen)
+        XCTAssertEqual(JobSheetLayout.contentTopInset(detent: .full, topSafeArea: 0), 59)
+        XCTAssertEqual(screen - zeroTop, 0)
     }
 
     func testScrimOpacityIsMonotonicAndBounded() {
@@ -320,5 +451,29 @@ final class JobSheetTests: XCTestCase {
             environment: ["SIDEKICK_SHOW_DEMO_CHROME": "true"]
         )
         XCTAssertTrue(env.showDemoChrome)
+    }
+
+    func testAccessibilityLaunchArgIsOffByDefault() {
+        let off = DemoLaunchOptions.parse(
+            arguments: ["SidekickMechanic", "-screen", "job-sheet-half"],
+            environment: [:]
+        )
+        XCTAssertFalse(off.prefersAccessibilitySize)
+
+        let on = DemoLaunchOptions.parse(
+            arguments: ["SidekickMechanic", "-dynamicTypeSize", "accessibility5"],
+            environment: [:]
+        )
+        XCTAssertTrue(on.prefersAccessibilitySize)
+
+        let uiKit = DemoLaunchOptions.parse(
+            arguments: [
+                "SidekickMechanic",
+                "-UIPreferredContentSizeCategoryName",
+                "UIContentSizeCategoryAccessibilityXXXL",
+            ],
+            environment: [:]
+        )
+        XCTAssertTrue(uiKit.prefersAccessibilitySize)
     }
 }

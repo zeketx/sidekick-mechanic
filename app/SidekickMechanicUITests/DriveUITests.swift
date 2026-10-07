@@ -76,6 +76,12 @@ final class DriveUITests: XCTestCase {
         let scrim = element(app, "jobSheet.dim")
         XCTAssertTrue(scrim.waitForExistence(timeout: 5), "jobSheet.dim should be hittable at half")
         try writeShot("taps-sheet-before-scrim.png")
+        assertHeaderClearsTopSafeArea(app, screen: "job-sheet-half")
+        XCTAssertGreaterThan(
+            half.frame.minY,
+            300,
+            "Default half sheet should stay a half sheet, not grow to the island. minY \(half.frame.minY)"
+        )
         scrim.tap()
 
         let collapsed = element(app, "jobSheet.collapsed")
@@ -169,7 +175,19 @@ final class DriveUITests: XCTestCase {
             (
                 "job-sheet-full",
                 ["-screen", "job-sheet-full", "-demoPhoto", "hilux"],
-                ["jobSheet.full", "jobSheet.handle", "jobSheet.close"],
+                [
+                    "jobSheet.full", "jobSheet.handle", "jobSheet.close",
+                    "jobSheet.outcome.worked", "jobSheet.outcome.partly", "jobSheet.outcome.didnt",
+                ],
+                false
+            ),
+            (
+                "job-sheet-closeout",
+                ["-screen", "job-sheet-closeout", "-demoPhoto", "hilux"],
+                [
+                    "jobSheet.half", "jobSheet.handle", "jobSheet.close",
+                    "jobSheet.outcome.worked", "jobSheet.outcome.partly", "jobSheet.outcome.didnt",
+                ],
                 false
             ),
         ]
@@ -230,7 +248,29 @@ final class DriveUITests: XCTestCase {
                 [
                     "jobSheet.half", "jobSheet.handle", "jobSheet.title", "jobSheet.close", "jobSheet.dim",
                     "jobSheet.body", "jobSheet.answer", "jobSheet.photo", "jobSheet.chips", "jobSheet.steps",
+                    "jobSheet.step.2",
                     "jobSheet.outcome", "jobSheet.outcome.worked", "jobSheet.outcome.partly", "jobSheet.outcome.didnt",
+                ],
+                false
+            ),
+            (
+                "job-sheet-full",
+                ["-screen", "job-sheet-full", "-demoPhoto", "hilux"],
+                [
+                    "jobSheet.full", "jobSheet.handle", "jobSheet.title", "jobSheet.close",
+                    "jobSheet.body", "jobSheet.notes", "jobSheet.tags", "jobSheet.tags.add",
+                    "jobSheet.howDidItGo", "jobSheet.outcome", "jobSheet.outcome.worked",
+                    "jobSheet.outcome.partly", "jobSheet.outcome.didnt", "jobSheet.whatFixed",
+                ],
+                false
+            ),
+            (
+                "job-sheet-closeout",
+                ["-screen", "job-sheet-closeout", "-demoPhoto", "hilux"],
+                [
+                    "jobSheet.half", "jobSheet.handle", "jobSheet.title", "jobSheet.close",
+                    "jobSheet.outcome", "jobSheet.outcome.worked", "jobSheet.outcome.partly",
+                    "jobSheet.outcome.didnt",
                 ],
                 false
             ),
@@ -296,9 +336,211 @@ final class DriveUITests: XCTestCase {
         )
         // Let the vertical TextField grow to its wrapped height before measuring.
         Thread.sleep(forTimeInterval: 0.6)
+        let keyboard = app.keyboards.firstMatch
+        if keyboard.waitForExistence(timeout: 2) {
+            XCTAssertLessThanOrEqual(
+                composer.frame.maxY,
+                keyboard.frame.minY + 2,
+                "Keyboard covers the composer. Overlay must ignore .container only, not .keyboard."
+            )
+        }
         try writeShot("taps-composer-multiline.png")
         let frames = try recordFrames(app, identifiers: ["chat.composer", "chat.send"], required: "chat.composer")
         try writeJSON("layout-composer-multiline.json", ["screens": ["chat-multiline": frames]])
+    }
+
+    func testAccessibilityXXXLHeaderAndHalfSheet() throws {
+        let chat = launchApp(arguments: [
+            "-sidekick.onboarding.completed", "YES",
+            "-dynamicTypeSize", "accessibility5",
+        ])
+        let garage = element(chat, "chat.garage")
+        XCTAssertTrue(garage.waitForExistence(timeout: 8), "chat.garage is missing at Accessibility XXXL")
+        XCTAssertTrue(garage.isHittable, "Garage must stay hittable at Accessibility XXXL")
+        let title = element(chat, "chat.title")
+        if title.waitForExistence(timeout: 1) {
+            XCTAssertFalse(
+                garage.frame.intersects(title.frame),
+                "Garage overlaps Sidekick at Accessibility XXXL: \(garage.frame) vs \(title.frame)"
+            )
+        }
+        try writeShot("taps-chat-axxxl.png")
+        chat.terminate()
+
+        let app = launchApp(arguments: [
+            "-screen", "job-sheet-half",
+            "-demoPhoto", "hilux",
+            "-dynamicTypeSize", "accessibility5",
+        ])
+        let sheet = element(app, "jobSheet.half")
+        XCTAssertTrue(sheet.waitForExistence(timeout: 8), "jobSheet.half is missing at Accessibility XXXL")
+        let step = element(app, "jobSheet.step.2")
+        XCTAssertTrue(step.waitForExistence(timeout: 5), "jobSheet.step.2 is missing at Accessibility XXXL")
+        let outcome = element(app, "jobSheet.outcome")
+        XCTAssertTrue(outcome.waitForExistence(timeout: 3))
+        let body = element(app, "jobSheet.body")
+        for _ in 0..<8 {
+            if stepFullyVisible(step, in: sheet, above: outcome) {
+                break
+            }
+            if body.exists {
+                body.swipeUp()
+            } else {
+                sheet.swipeUp()
+            }
+        }
+        XCTAssertTrue(
+            stepFullyVisible(step, in: sheet, above: outcome),
+            "jobSheet.step.2 is clipped at Accessibility XXXL even after scrolling. "
+                + "step \(step.frame) sheet \(sheet.frame) outcome \(outcome.frame)"
+        )
+        let worked = element(app, "jobSheet.outcome.worked")
+        XCTAssertTrue(worked.waitForExistence(timeout: 3), "Worked is missing at Accessibility XXXL")
+        XCTAssertTrue(worked.isHittable, "Worked must be tappable at Accessibility XXXL")
+        XCTAssertGreaterThan(
+            worked.frame.width,
+            160,
+            "Worked is truncated at Accessibility XXXL (width \(worked.frame.width))"
+        )
+        assertHeaderClearsTopSafeArea(app, screen: "job-sheet-half axxxl")
+        assertHalfSheetLeavesChatSliver(app, sheetID: "jobSheet.half", screen: "job-sheet-half axxxl")
+        try writeShot("taps-job-sheet-half-axxxl.png")
+        app.terminate()
+
+        let closeout = launchApp(arguments: [
+            "-screen", "job-sheet-closeout",
+            "-demoPhoto", "hilux",
+            "-dynamicTypeSize", "accessibility5",
+        ])
+        let closeoutSheet = element(closeout, "jobSheet.half")
+        XCTAssertTrue(
+            closeoutSheet.waitForExistence(timeout: 8),
+            "job-sheet-closeout is missing at Accessibility XXXL"
+        )
+        assertHeaderClearsTopSafeArea(closeout, screen: "job-sheet-closeout axxxl")
+        assertHalfSheetLeavesChatSliver(
+            closeout,
+            sheetID: "jobSheet.half",
+            screen: "job-sheet-closeout axxxl"
+        )
+        try writeShot("taps-job-sheet-closeout-axxxl.png")
+    }
+
+    private func stepFullyVisible(
+        _ step: XCUIElement,
+        in sheet: XCUIElement,
+        above outcome: XCUIElement
+    ) -> Bool {
+        let stepFrame = step.frame
+        let sheetFrame = sheet.frame
+        let limitY = outcome.exists ? outcome.frame.minY : sheetFrame.maxY
+        return stepFrame.minY >= sheetFrame.minY - 4
+            && stepFrame.maxY <= limitY + 4
+            && stepFrame.height >= 48
+    }
+
+    /// Status-bar / Dynamic Island band. XCTest does not expose window safeAreaInsets.
+    private func topSafeAreaInset(_ app: XCUIApplication) -> CGFloat {
+        let window = app.windows.firstMatch
+        XCTAssertTrue(window.waitForExistence(timeout: 8))
+        let statusBar = app.statusBars.firstMatch
+        if statusBar.exists {
+            let fromBar = statusBar.frame.maxY - window.frame.minY
+            if fromBar >= 44 {
+                return fromBar
+            }
+        }
+        return 59
+    }
+
+    private func assertHeaderClearsTopSafeArea(_ app: XCUIApplication, screen: String) {
+        let inset = topSafeAreaInset(app)
+        let title = element(app, "jobSheet.title")
+        XCTAssertTrue(title.waitForExistence(timeout: 5), "\(screen): jobSheet.title is missing")
+        XCTAssertGreaterThanOrEqual(
+            title.frame.minY,
+            inset,
+            "\(screen): title minY \(title.frame.minY) sits under the status bar / island (safe area \(inset))"
+        )
+        let close = element(app, "jobSheet.close")
+        XCTAssertTrue(close.waitForExistence(timeout: 3), "\(screen): jobSheet.close is missing")
+        XCTAssertGreaterThanOrEqual(
+            close.frame.minY,
+            inset,
+            "\(screen): Close minY \(close.frame.minY) sits under the status bar / island (safe area \(inset))"
+        )
+    }
+
+    /// Accessibility half / closeout stay below the island with a real strip of dimmed chat.
+    private func assertHalfSheetLeavesChatSliver(
+        _ app: XCUIApplication,
+        sheetID: String,
+        screen: String
+    ) {
+        let window = app.windows.firstMatch
+        let inset = topSafeAreaInset(app)
+        let sheet = element(app, sheetID)
+        XCTAssertTrue(sheet.waitForExistence(timeout: 5), "\(screen): \(sheetID) is missing")
+        let minGap = inset + 24
+        XCTAssertGreaterThanOrEqual(
+            sheet.frame.minY,
+            minGap,
+            "\(screen): sheet minY \(sheet.frame.minY) does not leave a chat sliver below the island (need >= \(minGap))"
+        )
+        XCTAssertLessThan(
+            sheet.frame.minY,
+            window.frame.height * 0.45,
+            "\(screen): accessibility half should still grow; sheet minY \(sheet.frame.minY)"
+        )
+        XCTAssertTrue(
+            element(app, "jobSheet.dim").waitForExistence(timeout: 2),
+            "\(screen): scrim should still show so this reads as a sheet over chat"
+        )
+        let garage = element(app, "chat.garage")
+        XCTAssertTrue(
+            garage.waitForExistence(timeout: 3),
+            "\(screen): chat.garage should peek above the sheet"
+        )
+        XCTAssertLessThan(
+            garage.frame.minY,
+            sheet.frame.minY,
+            "\(screen): Garage minY \(garage.frame.minY) is not above the sheet (\(sheet.frame.minY))"
+        )
+    }
+
+    func testSelectedOutcomeIsFilledOnFullAndCloseout() throws {
+        for screen in ["job-sheet-full", "job-sheet-closeout"] {
+            let app = launchApp(arguments: [
+                "-screen", screen,
+                "-demoPhoto", "hilux",
+            ])
+            let worked = element(app, "jobSheet.outcome.worked")
+            XCTAssertTrue(
+                worked.waitForExistence(timeout: 8),
+                "\(screen): jobSheet.outcome.worked is missing"
+            )
+            XCTAssertTrue(
+                worked.isSelected,
+                "\(screen): Worked must be selected so the segment renders filled"
+            )
+            let partly = element(app, "jobSheet.outcome.partly")
+            XCTAssertTrue(partly.waitForExistence(timeout: 2))
+            XCTAssertFalse(partly.isSelected, "\(screen): Partly should not be selected")
+            let didnt = element(app, "jobSheet.outcome.didnt")
+            XCTAssertTrue(didnt.waitForExistence(timeout: 2))
+            XCTAssertFalse(didnt.isSelected, "\(screen): Didn't should not be selected")
+            assertHeaderClearsTopSafeArea(app, screen: screen)
+            if screen == "job-sheet-closeout" {
+                let sheet = element(app, "jobSheet.half")
+                XCTAssertGreaterThan(
+                    sheet.frame.minY,
+                    300,
+                    "\(screen): default closeout should stay half height. minY \(sheet.frame.minY)"
+                )
+            }
+            try writeShot("taps-\(screen)-outcome.png")
+            app.terminate()
+        }
     }
 
     /// First element with this identifier, any type. An identifier on a SwiftUI container without

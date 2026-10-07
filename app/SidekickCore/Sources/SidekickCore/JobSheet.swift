@@ -1,7 +1,7 @@
 import Foundation
 import Observation
 
-/// Sheet height. Full is a detent only — steps, notes, and tags stay in #97.
+/// Sheet height. Full is edge-to-edge paper; notes, tags, and close-out live in that detent.
 public enum JobSheetDetent: String, CaseIterable, Hashable, Sendable {
     case collapsed
     case half
@@ -57,7 +57,10 @@ public enum JobSheetScreen: String, CaseIterable, Hashable, Sendable {
     }
 
     public var outcome: JobOutcome? {
-        self == .closeout ? .worked : nil
+        switch self {
+        case .closeout, .full: .worked
+        case .collapsed, .half: nil
+        }
     }
 }
 
@@ -85,6 +88,13 @@ public enum JobSheetCopy {
     public static let photoCaption = "Engine bay photo"
     public static let peekHint = "Photo + outline sit here"
     public static let outcomeHeading = "Outcome"
+    public static let howDidItGo = "How did it go?"
+    public static let notesHeading = "Notes"
+    public static let notesPlaceholder = "Hoses look dry. No numbers guessed."
+    public static let tagsHeading = "Tags"
+    public static let addTag = "+ add"
+    public static let addTagPrompt = "Add tag"
+    public static let whatFixedPlaceholder = "What fixed it? (optional)"
     public static let question = "Rough idle after a cold start"
     public static let citationNote = "FAKE-DOC-2JZ p. 999. No guessed numbers."
     public static let chip = "FAKE-DOC-2JZ · p. 999"
@@ -135,23 +145,32 @@ public enum JobSheetCopy {
     }
 }
 
-/// Sheet height vs the window. Full meets the status-bar band and covers the nav / Jobs header.
+/// Sheet height vs the window. Full is edge-to-edge paper; header content uses the top inset.
 public enum JobSheetLayout {
     public static let collapsedHeight: Double = 128
-    public static let halfMaxHeight: Double = 400
-    public static let halfHeightFraction: Double = 0.46
-    public static let halfPhotoHeight: Double = 84
+    public static let halfMaxHeight: Double = 460
+    public static let halfHeightFraction: Double = 0.52
+    public static let halfPhotoHeight: Double = 72
+    public static let halfScrollBottomPadding: Double = 24
     public static let fullPhotoHeight: Double = 200
     public static let fallbackTopSafeArea: Double = 59
-    /// Full sheet meets the status-bar band so the nav / Jobs header cannot peek.
+    /// Gap of dimmed chat below the island at accessibility half / closeout.
+    public static let halfAccessibilityChatSliver: Double = 36
+    /// Full paper covers the status-bar band. Header content uses `contentTopInset`.
     public static let fullTopGap: Double = 0
     /// Paper Jobs / Scan log header under the status bar. Full must cover this.
     public static let navigationBarHeight: Double = 44
     /// Edge to edge. Side gutters made the sheet 386pt on a 402pt window.
     public static let horizontalInset: Double = 0
     public static let topCornerRadius: Double = 24
+    /// Space between the last half-sheet step and the Outcome row (Figma divider).
+    public static let halfOutcomeTopSpacing: Double = 16
+    /// Home-indicator pad inside the white sheet when the overlay ignores the container.
+    public static let homeIndicatorContentPad: Double = 16
     /// Tab bar (~49) + home indicator (~34) when `-showDemoChrome 1`.
     public static let demoTabChromeHeight: Double = 83
+    /// Overlay home-indicator inset is ~34; keyboard inset is much larger.
+    public static let homeIndicatorMaxInset: Double = 80
 
     public static func resolvedTopSafeArea(_ raw: Double) -> Double {
         raw > 0 ? raw : fallbackTopSafeArea
@@ -169,18 +188,56 @@ public enum JobSheetLayout {
     public static func height(
         detent: JobSheetDetent,
         screenHeight: Double,
-        topSafeArea: Double
+        topSafeArea: Double,
+        isAccessibilitySize: Bool = false
     ) -> Double {
         return switch detent {
         case .collapsed:
             collapsedHeight
         case .half:
-            min(screenHeight * halfHeightFraction, halfMaxHeight)
+            // Accessibility: grow for wrapped steps, but stay below the island
+            // with a real strip of dimmed chat so this still reads as a sheet.
+            isAccessibilitySize
+                ? max(screenHeight - accessibilityHalfTopGap(topSafeArea: topSafeArea), 240)
+                : min(screenHeight * halfHeightFraction, halfMaxHeight)
         case .full:
-            // Uncovered top is the status-bar inset only. A gap below it showed
-            // the Jobs / Scan log header letters above the sheet edge.
-            max(screenHeight - resolvedTopSafeArea(topSafeArea) - fullTopGap, 240)
+            // Paper fills the window so the nav / Jobs header cannot peek and
+            // there is no gray strip under the sheet. Title + Close sit below
+            // the island via `contentTopInset`, not by shortening the sheet.
+            max(screenHeight - fullTopGap, 240)
         }
+    }
+
+    /// Half photo at default size matches Figma. Accessibility sizes drop it.
+    public static func halfPhotoHeight(isAccessibilitySize: Bool) -> Double {
+        isAccessibilitySize ? 0 : halfPhotoHeight
+    }
+
+    /// Accessibility: Outcome label above full-width segments so Worked is tappable.
+    public static func stacksOutcome(isAccessibilitySize: Bool) -> Bool {
+        isAccessibilitySize
+    }
+
+    /// Status-bar band plus a visible strip of chat above accessibility half paper.
+    public static func accessibilityHalfTopGap(topSafeArea: Double) -> Double {
+        resolvedTopSafeArea(topSafeArea) + halfAccessibilityChatSliver
+    }
+
+    /// Full detent only. Half and collapsed already sit below the status bar.
+    public static func contentTopInset(detent: JobSheetDetent, topSafeArea: Double) -> Double {
+        detent == .full ? resolvedTopSafeArea(topSafeArea) : 0
+    }
+
+    /// Filled Worked/Partly/Didn't segments on full, and on half once an outcome is set (closeout).
+    public static func fillsSelectedOutcome(detent: JobSheetDetent, outcome: JobOutcome?) -> Bool {
+        detent == .full || (detent == .half && outcome != nil)
+    }
+
+    /// Composer sits above the home indicator when there is no job sheet.
+    /// Keyboard avoidance is the overlay's job (it must not ignore `.keyboard`).
+    public static func composerHomeInset(hasJob: Bool, bottomSafeArea: Double) -> Double {
+        if hasJob { return 0 }
+        return bottomSafeArea > 0 && bottomSafeArea < homeIndicatorMaxInset ? bottomSafeArea : 0
     }
 
     /// Full-bleed width. Inset is 0 so this equals `screenWidth`.
@@ -192,12 +249,14 @@ public enum JobSheetLayout {
     public static func originY(
         detent: JobSheetDetent,
         screenHeight: Double,
-        topSafeArea: Double
+        topSafeArea: Double,
+        isAccessibilitySize: Bool = false
     ) -> Double {
         screenHeight - height(
             detent: detent,
             screenHeight: screenHeight,
-            topSafeArea: topSafeArea
+            topSafeArea: topSafeArea,
+            isAccessibilitySize: isAccessibilitySize
         )
     }
 
@@ -217,6 +276,12 @@ public struct JobSheetState: Equatable, Sendable, Identifiable {
     public var highlight: HighlightRef?
     public var detent: JobSheetDetent
     public var outcome: JobOutcome?
+    /// Owner's words. Not a manual citation. Never auto-filled with specs.
+    public var notes: String
+    /// Same chip set as the highlight card (HL-6), plus user-defined tags.
+    public var tags: [String]
+    /// Optional close-out line under "How did it go?".
+    public var whatFixed: String
 
     public var hasPhoto: Bool { photoID != nil }
     public var headerTitle: String { JobSheetCopy.titlePrefix + title }
@@ -230,7 +295,10 @@ public struct JobSheetState: Equatable, Sendable, Identifiable {
         photoID: String? = nil,
         highlight: HighlightRef? = nil,
         detent: JobSheetDetent = .collapsed,
-        outcome: JobOutcome? = nil
+        outcome: JobOutcome? = nil,
+        notes: String = "",
+        tags: [String] = [],
+        whatFixed: String = ""
     ) {
         self.sourceMessageID = sourceMessageID
         self.title = title
@@ -240,6 +308,9 @@ public struct JobSheetState: Equatable, Sendable, Identifiable {
         self.highlight = highlight
         self.detent = detent
         self.outcome = outcome
+        self.notes = notes
+        self.tags = tags
+        self.whatFixed = whatFixed
     }
 }
 
@@ -290,6 +361,7 @@ public enum JobSheetScript {
         outcome: JobOutcome? = nil
     ) -> JobSheetState {
         let resolvedPhoto = photoID ?? DemoLaunchOptions.defaultPhotoID
+        let pick = selection(photoID: resolvedPhoto)
         return JobSheetState(
             sourceMessageID: assistantMessageID,
             title: JobSheetCopy.title,
@@ -298,7 +370,8 @@ public enum JobSheetScript {
             photoID: photoID,
             highlight: photoID.map { highlight(photoID: $0) },
             detent: detent,
-            outcome: outcome
+            outcome: outcome,
+            tags: DemoOutlineCatalog.tags(partID: pick.partID, hasOutline: photoID != nil)
         )
     }
 }
@@ -330,6 +403,7 @@ public final class JobSheetViewModel {
         if job?.sourceMessageID == assistant.id { return }
         let highlight = Self.highlight(from: assistant.answer)
             ?? photoID.map { JobSheetScript.highlight(photoID: $0) }
+        let partID = highlight?.partID.rawValue
         job = JobSheetState(
             sourceMessageID: assistant.id,
             title: Self.title(from: messages),
@@ -338,7 +412,8 @@ public final class JobSheetViewModel {
             photoID: photoID ?? highlight?.bayPhotoID.rawValue,
             highlight: highlight,
             detent: .collapsed,
-            outcome: nil
+            outcome: nil,
+            tags: partID.map { DemoOutlineCatalog.tags(partID: $0, hasOutline: highlight?.geometry != nil) } ?? []
         )
     }
 
@@ -374,12 +449,36 @@ public final class JobSheetViewModel {
         update { $0.outcome = outcome }
     }
 
+    public func setNotes(_ notes: String) {
+        update { $0.notes = notes }
+    }
+
+    public func setWhatFixed(_ whatFixed: String) {
+        update { $0.whatFixed = whatFixed }
+    }
+
+    public func addTag(_ tag: String) {
+        let trimmed = tag.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        update { job in
+            if !job.tags.contains(trimmed) {
+                job.tags.append(trimmed)
+            }
+        }
+    }
+
+    public func removeTag(_ tag: String) {
+        update { $0.tags.removeAll { $0 == tag } }
+    }
+
     /// Binds a photo to this job only. Does not write a bay-map frame.
     public func attachPhoto(photoID: String) {
         update { job in
             job.photoID = photoID
             job.highlight = JobSheetScript.highlight(photoID: photoID)
             job.answerText = JobSheetCopy.answer(photoID: photoID)
+            let pick = JobSheetScript.selection(photoID: photoID)
+            job.tags = DemoOutlineCatalog.tags(partID: pick.partID, hasOutline: true)
         }
     }
 

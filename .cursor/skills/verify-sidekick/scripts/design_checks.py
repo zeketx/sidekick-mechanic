@@ -12,7 +12,10 @@ Inputs (all under the run dir):
 Automated rows (PASS or FAIL with numbers):
   edge-to-edge  job-sheet-* shots: side inset, bottom gap at full, rounded top, white sheet, scrim strength
   composer      chat shot (+ multiline shot): fitted corner radius vs half height (>= 0.75), background above vs below
-  nav           Jobs / Scan log / Back / Close: plain text, no filled capsule behind the label
+  nav           Jobs / Scan log / Back / Close / Garage: plain text. FAIL on a
+                glass, shadow, or capsule behind the label (real pixels vs the bar,
+                not a style flag). XCUITest frames are the glyph; a 4pt ring is
+                still inside iOS 26 Liquid Glass.
   chrome        status bar contrast and the neutral #F4F4F4 background (FAIL only; clipping stays REVIEW)
 Rows pixels cannot decide (highlight outline shape, every Figma difference) are REVIEW: the agent
 must open compare/<screen>.png and fill them. Nothing here ever reports an overall PASS.
@@ -46,7 +49,10 @@ NAV_IDS = {
     "job-history": ["lookBack.back", "jobHistory.scanLog"],
     "job-sheet-half": ["jobSheet.close"],
     "job-sheet-full": ["jobSheet.close"],
+    "job-sheet-closeout": ["jobSheet.close"],
 }
+OUTCOME_FILL_SCREENS = ("job-sheet-full", "job-sheet-closeout")
+OUTCOME_FILL_ID = "jobSheet.outcome.worked"
 RULES = [
     ("highlight", "Highlight outline (never a box)"),
     ("edge", "Sheet edge to edge"),
@@ -304,33 +310,169 @@ def measure_pill(img, frame: list[float], window: list[float], check_background:
 # ---------------------------------------------------------------- nav / chrome
 
 
+def _collect_pixels(px, x0: int, y0: int, x1: int, y1: int, w: int, h: int):
+    pts = []
+    for y in range(max(0, y0), min(h, y1)):
+        for x in range(max(0, x0), min(w, x1)):
+            pts.append(px[x, y])
+    return pts
+
+
+def _median_rgb(pts) -> tuple[int, int, int]:
+    if not pts:
+        return BG_F4
+    return tuple(int(statistics.median(p[i] for p in pts)) for i in range(3))
+
+
+def _lums(pts) -> list[float]:
+    return [lum(p) for p in pts]
+
+
 def measure_nav_button(img, frame: list[float], window: list[float]) -> dict[str, Any]:
+    """FAIL a glass/shadow/capsule behind the label using real pixels.
+
+    XCUITest frames are the glyph, not the Liquid Glass pill. A 4pt ring around
+    the text is still inside the glass, so that ring must not be the bar sample.
+    Sample empty header paper ~28–56pt beside the label, then compare a halo
+    (expanded box minus the text) and a shadow ring just outside the halo.
+    """
     w, h = img.size
     px = img.load()
     scale = w / window[2]
-    pad = int(4 * scale)
-    x0 = int(frame[0] * scale) - pad
-    y0 = int(frame[1] * scale) - pad
-    x1 = int((frame[0] + frame[2]) * scale) + pad
-    y1 = int((frame[1] + frame[3]) * scale) + pad
-    ring = [px[x, y0] for x in range(max(0, x0), min(w, x1))] + [px[x, min(h - 1, y1)] for x in range(max(0, x0), min(w, x1))]
-    bg = tuple(int(statistics.median(p[i] for p in ring)) for i in range(3)) if ring else BG_F4
-    total = fill = 0
-    for y in range(max(0, y0 + 1), min(h, y1)):
-        for x in range(max(0, x0 + 1), min(w, x1)):
-            p = px[x, y]
-            total += 1
-            d = cdiff(p, bg)
-            if 3 <= d <= 40 and lum(p) >= lum(bg) - 40:
-                fill += 1
-    fraction = fill / total if total else 0.0
-    verdict = "FAIL" if fraction > 0.35 else "PASS"
+    tx0 = int(frame[0] * scale)
+    ty0 = int(frame[1] * scale)
+    tx1 = int((frame[0] + frame[2]) * scale)
+    ty1 = int((frame[1] + frame[3]) * scale)
+    cy = (ty0 + ty1) // 2
+    patch = max(6, int(round(8 * scale)))
+
+    bar_pts = []
+    bar_color = BG_F4
+    bar_lum = -1.0
+    for off_pt in (28, 40, 56, -28, -40, -56):
+        off = int(round(off_pt * scale))
+        if off >= 0:
+            x0 = tx1 + off
+        else:
+            x0 = tx0 + off - patch
+        y0 = cy - patch // 2
+        pts = _collect_pixels(px, x0, y0, x0 + patch, y0 + patch, w, h)
+        if len(pts) < 8:
+            continue
+        med = _median_rgb(pts)
+        L = lum(med)
+        if L > bar_lum:
+            bar_pts = pts
+            bar_color = med
+            bar_lum = L
+    if bar_lum < 0:
+        bar_lum = lum(BG_F4)
+
+    # Glass extends ~12pt around the glyph. Stay mostly in the header row so the
+    # status bar / Dynamic Island above Garage is not the halo.
+    pad_x = int(round(14 * scale))
+    pad_y = int(round(8 * scale))
+    text_inset = max(1, int(round(1.5 * scale)))
+    hx0, hy0 = tx0 - pad_x, ty0 - pad_y
+    hx1, hy1 = tx1 + pad_x, ty1 + pad_y
+    ix0, iy0 = tx0 + text_inset, ty0 + text_inset
+    ix1, iy1 = tx1 - text_inset, ty1 - text_inset
+    halo = []
+    for y in range(max(0, hy0), min(h, hy1)):
+        for x in range(max(0, hx0), min(w, hx1)):
+            if ix0 <= x < ix1 and iy0 <= y < iy1:
+                continue
+            halo.append(px[x, y])
+    # Ignore island/ink (much darker than paper). Glass is paper-or-brighter.
+    glass = [p for p in halo if lum(p) >= bar_lum - 5]
+    glass_lums = _lums(glass)
+    halo_lum = statistics.median(glass_lums) if glass_lums else bar_lum
+    halo_stdev = statistics.pstdev(glass_lums) if len(glass_lums) > 1 else 0.0
+    brighter = (
+        sum(1 for L in glass_lums if L > bar_lum + 6) / len(glass_lums) if glass_lums else 0.0
+    )
+
+    # Liquid Glass drop shadow sits under the capsule, not in the status bar.
+    sy0 = ty1 + max(1, int(round(2 * scale)))
+    sy1 = ty1 + int(round(12 * scale))
+    sx0 = tx0 - int(round(10 * scale))
+    sx1 = tx1 + int(round(10 * scale))
+    shadow = _collect_pixels(px, sx0, sy0, sx1, sy1, w, h)
+    shadow_lums = _lums(shadow)
+    if shadow_lums:
+        shadow_lums_sorted = sorted(shadow_lums)
+        darkest = shadow_lums_sorted[: max(1, len(shadow_lums_sorted) // 5)]
+        shadow_dark = statistics.median(darkest)
+    else:
+        shadow_dark = bar_lum
+
+    reasons: list[str] = []
+    if halo_lum > bar_lum + 6:
+        reasons.append(
+            f"brighter glass fill behind the label (halo lum {halo_lum:.0f} vs bar {bar_lum:.0f}, "
+            f"{hexc(_median_rgb(glass)) if glass else hexc(bar_color)} on {hexc(bar_color)})"
+        )
+    elif brighter > 0.35:
+        reasons.append(
+            f"glass/capsule fill around the label ({brighter:.0%} of halo brighter than the bar)"
+        )
+    if bar_lum - shadow_dark >= 10:
+        reasons.append(
+            f"drop shadow around the label (dark band lum {shadow_dark:.0f} vs bar {bar_lum:.0f})"
+        )
+    if halo_stdev >= 18 and brighter > 0.15:
+        reasons.append(
+            f"uneven capsule/shadow halo (luminance stdev {halo_stdev:.1f})"
+        )
+
+    verdict = "FAIL" if reasons else "PASS"
     return {
         "frame_pt": frame,
-        "background": hexc(bg),
-        "tinted_fill_fraction": round(fraction, 3),
+        "background": hexc(bar_color),
+        "halo_lum": round(halo_lum, 1),
+        "bar_lum": round(bar_lum, 1),
+        "halo_stdev": round(halo_stdev, 1),
+        "brighter_halo_fraction": round(brighter, 3),
+        "shadow_ring_lum": round(shadow_dark, 1),
         "verdict": verdict,
-        "reasons": [f"filled shape behind the label ({fraction:.0%} tinted pixels)"] if verdict == "FAIL" else [],
+        "reasons": reasons,
+    }
+
+
+def measure_outcome_fill(img, frame: list[float], window: list[float]) -> dict[str, Any]:
+    """Selected Worked must be a filled segment (dark fill), not paper plus underline."""
+    w, h = img.size
+    px = img.load()
+    scale = w / window[2]
+    inset = max(2, int(round(4 * scale)))
+    x0 = int(frame[0] * scale) + inset
+    y0 = int(frame[1] * scale) + inset
+    x1 = int((frame[0] + frame[2]) * scale) - inset
+    y1 = int((frame[1] + frame[3]) * scale) - inset
+    pts = _collect_pixels(px, x0, y0, x1, y1, w, h)
+    if len(pts) < 12:
+        return {
+            "frame_pt": frame,
+            "verdict": "FAIL",
+            "reasons": ["outcome.worked frame is too small to measure a fill"],
+        }
+    fill = _median_rgb(pts)
+    fill_lum = lum(fill)
+    dark = sum(1 for p in pts if lum(p) < 90) / len(pts)
+    reasons: list[str] = []
+    # Filled Worked is black (or near-black) with white label. Underline-only is paper.
+    if fill_lum > 140 or dark < 0.35:
+        reasons.append(
+            f"selected Worked is not a filled segment (median {hexc(fill)}, lum {fill_lum:.0f}, "
+            f"{dark:.0%} dark pixels)"
+        )
+    return {
+        "frame_pt": frame,
+        "fill": hexc(fill),
+        "fill_lum": round(fill_lum, 1),
+        "dark_fraction": round(dark, 3),
+        "verdict": "FAIL" if reasons else "PASS",
+        "reasons": reasons,
     }
 
 
@@ -422,7 +564,7 @@ def evaluate(run_dir: Path, compare_dir: Path) -> dict[str, Any]:
                 cells["nav"] = {
                     "buttons": buttons,
                     "missing_frames": missing,
-                    "reasons": reasons or ["no capsule fill; check truncation by eye"],
+                    "reasons": reasons or ["plain text on the bar; check truncation by eye"],
                     "verdict": "FAIL" if reasons else "PASS",
                     "evidence": rel,
                 }
@@ -440,6 +582,21 @@ def evaluate(run_dir: Path, compare_dir: Path) -> dict[str, Any]:
             if side.is_file()
             else {"verdict": "NO REF", "reasons": ["no features/figma ref for this screen"]}
         )
+        if screen in OUTCOME_FILL_SCREENS:
+            info = frames.get(screen, {})
+            worked = info.get("elements", {}).get(OUTCOME_FILL_ID)
+            if worked and info.get("window"):
+                fill = measure_outcome_fill(img, worked, info["window"])
+                fill["evidence"] = rel
+                cells["outcome_fill"] = fill
+            else:
+                cells["outcome_fill"] = {
+                    "verdict": "REVIEW",
+                    "evidence": rel,
+                    "reasons": [
+                        f"no XCUITest frame for {OUTCOME_FILL_ID}; selected Worked must look filled"
+                    ],
+                }
         report["screens"][screen] = cells
     verdicts = [c["verdict"] for s in report["screens"].values() for c in s.values()]
     report["fail_count"] = verdicts.count("FAIL")
@@ -469,6 +626,16 @@ def checklist_lines(report: dict[str, Any]) -> list[str]:
                 continue
             detail = "; ".join(cell.get("reasons", [])) or summary(key, cell)
             lines.append(f"- **{screen} / {label}: {cell['verdict']}** - {detail} (`{cell.get('evidence', '')}`)")
+        extra = cells.get("outcome_fill")
+        if extra and extra.get("verdict") in ("FAIL", "PASS"):
+            detail = "; ".join(extra.get("reasons", [])) or (
+                f"Worked fill {extra.get('fill')} lum {extra.get('fill_lum')} "
+                f"({extra.get('dark_fraction', 0):.0%} dark)"
+            )
+            lines.append(
+                f"- **{screen} / Selected outcome filled: {extra['verdict']}** - {detail} "
+                f"(`{extra.get('evidence', '')}`)"
+            )
     return lines
 
 
@@ -481,13 +648,118 @@ def summary(key: str, cell: dict[str, Any]) -> str:
     if key == "composer":
         s = cell.get("single_line", {})
         return f"radius {s.get('corner_radius_pt')}pt on {s.get('height_pt')}pt"
+    if key == "nav":
+        return "plain text on the bar; check truncation by eye"
     return ""
+
+
+def _draw_label(draw, box, text: str, fill) -> None:
+    x0, y0, x1, y1 = box
+    # Block letters so the self-test does not need a font file.
+    pad = max(2, (y1 - y0) // 5)
+    draw.rectangle([x0 + pad, y0 + pad, x1 - pad, y1 - pad], fill=fill)
+
+
+def self_test() -> int:
+    """Synthetic pixels: plain text PASSes; glass+shadow FAILs. No simulator."""
+    from PIL import Image, ImageDraw, ImageFilter
+
+    scale = 3.0
+    window = [0.0, 0.0, 402.0, 200.0]
+    frame = [16.0, 62.0, 58.0, 22.0]  # glyph-only, like XCUITest
+    w, h = int(window[2] * scale), int(window[3] * scale)
+    paper = BG_F4
+    tx0, ty0 = int(frame[0] * scale), int(frame[1] * scale)
+    tx1 = int((frame[0] + frame[2]) * scale)
+    ty1 = int((frame[1] + frame[3]) * scale)
+
+    plain = Image.new("RGB", (w, h), paper)
+    _draw_label(ImageDraw.Draw(plain), (tx0, ty0, tx1, ty1), "Garage", (20, 20, 20))
+    plain_result = measure_nav_button(plain, frame, window)
+
+    glass = Image.new("RGB", (w, h), paper)
+    gx0 = tx0 - int(12 * scale)
+    gy0 = ty0 - int(8 * scale)
+    gx1 = tx1 + int(12 * scale)
+    gy1 = ty1 + int(8 * scale)
+    shadow = Image.new("RGB", (w, h), paper)
+    sdraw = ImageDraw.Draw(shadow)
+    sdraw.rounded_rectangle(
+        [gx0, gy0 + int(3 * scale), gx1, gy1 + int(4 * scale)],
+        radius=int(18 * scale),
+        fill=(180, 180, 180),
+    )
+    shadow = shadow.filter(ImageFilter.GaussianBlur(radius=int(3 * scale)))
+    glass.paste(shadow)
+    gdraw = ImageDraw.Draw(glass)
+    gdraw.rounded_rectangle(
+        [gx0, gy0, gx1, gy1],
+        radius=int(16 * scale),
+        fill=(255, 255, 255),
+    )
+    _draw_label(gdraw, (tx0, ty0, tx1, ty1), "Garage", (20, 20, 20))
+    glass_result = measure_nav_button(glass, frame, window)
+
+    worked_frame = [16.0, 120.0, 110.0, 40.0]
+    wx0 = int(worked_frame[0] * scale)
+    wy0 = int(worked_frame[1] * scale)
+    wx1 = int((worked_frame[0] + worked_frame[2]) * scale)
+    wy1 = int((worked_frame[1] + worked_frame[3]) * scale)
+    filled = Image.new("RGB", (w, h), (255, 255, 255))
+    fdraw = ImageDraw.Draw(filled)
+    fdraw.rounded_rectangle([wx0, wy0, wx1, wy1], radius=int(10 * scale), fill=(20, 20, 20))
+    # Small white glyph so the median stays the black fill.
+    cx = (wx0 + wx1) // 2
+    cy = (wy0 + wy1) // 2
+    fdraw.rectangle([cx - int(18 * scale), cy - int(3 * scale), cx + int(18 * scale), cy + int(3 * scale)], fill=(250, 250, 250))
+    filled_result = measure_outcome_fill(filled, worked_frame, window)
+
+    underline = Image.new("RGB", (w, h), (255, 255, 255))
+    udraw = ImageDraw.Draw(underline)
+    udraw.rectangle([cx - int(18 * scale), cy - int(3 * scale), cx + int(18 * scale), cy + int(3 * scale)], fill=(20, 20, 20))
+    udraw.line([(wx0 + 24, wy1 - int(6 * scale)), (wx1 - 24, wy1 - int(6 * scale))], fill=(20, 20, 20), width=max(2, int(scale)))
+    underline_result = measure_outcome_fill(underline, worked_frame, window)
+
+    errors: list[str] = []
+    if plain_result["verdict"] != "PASS":
+        errors.append(f"plain Garage should PASS, got {plain_result}")
+    if glass_result["verdict"] != "FAIL":
+        errors.append(f"glass Garage should FAIL, got {glass_result}")
+    if filled_result["verdict"] != "PASS":
+        errors.append(f"filled Worked should PASS, got {filled_result}")
+    if underline_result["verdict"] != "FAIL":
+        errors.append(f"underlined Worked should FAIL, got {underline_result}")
+    if errors:
+        print("self-test FAIL")
+        for err in errors:
+            print(err)
+        return 1
+    print("self-test PASS")
+    print(
+        f"plain Garage {plain_result['verdict']} (halo {plain_result['halo_lum']} vs bar {plain_result['bar_lum']})"
+    )
+    print(f"glass Garage FAIL: {'; '.join(glass_result['reasons'])}")
+    print(
+        f"filled Worked PASS (lum {filled_result['fill_lum']}, "
+        f"{filled_result['dark_fraction']:.0%} dark)"
+    )
+    print(f"underline Worked FAIL: {'; '.join(underline_result['reasons'])}")
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--run-dir", type=Path, required=True)
+    parser.add_argument("--run-dir", type=Path)
+    parser.add_argument(
+        "--self-test",
+        action="store_true",
+        help="Synthetic glass/plain Garage and filled/underline Worked. No simulator.",
+    )
     args = parser.parse_args(argv)
+    if args.self_test:
+        return self_test()
+    if args.run_dir is None:
+        parser.error("provide --run-dir or --self-test")
     compare_dir = args.run_dir / "compare"
     compare_dir.mkdir(parents=True, exist_ok=True)
     report = evaluate(args.run_dir, compare_dir)

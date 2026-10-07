@@ -8,13 +8,13 @@ struct ChatScreen: View {
     var backendURL: URL = AppConfig.backendURL
     var launch: DemoLaunchOptions = DemoLaunchOptions.parse()
     var onOpenGarage: (() -> Void)?
-    @Environment(\.colorScheme) private var colorScheme
     @State private var demoImages = DemoImageStore()
     @State private var presentedViewer: HighlightViewerSession?
     @State private var jobSheet = JobSheetViewModel()
     @State private var windowHeight: CGFloat = 0
     @State private var topSafeArea: CGFloat = 0
     @State private var bottomSafeArea: CGFloat = 0
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var configuration: ChatClientConfiguration {
         ChatClientConfiguration(baseURL: backendURL)
@@ -24,12 +24,17 @@ struct ChatScreen: View {
         NavigationStack {
             messageList
                 .safeAreaInset(edge: .top, spacing: 0) {
-                    if launch.showDemoChrome, model.isDemoMode {
-                        DemoModeChrome(
-                            model: model,
-                            store: demoImages,
-                            configuration: configuration
-                        )
+                    VStack(spacing: 0) {
+                        if showPaperHeader {
+                            paperHeader
+                        }
+                        if launch.showDemoChrome, model.isDemoMode {
+                            DemoModeChrome(
+                                model: model,
+                                store: demoImages,
+                                configuration: configuration
+                            )
+                        }
                     }
                 }
                 .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -40,29 +45,9 @@ struct ChatScreen: View {
                 }
                 .navigationTitle("Sidekick")
                 .navigationBarTitleDisplayMode(.inline)
-                .toolbar(jobSheet.detent == .full && jobSheet.hasJob ? .hidden : .visible, for: .navigationBar)
-                .toolbar {
-                    ToolbarItem(placement: .topBarLeading) {
-                        if let onOpenGarage {
-                            Button("Garage", action: onOpenGarage)
-                                .accessibilityIdentifier("chat.garage")
-                        }
-                    }
-                    if launch.showDemoChrome {
-                        ToolbarItem(placement: .topBarTrailing) {
-                            Button(model.isDemoMode ? "Demo on" : "Demo mode") {
-                                model.isDemoMode.toggle()
-                            }
-                            .buttonStyle(.plain)
-                            .font(.body)
-                            .foregroundStyle(.primary)
-                            .accessibilityIdentifier("demo.toggle")
-                        }
-                    }
-                }
-                .toolbarBackground(JobSheetChrome.screen, for: .navigationBar)
-                .toolbarBackground(jobSheet.hasJob ? .hidden : .visible, for: .navigationBar)
-                .toolbarColorScheme(colorScheme == .dark ? .dark : .light, for: .navigationBar)
+                // iOS 26 Liquid Glass on ToolbarItem survived .buttonStyle(.plain)
+                // and opaque UINavigationBarAppearance. Garage is plain text here.
+                .toolbar(.hidden, for: .navigationBar)
                 .background(JobSheetChrome.screen)
         }
         .overlay {
@@ -71,7 +56,9 @@ struct ChatScreen: View {
                 bottomBar
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-            .ignoresSafeArea()
+            // Container (home indicator / status bar) so the sheet is edge to edge.
+            // Do not ignore `.keyboard` — that covered the composer while typing.
+            .ignoresSafeArea(.container)
         }
         .background(JobSheetChrome.screen)
         .background {
@@ -189,6 +176,67 @@ struct ChatScreen: View {
         .accessibilityLabel("Waiting for a reply")
     }
 
+    private var showPaperHeader: Bool {
+        !(jobSheet.hasJob && jobSheet.detent == .full)
+    }
+
+    /// Paper header, not a toolbar item. iOS 26 draws Liquid Glass behind toolbar buttons.
+    private var paperHeader: some View {
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    garageButton
+                    Spacer(minLength: 0)
+                    demoToggle
+                }
+            } else {
+                ZStack {
+                    Text("Sidekick")
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+                        .accessibilityIdentifier("chat.title")
+                    HStack {
+                        garageButton
+                        Spacer(minLength: 0)
+                        demoToggle
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 4)
+        .padding(.bottom, 10)
+        .frame(minHeight: 44)
+        .frame(maxWidth: .infinity)
+        .background(JobSheetChrome.screen)
+    }
+
+    @ViewBuilder
+    private var garageButton: some View {
+        if let onOpenGarage {
+            Button("Garage", action: onOpenGarage)
+                .buttonStyle(.plain)
+                .font(.body)
+                .foregroundStyle(.primary)
+                .fixedSize()
+                .accessibilityIdentifier("chat.garage")
+        }
+    }
+
+    @ViewBuilder
+    private var demoToggle: some View {
+        if launch.showDemoChrome {
+            Button(model.isDemoMode ? "Demo on" : "Demo mode") {
+                model.isDemoMode.toggle()
+            }
+            .buttonStyle(.plain)
+            .font(.body)
+            .foregroundStyle(.primary)
+            .fixedSize()
+            .accessibilityIdentifier("demo.toggle")
+        }
+    }
+
     private var bottomBar: some View {
         VStack(spacing: 0) {
             if !jobSheet.blocksChat {
@@ -230,7 +278,15 @@ struct ChatScreen: View {
             composer
         }
         .background(JobSheetChrome.screen)
-        .safeAreaPadding(.bottom, jobSheet.hasJob ? 0 : nil)
+        .padding(
+            .bottom,
+            CGFloat(
+                JobSheetLayout.composerHomeInset(
+                    hasJob: jobSheet.hasJob,
+                    bottomSafeArea: Double(bottomSafeArea)
+                )
+            )
+        )
     }
 
     private var composer: some View {
@@ -589,6 +645,11 @@ private struct IdleChatClient: ChatClient {
 #Preview("Accessibility XL") {
     ChatScreen(model: ChatScreenPreview.conversation(), onOpenGarage: {})
         .environment(\.dynamicTypeSize, .accessibility3)
+}
+
+#Preview("Accessibility XXXL") {
+    ChatScreen(model: ChatScreenPreview.conversation(), onOpenGarage: {})
+        .environment(\.dynamicTypeSize, .accessibility5)
 }
 
 #Preview("Loading") {
