@@ -201,7 +201,8 @@ Every UI change must copy this table into the PR (and into `compare/checklist.md
 
 - **Edge to edge** (job-sheet-*): scans for the white sheet and reports the first white pixel from each side (px and pt), the gap under the sheet at full, rounded top corners, sheet colour and the scrim colour above it. Any side inset, a bottom gap at full, a non-white sheet, a dark scrim at collapsed or a light one at half/full is FAIL.
 - **Composer** (chat + the multiline tap shot): finds the outline around the `chat.composer` frame, fits the corner radius and compares it with half the height (pill needs fitted radius / half height ≥ 0.75 on one line **and** after typing a long problem; the circular fit reads `.continuous` corners ~15–20% small, hence 0.75), and samples the background above, below and left of it.
-- **Nav buttons** (chat, onboarding, half, full; Jobs when present): looks for a tinted fill behind each `chat.garage` / `onboarding.skip` / `jobSheet.close` frame (and `chat.jobs` / `lookBack.back` / `jobHistory.scanLog` on #114). Glass capsule = FAIL. Truncation is still yours to check.
+- **Nav buttons** (chat, onboarding, half, full; Jobs when present): measures pixels around each `chat.garage` / `onboarding.skip` / `jobSheet.close` frame (and `chat.jobs` / `lookBack.back` / `jobHistory.scanLog` on #114). Samples the bar ~28–56pt beside the glyph, then a halo around the label. A brighter glass fill, a drop shadow, or a capsule edge is FAIL. Do not trust a SwiftUI style flag: iOS 26 Liquid Glass sits outside `.buttonStyle(.plain)` and outside a 4pt ring (that ring is still inside the pill). Truncation is still yours to check.
+- **Selected outcome filled** (job-sheet-full, job-sheet-closeout): `jobSheet.outcome.worked` must be a filled segment (dark fill in light mode), not paper plus underline.
 - **Status bar / #F4F4F4**: status bar time contrast on every screen, `#F4F4F4` on chat / Jobs / Scan log. Can only FAIL; clipping and overlap stay REVIEW.
 - **Highlight outline** and **Matches Figma** are always REVIEW: open the side-by-side and list every difference.
 
@@ -265,6 +266,7 @@ python3 .cursor/skills/verify-sidekick/scripts/compare_figma.py \
 
 ```bash
 python3 .cursor/skills/verify-sidekick/scripts/design_checks.py --run-dir artifacts/verify/latest
+python3 .cursor/skills/verify-sidekick/scripts/design_checks.py --self-test
 ```
 
 `verify-ios.sh` is a bash front door. `verify_sidekick.py` does the work. `compare_figma.py` stitches and writes the checklist; `design_checks.py` measures the automated rows. Both need Pillow (`python3 -m pip install pillow`). XcodeGen is optional: the committed `.xcodeproj` already has the UI test target.

@@ -8,7 +8,6 @@ struct ChatScreen: View {
     var backendURL: URL = AppConfig.backendURL
     var launch: DemoLaunchOptions = DemoLaunchOptions.parse()
     var onOpenGarage: (() -> Void)?
-    @Environment(\.colorScheme) private var colorScheme
     @State private var demoImages = DemoImageStore()
     @State private var presentedViewer: HighlightViewerSession?
     @State private var jobSheet = JobSheetViewModel()
@@ -24,12 +23,17 @@ struct ChatScreen: View {
         NavigationStack {
             messageList
                 .safeAreaInset(edge: .top, spacing: 0) {
-                    if launch.showDemoChrome, model.isDemoMode {
-                        DemoModeChrome(
-                            model: model,
-                            store: demoImages,
-                            configuration: configuration
-                        )
+                    VStack(spacing: 0) {
+                        if showPaperHeader {
+                            paperHeader
+                        }
+                        if launch.showDemoChrome, model.isDemoMode {
+                            DemoModeChrome(
+                                model: model,
+                                store: demoImages,
+                                configuration: configuration
+                            )
+                        }
                     }
                 }
                 .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -40,33 +44,9 @@ struct ChatScreen: View {
                 }
                 .navigationTitle("Sidekick")
                 .navigationBarTitleDisplayMode(.inline)
-                .toolbar(jobSheet.detent == .full && jobSheet.hasJob ? .hidden : .visible, for: .navigationBar)
-                .toolbar {
-                    ToolbarItem(placement: .topBarLeading) {
-                        if let onOpenGarage {
-                            Button("Garage", action: onOpenGarage)
-                                .buttonStyle(.plain)
-                                .font(.body)
-                                .foregroundStyle(.primary)
-                                .fixedSize()
-                                .accessibilityIdentifier("chat.garage")
-                        }
-                    }
-                    if launch.showDemoChrome {
-                        ToolbarItem(placement: .topBarTrailing) {
-                            Button(model.isDemoMode ? "Demo on" : "Demo mode") {
-                                model.isDemoMode.toggle()
-                            }
-                            .buttonStyle(.plain)
-                            .font(.body)
-                            .foregroundStyle(.primary)
-                            .accessibilityIdentifier("demo.toggle")
-                        }
-                    }
-                }
-                .toolbarBackground(JobSheetChrome.screen, for: .navigationBar)
-                .toolbarBackground(jobSheet.hasJob ? .hidden : .visible, for: .navigationBar)
-                .toolbarColorScheme(colorScheme == .dark ? .dark : .light, for: .navigationBar)
+                // iOS 26 Liquid Glass on ToolbarItem survived .buttonStyle(.plain)
+                // and opaque UINavigationBarAppearance. Garage is plain text here.
+                .toolbar(.hidden, for: .navigationBar)
                 .background(JobSheetChrome.screen)
         }
         .overlay {
@@ -193,6 +173,46 @@ struct ChatScreen: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Waiting for a reply")
+    }
+
+    private var showPaperHeader: Bool {
+        !(jobSheet.hasJob && jobSheet.detent == .full)
+    }
+
+    /// Paper header, not a toolbar item. iOS 26 draws Liquid Glass behind toolbar buttons.
+    private var paperHeader: some View {
+        ZStack {
+            Text("Sidekick")
+                .font(.headline)
+                .foregroundStyle(.primary)
+            HStack {
+                if let onOpenGarage {
+                    Button("Garage", action: onOpenGarage)
+                        .buttonStyle(.plain)
+                        .font(.body)
+                        .foregroundStyle(.primary)
+                        .fixedSize()
+                        .accessibilityIdentifier("chat.garage")
+                }
+                Spacer(minLength: 0)
+                if launch.showDemoChrome {
+                    Button(model.isDemoMode ? "Demo on" : "Demo mode") {
+                        model.isDemoMode.toggle()
+                    }
+                    .buttonStyle(.plain)
+                    .font(.body)
+                    .foregroundStyle(.primary)
+                    .fixedSize()
+                    .accessibilityIdentifier("demo.toggle")
+                }
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 4)
+        .padding(.bottom, 10)
+        .frame(minHeight: 44)
+        .frame(maxWidth: .infinity)
+        .background(JobSheetChrome.screen)
     }
 
     private var bottomBar: some View {

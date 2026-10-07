@@ -203,6 +203,7 @@ struct JobSheetView: View {
                     Text(model.job?.answerText ?? JobSheetCopy.answer(photoID: catalogPhotoID))
                         .font(.body)
                         .foregroundStyle(.primary)
+                        .fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier("jobSheet.answer")
                     chipRow
                     stepsList
@@ -217,7 +218,13 @@ struct JobSheetView: View {
                     }
                 }
                 .padding(.horizontal, 16)
-                .padding(.bottom, model.detent == .full ? 24 : 8)
+                .padding(
+                    .bottom,
+                    model.detent == .full
+                        ? 24
+                        : CGFloat(JobSheetLayout.halfScrollBottomPadding)
+                )
+                .fixedSize(horizontal: false, vertical: true)
             }
             .accessibilityIdentifier("jobSheet.body")
             if model.detent != .full {
@@ -229,7 +236,11 @@ struct JobSheetView: View {
         }
     }
 
-        private var photoStage: some View {
+    private var showsFilledOutcome: Bool {
+        JobSheetLayout.fillsSelectedOutcome(detent: model.detent, outcome: model.job?.outcome)
+    }
+
+    private var photoStage: some View {
         VStack(alignment: .leading, spacing: 4) {
             photoThumb(
                 height: model.detent == .full
@@ -367,6 +378,7 @@ struct JobSheetView: View {
                     Text(step.title)
                         .font(.body)
                         .foregroundStyle(.primary)
+                        .fixedSize(horizontal: false, vertical: true)
                     Spacer(minLength: 0)
                 }
                 .accessibilityElement(children: .combine)
@@ -403,6 +415,10 @@ struct JobSheetView: View {
                 .lineLimit(3...6)
                 .padding(12)
                 .background(JobSheetChrome.fieldFill, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .strokeBorder(JobSheetChrome.fieldStroke, lineWidth: 1)
+                }
                 .accessibilityIdentifier("jobSheet.notes")
         }
     }
@@ -441,34 +457,38 @@ struct JobSheetView: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .accessibilityIdentifier("jobSheet.howDidItGo")
-            HStack(spacing: 8) {
-                ForEach(JobOutcome.allCases, id: \.self) { outcome in
-                    let selected = model.job?.outcome == outcome
-                    Button {
-                        model.selectOutcome(outcome)
-                    } label: {
-                        Text(outcome.label)
-                            .font(.body.weight(.semibold))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 10)
-                            .foregroundStyle(selected ? JobSheetChrome.paper : Color.primary)
-                            .background(
-                                selected ? Color.primary : Color.clear,
-                                in: RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            )
-                            .overlay {
-                                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .strokeBorder(Color.primary, lineWidth: 1)
-                            }
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityIdentifier("jobSheet.outcome.\(outcome.rawValue)")
-                    .accessibilityAddTraits(selected ? .isSelected : [])
-                }
-            }
+            outcomeSegments
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("jobSheet.outcome")
+    }
+
+    private var outcomeSegments: some View {
+        HStack(spacing: 8) {
+            ForEach(JobOutcome.allCases, id: \.self) { outcome in
+                let selected = model.job?.outcome == outcome
+                Button {
+                    model.selectOutcome(outcome)
+                } label: {
+                    Text(outcome.label)
+                        .font(.body.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 10)
+                        .foregroundStyle(selected ? JobSheetChrome.paper : Color.primary)
+                        .background(
+                            selected ? Color.primary : Color.clear,
+                            in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        )
+                        .overlay {
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .strokeBorder(Color.primary, lineWidth: 1)
+                        }
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("jobSheet.outcome.\(outcome.rawValue)")
+                .accessibilityAddTraits(selected ? .isSelected : [])
+            }
+        }
     }
 
     private var whatFixedField: some View {
@@ -477,32 +497,44 @@ struct JobSheetView: View {
             .lineLimit(1...3)
             .padding(12)
             .background(JobSheetChrome.fieldFill, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(JobSheetChrome.fieldStroke, lineWidth: 1)
+            }
             .accessibilityIdentifier("jobSheet.whatFixed")
     }
 
-    /// Half / closeout: one row so the heading does not crowd the last step.
+    /// Half: one text row so the heading does not crowd the last step.
+    /// Closeout (half + an outcome) uses the same filled segments as full.
     private var halfOutcomeRow: some View {
         VStack(spacing: 0) {
             Divider()
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
-                Text(JobSheetCopy.outcomeHeading)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                ForEach(JobOutcome.allCases, id: \.self) { outcome in
-                    let selected = model.job?.outcome == outcome
-                    Button(outcome.label) {
-                        model.selectOutcome(outcome)
-                    }
-                    .buttonStyle(.plain)
-                    .font(.body.weight(selected ? .bold : .regular))
-                    .foregroundStyle(Color.primary)
-                    .underline(selected)
-                    .accessibilityIdentifier("jobSheet.outcome.\(outcome.rawValue)")
-                    .accessibilityAddTraits(selected ? .isSelected : [])
+            if showsFilledOutcome {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(JobSheetCopy.outcomeHeading)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    outcomeSegments
                 }
-                Spacer(minLength: 0)
+                .padding(.top, 12)
+            } else {
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    Text(JobSheetCopy.outcomeHeading)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    ForEach(JobOutcome.allCases, id: \.self) { outcome in
+                        Button(outcome.label) {
+                            model.selectOutcome(outcome)
+                        }
+                        .buttonStyle(.plain)
+                        .font(.body)
+                        .foregroundStyle(Color.primary)
+                        .accessibilityIdentifier("jobSheet.outcome.\(outcome.rawValue)")
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(.top, 12)
             }
-            .padding(.top, 12)
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("jobSheet.outcome")
@@ -542,7 +574,16 @@ enum JobSheetChrome {
         return UIColor(red: 0.910, green: 0.910, blue: 0.910, alpha: 1)
     })
 
-    static var fieldFill: Color { screen }
+    /// Light: #F4F4F4 on white paper. Dark: raised fill so Notes / What fixed it? read as fields.
+    static let fieldFill = Color(uiColor: UIColor { traits in
+        if traits.userInterfaceStyle == .dark { return .secondarySystemBackground }
+        return UIColor(red: 0.957, green: 0.957, blue: 0.957, alpha: 1)
+    })
+
+    static let fieldStroke = Color(uiColor: UIColor { traits in
+        if traits.userInterfaceStyle == .dark { return .separator }
+        return UIColor.black.withAlphaComponent(0.08)
+    })
 
     static var screenUIColor: UIColor {
         UIColor { traits in
@@ -630,6 +671,11 @@ struct WindowSafeAreaProbe: View {
 
 #Preview("Dark") {
     JobSheetPreview(detent: .half)
+        .preferredColorScheme(.dark)
+}
+
+#Preview("Full Dark") {
+    JobSheetPreview(detent: .full, outcome: .worked)
         .preferredColorScheme(.dark)
 }
 

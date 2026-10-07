@@ -174,6 +174,7 @@ final class JobSheetTests: XCTestCase {
             environment: [:]
         )
         XCTAssertEqual(full.jobSheetScreen?.detent, .full)
+        XCTAssertEqual(full.jobSheetScreen?.outcome, .worked)
 
         let closeout = DemoLaunchOptions.parse(
             arguments: ["SidekickMechanic"],
@@ -188,6 +189,11 @@ final class JobSheetTests: XCTestCase {
             model.applyLaunch(.closeout, photoID: DemoLaunchOptions.defaultPhotoID)
             XCTAssertEqual(model.detent, .half)
             XCTAssertEqual(model.job?.outcome, .worked)
+            XCTAssertTrue(JobSheetLayout.fillsSelectedOutcome(detent: .half, outcome: .worked))
+            model.applyLaunch(.full, photoID: DemoLaunchOptions.defaultPhotoID)
+            XCTAssertEqual(model.detent, .full)
+            XCTAssertEqual(model.job?.outcome, .worked)
+            XCTAssertTrue(JobSheetLayout.fillsSelectedOutcome(detent: .full, outcome: .worked))
             XCTAssertEqual(model.job?.photoID, DemoLaunchOptions.defaultPhotoID)
             XCTAssertEqual(model.job?.headerTitle, "Job · Cold idle")
             XCTAssertEqual(model.job?.tags, ["fuse/relay", "inspected"])
@@ -260,11 +266,21 @@ final class JobSheetTests: XCTestCase {
             JobSheetLayout.height(detent: .half, screenHeight: 874, topSafeArea: 62),
             874 - 62
         )
-        XCTAssertEqual(JobSheetLayout.halfPhotoHeight, 84)
+        XCTAssertEqual(JobSheetLayout.halfPhotoHeight, 72)
+        XCTAssertEqual(JobSheetLayout.halfScrollBottomPadding, 24)
         XCTAssertGreaterThanOrEqual(
             JobSheetLayout.height(detent: .half, screenHeight: 844, topSafeArea: 59),
             380
         )
+        XCTAssertEqual(
+            JobSheetLayout.height(detent: .half, screenHeight: 874, topSafeArea: 62),
+            min(874 * JobSheetLayout.halfHeightFraction, JobSheetLayout.halfMaxHeight)
+        )
+        XCTAssertTrue(JobSheetLayout.fillsSelectedOutcome(detent: .full, outcome: nil))
+        XCTAssertTrue(JobSheetLayout.fillsSelectedOutcome(detent: .full, outcome: .worked))
+        XCTAssertFalse(JobSheetLayout.fillsSelectedOutcome(detent: .half, outcome: nil))
+        XCTAssertTrue(JobSheetLayout.fillsSelectedOutcome(detent: .half, outcome: .worked))
+        XCTAssertFalse(JobSheetLayout.fillsSelectedOutcome(detent: .collapsed, outcome: .worked))
         XCTAssertEqual(JobSheetLayout.horizontalInset, 0)
         XCTAssertEqual(JobSheetLayout.width(screenWidth: 402), 402)
         XCTAssertEqual(JobSheetLayout.topCornerRadius, 24)

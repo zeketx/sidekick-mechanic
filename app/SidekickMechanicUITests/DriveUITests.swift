@@ -169,7 +169,19 @@ final class DriveUITests: XCTestCase {
             (
                 "job-sheet-full",
                 ["-screen", "job-sheet-full", "-demoPhoto", "hilux"],
-                ["jobSheet.full", "jobSheet.handle", "jobSheet.close"],
+                [
+                    "jobSheet.full", "jobSheet.handle", "jobSheet.close",
+                    "jobSheet.outcome.worked", "jobSheet.outcome.partly", "jobSheet.outcome.didnt",
+                ],
+                false
+            ),
+            (
+                "job-sheet-closeout",
+                ["-screen", "job-sheet-closeout", "-demoPhoto", "hilux"],
+                [
+                    "jobSheet.half", "jobSheet.handle", "jobSheet.close",
+                    "jobSheet.outcome.worked", "jobSheet.outcome.partly", "jobSheet.outcome.didnt",
+                ],
                 false
             ),
         ]
@@ -230,6 +242,7 @@ final class DriveUITests: XCTestCase {
                 [
                     "jobSheet.half", "jobSheet.handle", "jobSheet.title", "jobSheet.close", "jobSheet.dim",
                     "jobSheet.body", "jobSheet.answer", "jobSheet.photo", "jobSheet.chips", "jobSheet.steps",
+                    "jobSheet.step.2",
                     "jobSheet.outcome", "jobSheet.outcome.worked", "jobSheet.outcome.partly", "jobSheet.outcome.didnt",
                 ],
                 false
@@ -240,8 +253,18 @@ final class DriveUITests: XCTestCase {
                 [
                     "jobSheet.full", "jobSheet.handle", "jobSheet.title", "jobSheet.close",
                     "jobSheet.body", "jobSheet.notes", "jobSheet.tags", "jobSheet.tags.add",
+                    "jobSheet.howDidItGo", "jobSheet.outcome", "jobSheet.outcome.worked",
+                    "jobSheet.outcome.partly", "jobSheet.outcome.didnt", "jobSheet.whatFixed",
+                ],
+                false
+            ),
+            (
+                "job-sheet-closeout",
+                ["-screen", "job-sheet-closeout", "-demoPhoto", "hilux"],
+                [
+                    "jobSheet.half", "jobSheet.handle", "jobSheet.title", "jobSheet.close",
                     "jobSheet.outcome", "jobSheet.outcome.worked", "jobSheet.outcome.partly",
-                    "jobSheet.outcome.didnt", "jobSheet.whatFixed",
+                    "jobSheet.outcome.didnt",
                 ],
                 false
             ),
@@ -318,6 +341,32 @@ final class DriveUITests: XCTestCase {
         try writeShot("taps-composer-multiline.png")
         let frames = try recordFrames(app, identifiers: ["chat.composer", "chat.send"], required: "chat.composer")
         try writeJSON("layout-composer-multiline.json", ["screens": ["chat-multiline": frames]])
+    }
+
+    func testSelectedOutcomeIsFilledOnFullAndCloseout() throws {
+        for screen in ["job-sheet-full", "job-sheet-closeout"] {
+            let app = launchApp(arguments: [
+                "-screen", screen,
+                "-demoPhoto", "hilux",
+            ])
+            let worked = element(app, "jobSheet.outcome.worked")
+            XCTAssertTrue(
+                worked.waitForExistence(timeout: 8),
+                "\(screen): jobSheet.outcome.worked is missing"
+            )
+            XCTAssertTrue(
+                worked.isSelected,
+                "\(screen): Worked must be selected so the segment renders filled"
+            )
+            let partly = element(app, "jobSheet.outcome.partly")
+            XCTAssertTrue(partly.waitForExistence(timeout: 2))
+            XCTAssertFalse(partly.isSelected, "\(screen): Partly should not be selected")
+            let didnt = element(app, "jobSheet.outcome.didnt")
+            XCTAssertTrue(didnt.waitForExistence(timeout: 2))
+            XCTAssertFalse(didnt.isSelected, "\(screen): Didn't should not be selected")
+            try writeShot("taps-\(screen)-outcome.png")
+            app.terminate()
+        }
     }
 
     /// First element with this identifier, any type. An identifier on a SwiftUI container without

@@ -57,7 +57,10 @@ public enum JobSheetScreen: String, CaseIterable, Hashable, Sendable {
     }
 
     public var outcome: JobOutcome? {
-        self == .closeout ? .worked : nil
+        switch self {
+        case .closeout, .full: .worked
+        case .collapsed, .half: nil
+        }
     }
 }
 
@@ -145,9 +148,10 @@ public enum JobSheetCopy {
 /// Sheet height vs the window. Full is edge-to-edge paper; header content uses the top inset.
 public enum JobSheetLayout {
     public static let collapsedHeight: Double = 128
-    public static let halfMaxHeight: Double = 400
-    public static let halfHeightFraction: Double = 0.46
-    public static let halfPhotoHeight: Double = 84
+    public static let halfMaxHeight: Double = 460
+    public static let halfHeightFraction: Double = 0.52
+    public static let halfPhotoHeight: Double = 72
+    public static let halfScrollBottomPadding: Double = 24
     public static let fullPhotoHeight: Double = 200
     public static let fallbackTopSafeArea: Double = 59
     /// Full paper covers the status-bar band. Header content uses `contentTopInset`.
@@ -200,6 +204,11 @@ public enum JobSheetLayout {
     /// Full detent only. Half and collapsed already sit below the status bar.
     public static func contentTopInset(detent: JobSheetDetent, topSafeArea: Double) -> Double {
         detent == .full ? resolvedTopSafeArea(topSafeArea) : 0
+    }
+
+    /// Filled Worked/Partly/Didn't segments on full, and on half once an outcome is set (closeout).
+    public static func fillsSelectedOutcome(detent: JobSheetDetent, outcome: JobOutcome?) -> Bool {
+        detent == .full || (detent == .half && outcome != nil)
     }
 
     /// Composer sits above the home indicator when there is no job sheet.
