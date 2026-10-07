@@ -21,16 +21,20 @@ python3 ingest.py
 
 ## Documents
 
-Edition, page count, and SHA-256 are `TBD` until the matching PDF is on disk and recorded. This environment did not have those files.
+Edition, page count, and SHA-256 for these two rows were recorded on 2026-10-06 from the owner's local copies of `manuals/<id>.pdf`. Those PDFs stay out of git. Hash the file you have before you change a row (`sha256sum manuals/<id>.pdf`).
 
 | ID | Title | Edition | Page count | SHA-256 |
 | --- | --- | --- | --- | --- |
-| 2jz-ge-rm | 2JZ-GE repair manual | TBD | TBD | TBD |
-| lj78-wiring | LJ78 wiring documentation | TBD | TBD | TBD |
+| 2jz-ge-rm | Lexus IS300 2004 repair manual RM1054U (2JZ-GE VVTi) | RM1054U | 1959 | 4464676a7fda45ada554909dc875ce12c4554f96d45c9ef400788e5e20d6008d |
+| lj78-wiring | Toyota EWD117F Dec 1990 (LJ7x wiring) | EWD117F | 84 | eff462ba654ae488df12dbacb040771dba20d4f12eb8e5926024e8f03f632851 |
 
-IDs are lowercase, filesystem-safe, and stable. Do not invent Toyota publication numbers, years, or page counts. When the owner has the real cover pages, replace the titles and `TBD` fields with what is printed on those copies.
+`2jz-ge-rm` is a text-layer PDF. Prefer this copy over RM1140U for DI/VVT.
 
-Wiring-diagram pages are cited as page images. Text extraction and OCR on synthetic pages are recorded in [wiring-diagram-spike.md](design/wiring-diagram-spike.md). Accuracy on `lj78-wiring` stays `TBD` until that PDF is hashed here.
+`lj78-wiring` is image-only. Prefer this copy over EWD168F. The on-disk PDF is AES-encrypted. `backend/ingest.py` refuses encrypted PDFs. This inventory does not add a decrypt or OCR step. The EWD lists LJ70, LJ72, LJ73, LJ77, and LJ79. It does not name LJ78. The ID stays `lj78-wiring`.
+
+IDs are lowercase, filesystem-safe, and stable. Do not invent Toyota publication numbers, years, or page counts. A new row stays `TBD` until that PDF is on disk and hashed.
+
+Wiring-diagram pages are cited as page images. Text extraction and OCR on synthetic pages are recorded in [wiring-diagram-spike.md](design/wiring-diagram-spike.md). Accuracy on `lj78-wiring` stays `TBD`.
 
 Which documents belong in Phase 1 is taken from [VISION.md](../VISION.md) and [ROADMAP.md](../ROADMAP.md) (2JZ-GE repair manual and LJ78 wiring docs). Additional manuals get a new row before ingestion may use them.
 

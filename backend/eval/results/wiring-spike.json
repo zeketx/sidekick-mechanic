@@ -227,7 +227,7 @@
   "real_manual": {
     "accuracy": "TBD",
     "doc_id": "lj78-wiring",
-    "reason": "docs/MANUALS.md records SHA-256 as TBD, and the PDF is not in the repo."
+    "reason": "The PDF is not in the repo. docs/MANUALS.md records an AES-encrypted copy, and backend/ingest.py refuses encrypted PDFs."
   },
   "tools": {
     "pdftoppm_dpi": "150",

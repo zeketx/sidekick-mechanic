@@ -69,7 +69,8 @@ def run() -> dict[str, object]:
             "doc_id": "lj78-wiring",
             "accuracy": "TBD",
             "reason": (
-                "docs/MANUALS.md records SHA-256 as TBD, and the PDF is not in the repo."
+                "The PDF is not in the repo. docs/MANUALS.md records an "
+                "AES-encrypted copy, and backend/ingest.py refuses encrypted PDFs."
             ),
         },
         "tools": _tool_versions(),
