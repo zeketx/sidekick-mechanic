@@ -10,6 +10,7 @@ struct HighlightViewerView: View {
     @State private var lastScale: CGFloat = 1
     @State private var offset: CGSize = .zero
     @State private var lastOffset: CGSize = .zero
+    @State private var presentedCitation: Citation?
 
     var image: UIImage
     var referenceImage: UIImage?
@@ -60,6 +61,7 @@ struct HighlightViewerView: View {
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("highlightViewer")
         }
+        .citationSheet($presentedCitation)
     }
 
     private var chromeHeader: some View {
@@ -264,8 +266,8 @@ struct HighlightViewerView: View {
                 .accessibilityIdentifier("highlightViewer.body")
 
             if presentation.showsDiagramLink {
-                NavigationLink {
-                    CitationPageView(citation: presentation.diagramCitation)
+                Button {
+                    presentedCitation = presentation.diagramCitation
                 } label: {
                     Text(HighlightViewerCopy.diagramChip)
                         .font(.subheadline)

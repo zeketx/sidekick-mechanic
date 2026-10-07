@@ -14,6 +14,7 @@ struct JobSheetView: View {
     var bottomChromeInset: CGFloat = 0
     var onOpenHighlight: () -> Void
     var onAttachPhoto: () -> Void
+    var onOpenCitation: (Citation) -> Void = { _ in }
     @State private var showsCredit = false
     @State private var isAddingTag = false
     @State private var newTagText = ""
@@ -359,8 +360,8 @@ struct JobSheetView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 ForEach(Array((model.job?.citations ?? []).enumerated()), id: \.offset) { index, citation in
-                    NavigationLink {
-                        CitationPageView(citation: citation)
+                    Button {
+                        onOpenCitation(citation)
                     } label: {
                         JobSheetChipLabel(text: index == 0 ? JobSheetCopy.chip : citation.chipLabel)
                     }

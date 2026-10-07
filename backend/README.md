@@ -69,6 +69,21 @@ truck, while `lj78-wiring` is blocked, says the wiring manual is not ingested
 yet. A generic wiring question that matches nothing uses that same miss.
 If the index file is missing, the reply is prose and `citations` is empty.
 
+Cited pages:
+
+```bash
+curl -sS -o /tmp/page.png http://127.0.0.1:8000/manuals/FAKE-DOC-2JZ/pages/999.png
+curl -sS http://127.0.0.1:8000/manuals/FAKE-DOC-2JZ/pages/999/go-deeper
+```
+
+`GET /manuals/{doc_id}/pages/{page}.png` rasterizes `manuals/<id>.pdf` with
+pdftoppm (1-based viewer pages, 150 DPI). `FAKE-DOC*` ids return a generated
+stand-in. Missing PDFs are HTTP 404; tests skip the owner manuals when
+`manuals/` is empty. Wiring docs still return the page image. Go deeper is
+`GET /manuals/{doc_id}/pages/{page}/go-deeper`. That JSON is spec-guarded
+against the cited page only. Diagram pages omit test/tools instead of
+guessing pinouts. Do not commit PDFs or rendered pages.
+
 To call a real model, copy [`.env.example`](.env.example) to `.env`
 (gitignored), set a key, and load it into the shell before starting uvicorn:
 
@@ -245,6 +260,7 @@ does not train a detector.
 | LLM | OpenAI-compatible `POST /chat/completions` over `httpx`, behind `LLMClient` |
 | Tests | pytest + FastAPI `TestClient` |
 | Retrieval | SQLite FTS5 (stdlib `sqlite3`), see `retrieval.py` |
+| Manual pages | `GET /manuals/{doc_id}/pages/{page}.png` via pdftoppm; Go deeper JSON |
 | Highlight | Pillow renderer in `highlight.py` |
 
 ## Request shape

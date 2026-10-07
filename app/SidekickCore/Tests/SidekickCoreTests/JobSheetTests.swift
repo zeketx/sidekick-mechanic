@@ -183,6 +183,17 @@ final class JobSheetTests: XCTestCase {
         XCTAssertEqual(closeout.jobSheetScreen, .closeout)
         XCTAssertEqual(closeout.jobSheetScreen?.detent, .half)
         XCTAssertEqual(closeout.jobSheetScreen?.outcome, .worked)
+        XCTAssertFalse(closeout.opensCitationPage)
+
+        let citation = DemoLaunchOptions.parse(
+            arguments: ["SidekickMechanic", "-screen", "citation-page"],
+            environment: [:]
+        )
+        XCTAssertEqual(citation.citationPageScreen, .page)
+        XCTAssertTrue(citation.opensCitationPage)
+        XCTAssertTrue(citation.opensJobSheet)
+        XCTAssertNil(citation.jobSheetScreen)
+        XCTAssertTrue(citation.enablesDemoMode)
 
         await MainActor.run {
             let model = JobSheetViewModel()

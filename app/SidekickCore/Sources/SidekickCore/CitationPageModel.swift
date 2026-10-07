@@ -7,9 +7,11 @@ import Observation
 public final class CitationPageModel {
     public let citation: Citation
     public private(set) var phase: Phase
+    public private(set) var goDeeper: GoDeeper?
     public private(set) var isLoading: Bool
 
     @ObservationIgnored private let source: any ManualPageSource
+    @ObservationIgnored private let goDeeperSource: any GoDeeperSource
 
     public enum Phase: Equatable, Sendable {
         case idle
@@ -22,10 +24,16 @@ public final class CitationPageModel {
     public var headerPage: String { "Page \(citation.page.rawValue)" }
     public var snippet: String { citation.snippet }
 
-    public init(citation: Citation, source: any ManualPageSource) {
+    public init(
+        citation: Citation,
+        source: any ManualPageSource,
+        goDeeperSource: any GoDeeperSource = CannedGoDeeperSource()
+    ) {
         self.citation = citation
         self.source = source
+        self.goDeeperSource = goDeeperSource
         self.phase = .idle
+        self.goDeeper = nil
         self.isLoading = false
     }
 
@@ -35,6 +43,7 @@ public final class CitationPageModel {
         guard !isLoading else { return }
         isLoading = true
         let previous = phase
+        let previousGoDeeper = goDeeper
         phase = .loading
         defer { isLoading = false }
 
@@ -42,13 +51,22 @@ public final class CitationPageModel {
             let image = try await source.pageImage(docID: citation.docID, page: citation.page)
             try Task.checkCancellation()
             phase = accepted(image)
+            goDeeper = await loadGoDeeper()
         } catch is CancellationError {
             phase = previous
+            goDeeper = previousGoDeeper
         } catch let error as ManualPageError {
             phase = .failed(error)
+            goDeeper = await loadGoDeeper()
         } catch {
             phase = .failed(.unavailable)
+            goDeeper = await loadGoDeeper()
         }
+    }
+
+    private func loadGoDeeper() async -> GoDeeper? {
+        if Task.isCancelled { return goDeeper }
+        return try? await goDeeperSource.goDeeper(docID: citation.docID, page: citation.page)
     }
 
     private func accepted(_ image: ManualPageImage) -> Phase {

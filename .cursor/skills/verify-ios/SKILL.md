@@ -71,7 +71,7 @@ xcodebuild test \
 Expected results, all fixture text:
 
 - `chat` — composer text `Why is it hard to start?`, then answer text `This is a fixture-only reply with no manual citations.` and identifier `answerCard.found`.
-- `answer-card` — message `show the citation please`, chip label `FAKE-DOC-2JZ · page 999`, identifier `answerCard.chip.0`.
+- `answer-card` — message `show the citation please`, chip label `FAKE-DOC-2JZ · p. 999`, identifier `answerCard.chip.0`. Tap opens `citation.viewer` with `citation.goDeeper`. Close returns to the chip.
 - `refusal` — message `this is a refusal not found`, status `Not found in the manual`, identifier `answerCard.refusal`.
 - `mock-mode` — message `highlight the intake`, highlight label `Highlight image slot. Photo fake-bay-photo-front. Part fake-part-intake.`
 
@@ -86,6 +86,8 @@ Screenshots and the xcodebuild log go to `.cursor/skills/verify-ios/evidence/lat
 | `chat-composer.png` | Composer filled, before Send |
 | `chat-answer.png` | Plain fixture answer on screen |
 | `answer-card.png` | Citation chip |
+| `citation-page.png` | Cited page + Go deeper sheet |
+| `citation-page-closed.png` | Close returns to the answer card |
 | `answer-card-refusal.png` | Refusal card |
 | `mock-highlight.png` | Highlight slot from mock mode |
 | `xcodebuild.txt` | Build and test log |

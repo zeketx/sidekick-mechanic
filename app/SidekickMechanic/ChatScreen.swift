@@ -10,6 +10,7 @@ struct ChatScreen: View {
     var onOpenGarage: (() -> Void)?
     @State private var demoImages = DemoImageStore()
     @State private var presentedViewer: HighlightViewerSession?
+    @State private var presentedCitation: Citation?
     @State private var jobSheet = JobSheetViewModel()
     @State private var windowHeight: CGFloat = 0
     @State private var topSafeArea: CGFloat = 0
@@ -70,6 +71,7 @@ struct ChatScreen: View {
         }
         .statusBarHidden(false)
         .persistentSystemOverlays(.visible)
+        .citationSheet($presentedCitation)
         .task(id: demoLoadToken) {
             guard model.isDemoMode || launch.opensJobSheet || launch.showDemoChrome else { return }
             await demoImages.load(from: configuration)
@@ -115,7 +117,8 @@ struct ChatScreen: View {
                         MessageBubble(
                             message: message,
                             demoContext: demoContext(for: message),
-                            onOpenHighlight: { presentViewer(for: message) }
+                            onOpenHighlight: { presentViewer(for: message) },
+                            onOpenCitation: { presentedCitation = $0 }
                         )
                             .id(message.id)
                     }
@@ -135,6 +138,7 @@ struct ChatScreen: View {
                 scrollToEnd(proxy)
                 presentLaunchViewerIfNeeded()
                 presentLaunchJobSheetIfNeeded()
+                presentLaunchCitationIfNeeded()
                 jobSheet.sync(from: model.messages, photoID: jobPhotoID)
             }
             .onChange(of: demoImages.images.count) { _, _ in
@@ -255,7 +259,8 @@ struct ChatScreen: View {
                         ? max(bottomSafeArea, CGFloat(JobSheetLayout.demoTabChromeHeight))
                         : 0,
                     onOpenHighlight: presentJobViewer,
-                    onAttachPhoto: attachDemoPhotoToJob
+                    onAttachPhoto: attachDemoPhotoToJob,
+                    onOpenCitation: { presentedCitation = $0 }
                 )
             }
         }
@@ -454,8 +459,16 @@ struct ChatScreen: View {
     }
 
     private func presentLaunchJobSheetIfNeeded() {
-        guard let screen = launch.jobSheetScreen else { return }
-        jobSheet.applyLaunch(screen, photoID: launch.resolvedPhotoID)
+        if let screen = launch.jobSheetScreen {
+            jobSheet.applyLaunch(screen, photoID: launch.resolvedPhotoID)
+        } else if launch.opensCitationPage {
+            jobSheet.applyLaunch(.half, photoID: launch.resolvedPhotoID)
+        }
+    }
+
+    private func presentLaunchCitationIfNeeded() {
+        guard launch.opensCitationPage, presentedCitation == nil else { return }
+        presentedCitation = HighlightViewerScript.fixtureCitation
     }
 
     private func presentJobViewer() {
@@ -539,6 +552,7 @@ private struct MessageBubble: View {
     let message: Message
     var demoContext: DemoAnswerContext?
     var onOpenHighlight: (() -> Void)?
+    var onOpenCitation: ((Citation) -> Void)?
 
     var body: some View {
         switch message {
@@ -563,7 +577,8 @@ private struct MessageBubble: View {
                     content: AnswerCardContent(answer: assistant.answer),
                     messageID: assistant.id,
                     demoContext: demoContext,
-                    onOpenHighlight: onOpenHighlight
+                    onOpenHighlight: onOpenHighlight,
+                    onOpenCitation: onOpenCitation
                 )
                 Spacer(minLength: 32)
             }

@@ -24,6 +24,7 @@ FAKE_GROUNDED_TEXT = (
     "The retrieved pages are cited below. This stand-in does not add manual facts."
 )
 RETRIEVED_PAGES_HEADER = "Retrieved pages:\n"
+GO_DEEPER_HEADER = "Go deeper for one cited page:\n"
 RETRYABLE_STATUS = frozenset({429, 500, 502, 503, 504})
 
 
@@ -71,9 +72,10 @@ FAKE_USAGE = TokenUsage(prompt_tokens=1, completion_tokens=1, total_tokens=2)
 class FakeLLMClient:
     """In-process stub. Used in tests and when no API key is configured.
 
-    ``text`` forces one completion. With ``text`` omitted, a grounded prompt
-    becomes citation JSON built from the retrieved pages. Any other prompt
-    returns ``DEFAULT_FAKE_TEXT``.
+    ``text`` forces one completion. With ``text`` omitted, a go-deeper prompt
+    restates that one page, a grounded chat prompt becomes citation JSON
+    from the retrieved pages, and any other prompt returns
+    ``DEFAULT_FAKE_TEXT``.
     """
 
     def __init__(
@@ -226,6 +228,9 @@ def _parse_completion(response: httpx.Response, *, fallback_model: str) -> LLMRe
 
 
 def _fake_completion_text(messages: list[ChatTurn]) -> str:
+    go_deeper = _go_deeper_from_messages(messages)
+    if go_deeper is not None:
+        return json.dumps(go_deeper, ensure_ascii=False)
     citations = _citations_from_messages(messages)
     if citations is None:
         return DEFAULT_FAKE_TEXT
@@ -235,6 +240,34 @@ def _fake_completion_text(messages: list[ChatTurn]) -> str:
         {"text": FAKE_GROUNDED_TEXT, "citations": citations},
         ensure_ascii=False,
     )
+
+
+def _go_deeper_from_messages(messages: list[ChatTurn]) -> dict[str, str] | None:
+    """Restate the cited page. Do not add specs that are not on it."""
+
+    for turn in messages:
+        if GO_DEEPER_HEADER not in turn.content:
+            continue
+        raw = turn.content.split(GO_DEEPER_HEADER, 1)[1]
+        try:
+            page = json.loads(raw)
+        except json.JSONDecodeError:
+            return None
+        if not isinstance(page, dict):
+            return None
+        text = page.get("text")
+        if not isinstance(text, str) or not text.strip():
+            return {
+                "how_it_works": (
+                    "This page is a wiring diagram. Read the labels on the page. "
+                    "I am not guessing pinouts or wire colors."
+                )
+            }
+        excerpt = " ".join(text.split())
+        if len(excerpt) > 400:
+            excerpt = excerpt[:400].rsplit(" ", 1)[0]
+        return {"how_it_works": excerpt}
+    return None
 
 
 def _citations_from_messages(messages: list[ChatTurn]) -> list[dict[str, Any]] | None:

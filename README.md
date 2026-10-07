@@ -14,7 +14,7 @@ Proposed minimum iOS version: iOS 17 (owner confirms).
 
 Layout: `app/` (Xcode, owner-built), `backend/` (RAG), `ml/`, `docs/` (`docs/vehicle/`, `docs/build-log/`), `scripts/`. Manual PDFs stay in gitignored `manuals/`. The swappable telemetry protocol and JSON scenario simulator live in `app/SidekickCore` ([docs/design/telemetry-source.md](docs/design/telemetry-source.md)). From `backend/`, `pip install -r requirements.txt && python3 ingest.py` verifies those PDFs against [docs/MANUALS.md](docs/MANUALS.md) and writes page-level chunks. `make eval` scores the golden sample (fake pages until the real question set exists) and regenerates [docs/METRICS.md](docs/METRICS.md).
 
-Tapping a citation chip pushes `CitationPageView` with that chip's `Citation`. It shows the document id, page number, a rendered page image, and the cited snippet. The image comes from the on-device cache (`SIDEKICK_PAGE_CACHE_DIR`, or the app cache directory `sidekick-manual-pages`). On a miss, the app requests `GET /manuals/{doc_id}/pages/{page}.png` and stores the PNG. Page images are not committed.
+Tapping a citation chip opens a white sheet (`CitationPageView`) for that cited page. It shows the document id, page number, a rendered page image, the cited snippet, and a short **Go deeper** block. `FAKE-DOC*` pages use a generated stand-in on device. Real documents request `GET /manuals/{doc_id}/pages/{page}.png` from the backend, which rasterizes `manuals/<id>.pdf` (gitignored). Go deeper for live pages is `GET /manuals/{doc_id}/pages/{page}/go-deeper`, grounded only in that page. Page images are not committed.
 
 ## Verification
 

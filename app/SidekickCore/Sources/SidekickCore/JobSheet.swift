@@ -64,6 +64,11 @@ public enum JobSheetScreen: String, CaseIterable, Hashable, Sendable {
     }
 }
 
+/// Launch key for the citation sheet (`-screen citation-page`).
+public enum CitationPageScreen: String, Hashable, Sendable {
+    case page = "citation-page"
+}
+
 /// One scripted checkbox on the half sheet. Not the later #97 editor.
 public struct JobSheetStep: Equatable, Sendable, Identifiable {
     public var id: Int
