@@ -46,18 +46,23 @@ public struct GoDeeper: Hashable, Sendable {
 }
 
 /// Page-text cleanup for Go deeper. Matches `backend/go_deeper.py`.
+///
+/// Search is a character walk, not `range(of:)` / StringProcessing: Linux Swift
+/// 6.4 segfaults compiling case-insensitive `range(of:)` in this module.
 public enum PageExcerpt {
     public static let characterLimit = 300
 
     /// Drop C0 controls except newline and tab.
     public static func stripControlCharacters(_ text: String) -> String {
-        String(text.filter { ch in
-            ch.unicodeScalars.allSatisfy { scalar in
-                let value = scalar.value
-                if value == 9 || value == 10 { return true }
-                return value >= 32 && value != 127
+        var output = ""
+        output.reserveCapacity(text.unicodeScalars.count)
+        for scalar in text.unicodeScalars {
+            let value = scalar.value
+            if value == 9 || value == 10 || (value >= 32 && value != 127) {
+                output.unicodeScalars.append(scalar)
             }
-        })
+        }
+        return output
     }
 
     /// One to three sentences around `snippet`, capped on a word boundary.
@@ -70,17 +75,15 @@ public enum PageExcerpt {
         let page = collapsed(stripControlCharacters(pageText))
         let needle = collapsed(stripControlCharacters(snippet))
         guard !page.isEmpty, !needle.isEmpty else { return nil }
-        guard page.range(of: needle, options: .caseInsensitive) != nil else {
+        guard let pageStart = firstMatchStart(in: page, of: needle) else {
             return nil
         }
         let sentences = splitSentences(page)
-        if let matched = sentences.firstIndex(where: {
-            $0.range(of: needle, options: .caseInsensitive) != nil
-        }) {
+        if let matched = firstSentenceIndex(sentences, containing: needle) {
             let sentence = sentences[matched]
             if sentence.count > limit {
-                if let range = sentence.range(of: needle, options: .caseInsensitive) {
-                    return cap(String(sentence[range.lowerBound...]), limit: limit)
+                if let start = firstMatchStart(in: sentence, of: needle) {
+                    return cap(String(sentence[start...]), limit: limit)
                 }
                 return cap(sentence, limit: limit)
             }
@@ -95,14 +98,26 @@ public enum PageExcerpt {
             }
             return cap(pieces.joined(separator: " "), limit: limit)
         }
-        if let range = page.range(of: needle, options: .caseInsensitive) {
-            return cap(String(page[range.lowerBound...]), limit: limit)
-        }
-        return nil
+        return cap(String(page[pageStart...]), limit: limit)
     }
 
     private static func collapsed(_ text: String) -> String {
-        text.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        var words: [String] = []
+        var current = ""
+        for character in text {
+            if character.isWhitespace {
+                if !current.isEmpty {
+                    words.append(current)
+                    current = ""
+                }
+            } else {
+                current.append(character)
+            }
+        }
+        if !current.isEmpty {
+            words.append(current)
+        }
+        return words.joined(separator: " ")
     }
 
     private static func splitSentences(_ text: String) -> [String] {
@@ -110,26 +125,121 @@ public enum PageExcerpt {
         var current = ""
         for character in text {
             current.append(character)
-            if ".!?".contains(character) {
-                let trimmed = current.trimmingCharacters(in: .whitespaces)
+            if character == "." || character == "!" || character == "?" {
+                let trimmed = trimSpaces(current)
                 if !trimmed.isEmpty { sentences.append(trimmed) }
                 current = ""
             }
         }
-        let trailing = current.trimmingCharacters(in: .whitespaces)
+        let trailing = trimSpaces(current)
         if !trailing.isEmpty { sentences.append(trailing) }
         return sentences
+    }
+
+    private static func firstSentenceIndex(_ sentences: [String], containing needle: String) -> Int? {
+        var index = 0
+        while index < sentences.count {
+            if firstMatchStart(in: sentences[index], of: needle) != nil {
+                return index
+            }
+            index += 1
+        }
+        return nil
+    }
+
+    /// Case-insensitive ASCII substring start. Manuals are ASCII-heavy.
+    private static func firstMatchStart(in haystack: String, of needle: String) -> String.Index? {
+        let hayChars = Array(haystack)
+        let needleChars = Array(needle)
+        let needleCount = needleChars.count
+        guard needleCount > 0, hayChars.count >= needleCount else { return nil }
+        let foldedNeedle = needleChars.map(foldASCII)
+        let lastStart = hayChars.count - needleCount
+        var start = 0
+        while start <= lastStart {
+            var offset = 0
+            var matched = true
+            while offset < needleCount {
+                if foldASCII(hayChars[start + offset]) != foldedNeedle[offset] {
+                    matched = false
+                    break
+                }
+                offset += 1
+            }
+            if matched {
+                return haystack.index(haystack.startIndex, offsetBy: start)
+            }
+            start += 1
+        }
+        return nil
+    }
+
+    private static func foldASCII(_ character: Character) -> Character {
+        guard let scalar = character.unicodeScalars.first, character.unicodeScalars.count == 1 else {
+            return character
+        }
+        let value = scalar.value
+        if value >= 65 && value <= 90 {
+            return Character(Unicode.Scalar(value + 32)!)
+        }
+        return character
     }
 
     private static func cap(_ text: String, limit: Int) -> String {
         if text.count <= limit { return text }
         let prefix = String(text.prefix(limit))
-        let clipped = prefix.split(separator: " ", omittingEmptySubsequences: false)
-            .dropLast()
-            .joined(separator: " ")
-            .trimmingCharacters(in: CharacterSet(charactersIn: ".,;: "))
-        let body = clipped.isEmpty ? String(prefix.trimmingCharacters(in: .whitespaces)) : clipped
-        return body + "…"
+        var clipped = prefix
+        if let lastSpace = lastIndex(ofSpaceIn: prefix) {
+            clipped = String(prefix[..<lastSpace])
+        }
+        clipped = rstripPunctuation(clipped)
+        if clipped.isEmpty {
+            clipped = trimSpaces(prefix)
+        }
+        return clipped + "…"
+    }
+
+    private static func lastIndex(ofSpaceIn text: String) -> String.Index? {
+        var found: String.Index?
+        var index = text.startIndex
+        while index < text.endIndex {
+            if text[index] == " " {
+                found = index
+            }
+            index = text.index(after: index)
+        }
+        return found
+    }
+
+    private static func rstripPunctuation(_ text: String) -> String {
+        var end = text.endIndex
+        while end > text.startIndex {
+            let previous = text.index(before: end)
+            let ch = text[previous]
+            if ch == "." || ch == "," || ch == ";" || ch == ":" || ch == " " {
+                end = previous
+            } else {
+                break
+            }
+        }
+        return String(text[..<end])
+    }
+
+    private static func trimSpaces(_ text: String) -> String {
+        var start = text.startIndex
+        var end = text.endIndex
+        while start < end, text[start] == " " {
+            start = text.index(after: start)
+        }
+        while end > start {
+            let previous = text.index(before: end)
+            if text[previous] == " " {
+                end = previous
+            } else {
+                break
+            }
+        }
+        return String(text[start..<end])
     }
 }
 
