@@ -594,6 +594,111 @@ def test_wiring_hit_still_cites_the_retrieved_manual(
     assert body["kind"] == "answer"
 
 
+def test_engine_wiring_cites_is300_and_drops_other_docs(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    is300_text = "FAKE-PAGE-TEXT 25A EFI injector B-R wire."
+    other_text = "FAKE-PAGE-TEXT injector procedure with no wiring."
+    index_path = tmp_path / "index.sqlite"
+    build_index(
+        (
+            Chunk(doc_id="2jz-ge-rm", page=1, text=other_text),
+            Chunk(doc_id="is300-engine-wiring", page=2, text=is300_text),
+        ),
+        index_path,
+    )
+    monkeypatch.setattr("producer._index_path", lambda: index_path)
+    monkeypatch.delenv("SIDEKICK_LLM_API_KEY", raising=False)
+
+    response = TestClient(create_app()).post(
+        "/chat",
+        json={
+            "messages": [
+                {
+                    "role": "user",
+                    "text": "What fuse and wire color feed the 2JZ injectors?",
+                }
+            ]
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["kind"] == "answer"
+    assert body["citations"] == [
+        {"doc_id": "is300-engine-wiring", "page": 2, "snippet": is300_text},
+    ]
+    assert "2jz-ge-rm" not in response.text
+
+
+def test_lj78_chassis_wiring_ignores_is300_hits(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    index_path = tmp_path / "index.sqlite"
+    build_index(
+        (
+            Chunk(
+                doc_id="is300-engine-wiring",
+                page=1,
+                text="FAKE-PAGE-TEXT 25A EFI RELAY fuse.",
+            ),
+        ),
+        index_path,
+    )
+    monkeypatch.setattr("producer._index_path", lambda: index_path)
+    monkeypatch.delenv("SIDEKICK_LLM_API_KEY", raising=False)
+
+    response = TestClient(create_app()).post(
+        "/chat",
+        json={
+            "messages": [
+                {
+                    "role": "user",
+                    "text": "Which fuse feeds the LJ78 glow plug relay?",
+                }
+            ]
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == WIRING_NOT_INGESTED_REFUSAL
+    assert "is300-engine-wiring" not in response.text
+    assert "LJ78" not in response.text
+
+
+def test_engine_wiring_miss_is_generic_not_found(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    index_path = tmp_path / "index.sqlite"
+    build_index(
+        (
+            Chunk(
+                doc_id="2jz-ge-rm",
+                page=1,
+                text="FAKE-PAGE-TEXT with no real spec.",
+            ),
+        ),
+        index_path,
+    )
+    monkeypatch.setattr("producer._index_path", lambda: index_path)
+    monkeypatch.delenv("SIDEKICK_LLM_API_KEY", raising=False)
+
+    response = TestClient(create_app()).post(
+        "/chat",
+        json={
+            "messages": [
+                {
+                    "role": "user",
+                    "text": "Which ECM pins go to the ignition coils?",
+                }
+            ]
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json() == _REFUSAL
+
+
 def test_wiring_miss_stays_generic_when_the_row_is_not_blocked(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

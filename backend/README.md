@@ -11,9 +11,13 @@ calls the model. The model must reply with one JSON object. Each citation has
 stays only when that page was in the hits and the snippet is a case-sensitive
 contiguous span of the page text. An empty search, or a JSON object with an
 empty `citations` array, returns a refusal with reason `not_found_in_manual`.
-While `lj78-wiring` is `blocked` in `docs/MANUALS.md`, a question about wiring,
-a harness, a pinout, or an EWD that matches nothing uses that same reason and
-says the wiring manual is not ingested yet. That refusal has no citations.
+Engine-wiring questions (ECM, injectors, ignition coils, VVT, EFI, the 2JZ
+engine harness) search `is300-engine-wiring` and cite that EWD. While
+`lj78-wiring` is `blocked` in `docs/MANUALS.md`, a chassis or body wiring
+question specific to the LJ78 / 70-series truck uses that same reason and
+says the wiring manual is not ingested yet, even if the IS300 EWD would have
+matched a fuse or relay. A generic wiring, harness, pinout, or EWD question
+that matches nothing uses that same miss. Those refusals have no citations.
 Non-JSON completions, citations that all fail that check, provider errors, and
 a blank completion return the unavailable answer (`kind: answer`). The
 unavailable answer means the producer could not return a cited reply. With no
@@ -58,8 +62,10 @@ with `python3 retrieval.py build`. A question that matches indexed pages then
 returns those pages as citations. Each snippet is an exact span of the page
 text, and the answer sentence is a stand-in so `/chat` can be tried without a
 key. A question that matches nothing returns the refusal `not_found_in_manual`.
-A wiring question that matches nothing, while `lj78-wiring` is blocked, says
-the wiring manual is not ingested yet.
+An engine-wiring question cites `is300-engine-wiring` when that EWD is in
+the index. A chassis or body wiring question specific to the LJ78 / 70-series
+truck, while `lj78-wiring` is blocked, says the wiring manual is not ingested
+yet. A generic wiring question that matches nothing uses that same miss.
 If the index file is missing, the reply is prose and `citations` is empty.
 
 To call a real model, copy [`.env.example`](.env.example) to `.env`

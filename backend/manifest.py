@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import re
 import sys
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -70,21 +71,31 @@ def file_sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def verify_documents(documents: list[ManualDocument], manuals_dir: Path) -> None:
+def verify_documents(
+    documents: list[ManualDocument], manuals_dir: Path
+) -> list[str]:
+    """Return warnings. Raises ManifestError when an ingest row cannot verify."""
     errors: list[str] = []
+    warnings: list[str] = []
     for document in documents:
         try:
-            _verify_one(document, manuals_dir)
+            warning = _verify_one(document, manuals_dir)
         except ManifestError as exc:
             errors.append(str(exc))
+        else:
+            if warning is not None:
+                warnings.append(warning)
     if errors:
         raise ManifestError("\n".join(errors))
+    return warnings
 
 
-def verify_inventory(manifest_path: Path, manuals_dir: Path) -> list[ManualDocument]:
+def verify_inventory(
+    manifest_path: Path, manuals_dir: Path
+) -> tuple[list[ManualDocument], list[str]]:
     documents = load_manifest(manifest_path)
-    verify_documents(documents, manuals_dir)
-    return documents
+    warnings = verify_documents(documents, manuals_dir)
+    return documents, warnings
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -95,17 +106,25 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--manuals-dir", type=Path, default=_DEFAULT_MANUALS_DIR)
     args = parser.parse_args(argv)
     try:
-        documents = verify_inventory(args.manifest, args.manuals_dir)
+        documents, warnings = verify_inventory(args.manifest, args.manuals_dir)
     except ManifestError as exc:
         print(str(exc), file=sys.stderr)
         return 1
+    print_warnings(warnings)
     print(f"verified {len(documents)} document(s)")
     return 0
 
 
-def _verify_one(document: ManualDocument, manuals_dir: Path) -> None:
+def print_warnings(warnings: Sequence[str]) -> None:
+    for warning in warnings:
+        print(f"warning: {warning}", file=sys.stderr)
+
+
+def _verify_one(document: ManualDocument, manuals_dir: Path) -> str | None:
     path = manuals_dir / document.filename
     if not path.is_file():
+        if document.status == "blocked":
+            return f"missing file for blocked document '{document.id}': {path}"
         raise ManifestError(
             f"missing file for document '{document.id}': {path}"
         )
@@ -120,6 +139,7 @@ def _verify_one(document: ManualDocument, manuals_dir: Path) -> None:
             f"checksum mismatch for document '{document.id}': "
             f"expected {document.sha256} got {actual}"
         )
+    return None
 
 
 def _inventory_rows(text: str) -> list[dict[str, str]]:

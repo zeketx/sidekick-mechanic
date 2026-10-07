@@ -87,8 +87,25 @@ WIRING_NOT_INGESTED_REFUSAL: dict[str, Any] = {
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _MANIFEST_PATH = _REPO_ROOT / "docs" / "MANUALS.md"
-_WIRING_DOC_ID = "lj78-wiring"
+_CHASSIS_WIRING_DOC_ID = "lj78-wiring"
+_ENGINE_WIRING_DOC_ID = "is300-engine-wiring"
+# #118 miss path: a wiring question with no hits, while the chassis EWD is blocked.
 _WIRING_QUERY = re.compile(r"\b(?:wiring|harness|pinouts?|ewd)\b", re.IGNORECASE)
+_ELECTRICAL_QUERY = re.compile(
+    r"\b(?:wiring|harness|pinouts?|ewd|fuses?|relays?|wires?|pins?|connectors?)\b",
+    re.IGNORECASE,
+)
+_ENGINE_WIRING_SUBJECT = re.compile(
+    r"\b(?:2jz(?:-?ge)?|is300|ecm|ecu|injectors?|ignition\s+coils?|"
+    r"vvt(?:-?i)?|efi|ocv|oil\s+control\s+valve|"
+    r"engine\s+(?:harness|wiring|connectors?|control))\b",
+    re.IGNORECASE,
+)
+_CHASSIS_WIRING_SUBJECT = re.compile(
+    r"\b(?:lj78|lj7[0-9]|70[\s-]?series|land\s*cruisers?|glow\s*plugs?|"
+    r"(?:chassis|body)\s+(?:wiring|harness|ewd))\b",
+    re.IGNORECASE,
+)
 
 validate_answer(UNAVAILABLE_ANSWER)
 validate_answer(NOT_FOUND_REFUSAL)
@@ -158,14 +175,21 @@ class LlmAnswerProducer:
         if retriever is None:
             return self._ungrounded(conversation)
 
+        query = _last_user_text(conversation)
+        if _chassis_wiring_blocked(query):
+            return dict(WIRING_NOT_INGESTED_REFUSAL)
         try:
-            hits = retriever.search(_last_user_text(conversation))
+            hits = retriever.search(query)
         except _IndexMissing:
             return self._ungrounded(conversation)
         except (RetrievalError, sqlite3.Error):
             return dict(UNAVAILABLE_ANSWER)
+        if _is_engine_wiring(query):
+            hits = tuple(
+                hit for hit in hits if hit.doc_id == _ENGINE_WIRING_DOC_ID
+            )
         if not hits:
-            return _refusal_for_miss(_last_user_text(conversation))
+            return _refusal_for_miss(query)
 
         text = self._complete(
             _chat_messages(conversation, _grounded_system_prompt(hits, conversation))
@@ -189,10 +213,17 @@ class LlmAnswerProducer:
         retriever = self._retriever
         if retriever is None:
             return ()
+        query = _last_user_text(conversation)
+        if _chassis_wiring_blocked(query):
+            return ()
         try:
-            hits = retriever.search(_last_user_text(conversation))
+            hits = retriever.search(query)
         except (_IndexMissing, RetrievalError, sqlite3.Error):
             return ()
+        if _is_engine_wiring(query):
+            hits = tuple(
+                hit for hit in hits if hit.doc_id == _ENGINE_WIRING_DOC_ID
+            )
         return tuple(hit.text for hit in hits)
 
     def _ungrounded(self, conversation: Conversation) -> dict[str, Any]:
@@ -292,9 +323,28 @@ def _chat_messages(conversation: Conversation, system: str) -> list[ChatTurn]:
 
 
 def _refusal_for_miss(query: str) -> dict[str, Any]:
+    if _is_engine_wiring(query):
+        return dict(NOT_FOUND_REFUSAL)
     if _WIRING_QUERY.search(query) and _wiring_manual_blocked():
         return dict(WIRING_NOT_INGESTED_REFUSAL)
     return dict(NOT_FOUND_REFUSAL)
+
+
+def _is_engine_wiring(query: str) -> bool:
+    return (
+        _ENGINE_WIRING_SUBJECT.search(query) is not None
+        and _ELECTRICAL_QUERY.search(query) is not None
+    )
+
+
+def _is_chassis_wiring(query: str) -> bool:
+    if _CHASSIS_WIRING_SUBJECT.search(query) is None:
+        return False
+    return not _is_engine_wiring(query)
+
+
+def _chassis_wiring_blocked(query: str) -> bool:
+    return _is_chassis_wiring(query) and _wiring_manual_blocked()
 
 
 def _wiring_manual_blocked() -> bool:
@@ -303,7 +353,7 @@ def _wiring_manual_blocked() -> bool:
     except ManifestError:
         return False
     return any(
-        document.id == _WIRING_DOC_ID and document.status == "blocked"
+        document.id == _CHASSIS_WIRING_DOC_ID and document.status == "blocked"
         for document in documents
     )
 

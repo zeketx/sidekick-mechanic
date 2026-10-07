@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from manifest import ManifestError, load_manifest, verify_inventory
+from manifest import ManifestError, load_manifest, main, verify_inventory
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 COMMITTED_MANIFEST = REPO_ROOT / "docs" / "MANUALS.md"
@@ -46,8 +46,9 @@ def test_checksum_match(tmp_path: Path) -> None:
     (tmp_path / "fixture-a.pdf").write_bytes(payload)
     manifest = _write_manifest(tmp_path, doc_id="fixture-a", sha256=digest)
 
-    documents = verify_inventory(manifest, tmp_path)
+    documents, warnings = verify_inventory(manifest, tmp_path)
 
+    assert warnings == []
     assert [document.id for document in documents] == ["fixture-a"]
     assert documents[0].sha256 == digest
     assert documents[0].filename == "fixture-a.pdf"
@@ -87,24 +88,32 @@ def test_committed_manifest_records_phase1_pdfs() -> None:
 
     assert [document.id for document in documents] == [
         "2jz-ge-rm",
+        "is300-engine-wiring",
         "lj78-wiring",
     ]
     assert documents[0].title == (
         "Lexus IS300 2004 repair manual RM1054U (2JZ-GE VVTi)"
     )
-    assert documents[1].title == "Toyota EWD117F Dec 1990 (LJ7x wiring)"
+    assert documents[1].title == "IS300 engine wiring (EWD451U)"
+    assert documents[2].title == "Toyota EWD117F Dec 1990 (LJ7x wiring)"
     assert documents[0].edition == "RM1054U"
-    assert documents[1].edition == "EWD117F"
+    assert documents[1].edition == "EWD451U"
+    assert documents[2].edition == "EWD117F"
     assert documents[0].page_count == "1959"
-    assert documents[1].page_count == "84"
+    assert documents[1].page_count == "43"
+    assert documents[2].page_count == "84"
     assert documents[0].sha256 == (
         "4464676a7fda45ada554909dc875ce12c4554f96d45c9ef400788e5e20d6008d"
     )
     assert documents[1].sha256 == (
+        "80fc98b8963068f6ebb0ef0c0ca06a869f0edb6d98d7e70195d4247cae43e45d"
+    )
+    assert documents[2].sha256 == (
         "eff462ba654ae488df12dbacb040771dba20d4f12eb8e5926024e8f03f632851"
     )
     assert documents[0].status == "ingest"
-    assert documents[1].status == "blocked"
+    assert documents[1].status == "ingest"
+    assert documents[2].status == "blocked"
 
 
 def test_blocked_row_checksum_is_still_checked(tmp_path: Path) -> None:
@@ -155,12 +164,72 @@ def test_blocked_row_verifies_when_the_hash_matches(tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    documents = verify_inventory(manifest, tmp_path)
+    documents, warnings = verify_inventory(manifest, tmp_path)
 
+    assert warnings == []
     assert [(document.id, document.status) for document in documents] == [
         ("fixture-a", "ingest"),
         ("fixture-b", "blocked"),
     ]
+
+
+def test_blocked_row_missing_file_is_a_warning(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    ingest_payload = b"FAKE-MANUAL-BYTES"
+    (tmp_path / "fixture-a.pdf").write_bytes(ingest_payload)
+    manifest = tmp_path / "MANUALS.md"
+    manifest.write_text(
+        "\n".join(
+            [
+                "| ID | Title | Edition | Page count | SHA-256 | Status |",
+                "| --- | --- | --- | --- | --- | --- |",
+                f"| fixture-a | Fake test manual | TBD | TBD | {_sha256(ingest_payload)} | ingest |",
+                f"| fixture-b | Fake blocked manual | TBD | TBD | {_sha256(b'FAKE-BLOCKED-BYTES')} | blocked |",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    documents, warnings = verify_inventory(manifest, tmp_path)
+
+    assert [document.id for document in documents] == ["fixture-a", "fixture-b"]
+    assert warnings == [
+        f"missing file for blocked document 'fixture-b': {tmp_path / 'fixture-b.pdf'}"
+    ]
+    assert (
+        main(["--manifest", str(manifest), "--manuals-dir", str(tmp_path)]) == 0
+    )
+    err = capsys.readouterr().err
+    assert "warning: missing file for blocked document 'fixture-b'" in err
+    assert str(tmp_path / "fixture-b.pdf") in err
+
+
+def test_missing_ingest_file_still_fails_when_blocked_is_also_missing(
+    tmp_path: Path,
+) -> None:
+    digest = _sha256(b"FAKE-MANUAL-BYTES")
+    manifest = tmp_path / "MANUALS.md"
+    manifest.write_text(
+        "\n".join(
+            [
+                "| ID | Title | Edition | Page count | SHA-256 | Status |",
+                "| --- | --- | --- | --- | --- | --- |",
+                f"| fixture-a | Fake test manual | TBD | TBD | {digest} | ingest |",
+                f"| fixture-b | Fake blocked manual | TBD | TBD | {digest} | blocked |",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ManifestError) as caught:
+        verify_inventory(manifest, tmp_path)
+
+    message = str(caught.value)
+    assert "missing file for document 'fixture-a'" in message
+    assert "fixture-a.pdf" in message
 
 
 def test_invalid_status_rejected(tmp_path: Path) -> None:

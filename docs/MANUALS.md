@@ -7,9 +7,9 @@ This file is the committed manifest. Copyrighted PDFs are not in git.
 ## Storage policy
 
 1. **PDFs stay out of git.** `.gitignore` already excludes `manuals/` and `*.pdf`. Do not force-add them. Extracted page images also stay under `manuals/` (or another gitignored path), never in the repo.
-2. **Local copies** live at `manuals/<id>.pdf` at the repository root (`manuals/2jz-ge-rm.pdf`, `manuals/lj78-wiring.pdf`). Create `manuals/` on your machine; git will not track it.
+2. **Local copies** live at `manuals/<id>.pdf` at the repository root (`manuals/2jz-ge-rm.pdf`, `manuals/is300-engine-wiring.pdf`, `manuals/lj78-wiring.pdf`). Create `manuals/` on your machine; git will not track it.
 3. **External storage** is allowed (a drive, a private bucket). Before ingestion, place or symlink each file at `manuals/<id>.pdf` so the path is stable.
-4. **Only this manifest is committed.** After you add a PDF, record its edition (or `TBD`), page count, and SHA-256 here. Ingestion reads this table and **fails** if a file is missing, a SHA-256 is still `TBD`, or the file hash does not match.
+4. **Only this manifest is committed.** After you add a PDF, record its edition (or `TBD`), page count, and SHA-256 here. Ingestion **fails** if an `ingest` file is missing, a SHA-256 is still `TBD`, or a present file's hash does not match. A `blocked` row with no PDF is a warning, not a failure. If that PDF is on disk, SHA-256 is still checked.
 5. **Do not fill page counts or checksums from memory or from a listing online.** Hash the file you actually have (`sha256sum manuals/<id>.pdf`) and count pages from that same file.
 
 To verify local copies against this table (from `backend/`):
@@ -22,18 +22,21 @@ python3 retrieval.py build
 
 ## Documents
 
-Edition, page count, and SHA-256 for these two rows were recorded on 2026-10-06 from the owner's local copies of `manuals/<id>.pdf`. Those PDFs stay out of git. Hash the file you have before you change a row (`sha256sum manuals/<id>.pdf`).
+Edition, page count, and SHA-256 for `2jz-ge-rm` and `lj78-wiring` were recorded on 2026-10-06 from the owner's local copies of `manuals/<id>.pdf`. `is300-engine-wiring` was recorded on 2026-10-07 from the owner's EWD451U file. Those PDFs stay out of git. Hash the file you have before you change a row (`sha256sum manuals/<id>.pdf`).
 
 | ID | Title | Edition | Page count | SHA-256 | Status |
 | --- | --- | --- | --- | --- | --- |
 | 2jz-ge-rm | Lexus IS300 2004 repair manual RM1054U (2JZ-GE VVTi) | RM1054U | 1959 | 4464676a7fda45ada554909dc875ce12c4554f96d45c9ef400788e5e20d6008d | ingest |
+| is300-engine-wiring | IS300 engine wiring (EWD451U) | EWD451U | 43 | 80fc98b8963068f6ebb0ef0c0ca06a869f0edb6d98d7e70195d4247cae43e45d | ingest |
 | lj78-wiring | Toyota EWD117F Dec 1990 (LJ7x wiring) | EWD117F | 84 | eff462ba654ae488df12dbacb040771dba20d4f12eb8e5926024e8f03f632851 | blocked |
 
-`Status` is `ingest` or `blocked`. `python3 manifest.py` still requires the file and checks SHA-256 for every row, including `blocked`. `python3 ingest.py` extracts only `ingest` rows. `python3 retrieval.py build` indexes those chunks.
+`Status` is `ingest` or `blocked`. `python3 manifest.py` requires the file and checks SHA-256 for every `ingest` row. A `blocked` row with no PDF is a warning; if the file is present, SHA-256 is still checked. `python3 ingest.py` extracts only `ingest` rows. `python3 retrieval.py build` indexes those chunks.
 
 `2jz-ge-rm` is a text-layer PDF. Prefer this copy over RM1140U for DI/VVT. Status is `ingest`.
 
-`lj78-wiring` is image-only. Prefer this copy over EWD168F. The on-disk PDF is AES-encrypted. Status is `blocked`: the PDF stays at `manuals/lj78-wiring.pdf`, and this inventory does not decrypt or OCR it. The EWD lists LJ70, LJ72, LJ73, LJ77, and LJ79. It does not name LJ78. The ID stays `lj78-wiring`. What an unblock would take is in [ewd-ingest-unblock.md](design/ewd-ingest-unblock.md).
+`is300-engine-wiring` is the full-vehicle IS300 EWD (EWD451U). It is used for the 2JZ engine harness. The PDF has a vector text layer. Status is `ingest`.
+
+`lj78-wiring` is image-only. Prefer this copy over EWD168F. Chassis wiring is deferred by the owner's choice. The on-disk PDF is AES-encrypted. Status is `blocked`: if `manuals/lj78-wiring.pdf` is present, this inventory does not decrypt or OCR it. The EWD lists LJ70, LJ72, LJ73, LJ77, and LJ79. It does not name LJ78. The ID stays `lj78-wiring`. What an unblock would take is in [ewd-ingest-unblock.md](design/ewd-ingest-unblock.md).
 
 IDs are lowercase, filesystem-safe, and stable. Do not invent Toyota publication numbers, years, or page counts. A new row stays `TBD` until that PDF is on disk and hashed.
 
@@ -43,4 +46,4 @@ Which documents belong in Phase 1 is taken from [VISION.md](../VISION.md) and [R
 
 ## How ingestion uses this file
 
-`backend/manifest.py` parses the table above. For each row, including `blocked`, it requires `manuals/<id>.pdf` and compares SHA-256. `backend/ingest.py` calls that verifier first, then writes page-level chunks (`doc_id`, PDF page number, text) for `ingest` rows only, plus a report of empty pages and skipped IDs. Extra files in `manuals/` that are not in this table are ignored. `backend/retrieval.py build` turns that JSONL into the SQLite FTS5 index (`docs/design/retrieval-index.md`).
+`backend/manifest.py` parses the table above. For each `ingest` row it requires `manuals/<id>.pdf` and compares SHA-256. A `blocked` row with no PDF is a warning; a present blocked PDF is still SHA-checked. `backend/ingest.py` calls that verifier first, then writes page-level chunks (`doc_id`, PDF page number, text) for `ingest` rows only, plus a report of empty pages and skipped IDs. Extra files in `manuals/` that are not in this table are ignored. `backend/retrieval.py build` turns that JSONL into the SQLite FTS5 index (`docs/design/retrieval-index.md`).

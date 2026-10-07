@@ -11,7 +11,7 @@ from pathlib import Path
 from pypdf import PdfReader
 from pypdf.errors import PyPdfError
 
-from manifest import ManifestError, verify_inventory
+from manifest import ManifestError, print_warnings, verify_inventory
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _DEFAULT_MANIFEST = _REPO_ROOT / "docs" / "MANUALS.md"
@@ -54,10 +54,11 @@ class IngestionResult:
     empty_pages: tuple[EmptyPage, ...]
     documents: tuple[DocumentStats, ...]
     skipped: tuple[str, ...] = ()
+    warnings: tuple[str, ...] = ()
 
 
 def ingest(manifest_path: Path, manuals_dir: Path) -> IngestionResult:
-    documents = verify_inventory(manifest_path, manuals_dir)
+    documents, warnings = verify_inventory(manifest_path, manuals_dir)
     selected = tuple(document for document in documents if document.status == "ingest")
     skipped = tuple(
         document.id for document in documents if document.status == "blocked"
@@ -84,6 +85,7 @@ def ingest(manifest_path: Path, manuals_dir: Path) -> IngestionResult:
         empty_pages=tuple(empty_pages),
         documents=tuple(stats),
         skipped=skipped,
+        warnings=tuple(warnings),
     )
 
 
@@ -123,6 +125,7 @@ def main(argv: list[str] | None = None) -> int:
     except (ManifestError, IngestError) as exc:
         print(str(exc), file=sys.stderr)
         return 1
+    print_warnings(result.warnings)
     print(
         f"ingested {len(result.documents)} document(s), "
         f"skipped {len(result.skipped)} blocked, "
