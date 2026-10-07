@@ -112,24 +112,22 @@ def command_run_dir(Image, ImageDraw, ImageFont, run_dir: Path) -> int:
 
 
 def command_self_test(Image, ImageDraw, ImageFont, run_dir: Path) -> int:
-    """Linux can prove the stitcher with a committed screenshot, not a live sim."""
-    sim = REPO / "docs" / "screenshots" / "pr114" / "job-history.png"
-    figma = FIGMA_DIR / "job-history.png"
-    if not sim.is_file() or not figma.is_file():
-        print("self-test missing job-history screenshot or Figma ref", file=sys.stderr)
+    """Linux can prove the stitcher with committed Figma refs. No live sim."""
+    figma = FIGMA_DIR / "chat.png"
+    if not figma.is_file():
+        print("self-test missing Figma ref features/figma/chat.png", file=sys.stderr)
         return 1
     out_dir = run_dir / "compare"
     out_dir.mkdir(parents=True, exist_ok=True)
-    dest = out_dir / "job-history.png"
-    stitch(Image, ImageDraw, ImageFont, figma, sim, dest, "job-history")
+    dest = out_dir / "chat.png"
+    stitch(Image, ImageDraw, ImageFont, figma, figma, dest, "chat")
     write_checklist(
         out_dir / "checklist.md",
         [str(dest.relative_to(run_dir))],
         [],
         note=(
-            "Linux self-test: left is the #94 wireframe, right is the committed "
-            "PR #114 simulator shot. This is not a live drive. A Mac run replaces "
-            "this with a fresh simctl screenshot."
+            "Linux self-test: both panels are the committed #94 chat wireframe. "
+            "This is not a live drive. A Mac run replaces this with a simctl screenshot."
         ),
     )
     print(dest)

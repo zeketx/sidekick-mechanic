@@ -9,7 +9,7 @@ Prove a UI change by driving the real app: build it, boot the simulator, open th
 
 This skill runs on a **macOS host** with Xcode. This cloud VM is Linux and has no iOS Simulator. A Linux run stops at doctor, writes `artifacts/verify/<run-id>/owner-only.json`, and may stitch a committed screenshot against a Figma ref. That file is an unmet precondition, not a passing UI proof. End-to-end proof is still pending on Zeke's Mac.
 
-The older `.cursor/skills/verify-ios/` skill covers mock-mode chat send. Reach for **this** skill for v1 screens (chat, job sheet, highlight viewer, Jobs, scan log, onboarding).
+The older `.cursor/skills/verify-ios/` skill covers mock-mode chat send. Reach for **this** skill for v1 screens (onboarding, chat, job sheet, highlight viewer). Jobs and scan log are later (#114) and skip when those screens are not in the checkout.
 
 The iOS Simulator is a shared machine. Do not start a second verify-sidekick run against the same sim. Do not drive a simulator session the owner is using unless doctor says it already has `com.zeketx.SidekickMechanic` from this checkout.
 
@@ -31,7 +31,7 @@ Full run (build, boot, each `-screen`, taps, Figma stitch, measured checklist, c
 .cursor/skills/verify-sidekick/scripts/verify-ios.sh run
 ```
 
-`run` exit codes: `0` harness and taps passed, no measured design FAIL (REVIEW cells still need you); `1` build, launch or a tap test failed (screenshots, side-by-sides and checklist are still written); `2` owner-only; `3` harness and taps passed but the design checklist has measured FAIL rows. It takes about 4–5 minutes on an M-series Mac (build, 11 screens, 8 UI tests).
+`run` exit codes: `0` harness and taps passed, no measured design FAIL (REVIEW cells still need you); `1` build, launch or a tap test failed (screenshots, side-by-sides and checklist are still written); `2` owner-only; `3` harness and taps passed but the design checklist has measured FAIL rows. It takes about 4–5 minutes on an M-series Mac (build, onboarding + chat + highlight + job sheet, UI tests). Jobs / scan log are skipped until #114.
 
 The last lines print the taps result, each failed test, and the checklist verdict with its path. Read `artifacts/verify/latest/compare/checklist.md` and open every `compare/<screen>.png` before reporting.
 
@@ -58,17 +58,17 @@ Launch arguments (parsed in `DemoLaunchOptions` / `OnboardingLaunchOptions`). Pa
 
 | Arg | What it opens |
 | --- | --- |
-| `-screen onboarding-1\|2\|3` plus `-resetOnboarding` | First-open pages. **Not in this checkout.** Onboarding is PR #111 (`cursor/v1-onboarding-5c2a`). |
-| `-sidekick.onboarding.completed YES` | UserDefaults key `sidekick.onboarding.completed`. Harmless no-op until #111. |
+| `-screen onboarding-1\|2\|3` plus `-resetOnboarding` | First-open pages (#111). Default `run` captures these. |
+| `-sidekick.onboarding.completed YES` | UserDefaults key `sidekick.onboarding.completed`. Required on every non-onboarding launch so first-open does not steal the shot. |
 | `-screen highlight-confident\|highlight-unsure\|highlight-not-found\|highlight-reference` | Full-bleed highlight card. `-screen highlight-unsure` also turns on the internal unsure flag. |
 | `-screen job-sheet-collapsed\|job-sheet-half\|job-sheet-full\|job-sheet-closeout` | Job sheet detents. Closeout is half height with Outcome = Worked. |
-| `-screen job-history` | Jobs list. |
-| `-screen scan-log` | Scan log grid. |
+| `-screen job-history` | Jobs list. **Later (#114).** Helper XCTSkips / records `skipped.json` when `JobHistoryView.swift` is absent. |
+| `-screen scan-log` | Scan log grid. **Later (#114).** Same skip when `ScanLogView.swift` is absent. |
 | `-demoPhoto hilux\|supra\|hrymx\|flickr` | Demo bay photo. Default `hilux` → `commons-hilux-2jz`. |
 | `-showDemoChrome 1` | Demo toggle, demo banner, Chat/Readings tabs. |
 | `-flagUnsureHighlight 1` | Internal unsure card. Off in v1 unless the screen is `highlight-unsure`. |
 
-The helper terminates the app between `-screen` launches and waits (2.5–4 s) so the next shot is that screen, not a leftover cover. Every non-onboarding screen also gets `-sidekick.onboarding.completed YES`, so the same map works once #111 adds first-run onboarding.
+The helper terminates the app between `-screen` launches and waits (2.5–4 s) so the next shot is that screen, not a leftover cover. Every non-onboarding screen also gets `-sidekick.onboarding.completed YES`.
 
 Teardown: `verify-ios.sh cleanup`. See Cleanup.
 
@@ -94,23 +94,23 @@ Stable handles are accessibility identifiers on the views, not coordinates.
 
 ```bash
 .cursor/skills/verify-sidekick/scripts/verify-ios.sh screens
-.cursor/skills/verify-sidekick/scripts/verify-ios.sh screens --screens job-history,scan-log
+.cursor/skills/verify-sidekick/scripts/verify-ios.sh screens --screens onboarding-1,chat,job-sheet-half
 ```
 
 Inside the helper, after install and `simctl status_bar override --time 9:41`:
 
 ```bash
 xcrun simctl terminate <udid> com.zeketx.SidekickMechanic
-xcrun simctl launch <udid> com.zeketx.SidekickMechanic -screen job-history
+xcrun simctl launch <udid> com.zeketx.SidekickMechanic -resetOnboarding -screen onboarding-1
 # wait
-xcrun simctl io <udid> screenshot artifacts/verify/<run-id>/screenshots/job-history.png
+xcrun simctl io <udid> screenshot artifacts/verify/<run-id>/screenshots/onboarding-1.png
 ```
 
 `screens` leaves the simulator running so you can inspect. `run` calls cleanup.
 
 ### Real taps (XCUITest)
 
-Launch args cannot open the Garage sheet, tap a Jobs row, drag the sheet, tap the scrim, or type in the composer. Those go through `app/SidekickMechanicUITests/DriveUITests.swift` on target `SidekickMechanicUITests`. A tap failure does not stop `run`: it records `taps/result.json` (passed / failed / skipped tests and the assertion lines), still stitches and measures, then exits 1.
+Launch args cannot open the Garage sheet, skip onboarding, drag the sheet, tap the scrim, or type in the composer. Those go through `app/SidekickMechanicUITests/DriveUITests.swift` on target `SidekickMechanicUITests`. A tap failure does not stop `run`: it records `taps/result.json` (passed / failed / skipped tests and the assertion lines), still stitches and measures, then exits 1. Jobs / Scan log tests XCTSkip when their identifiers are missing.
 
 ```bash
 .cursor/skills/verify-sidekick/scripts/verify-ios.sh taps
@@ -131,30 +131,33 @@ xcodebuild test \
 
 | Test | User action | Identifier | Expected |
 | --- | --- | --- | --- |
-| `testOpenJobsThenColdIdleRow` | Chat → Jobs → Cold idle | `chat.jobs`, `jobHistory.row.cold-idle` | `jobSheet.half` |
+| `testSkipOnboardingIfPresent` | `-resetOnboarding -screen onboarding-1`, Skip | `onboarding.welcome`, `onboarding.skip` | `chat.composer`. XCTSkip if onboarding is absent. |
+| `testOpenGarageIfPresent` | Chat → Garage | `chat.garage` | `onboarding.garage`, dismiss `garage.done`. XCTSkip if Garage is absent. |
+| `testOpenJobsThenColdIdleRow` | Chat → Jobs → Cold idle | `chat.jobs`, `jobHistory.row.cold-idle` | `jobSheet.half`. **Later (#114).** XCTSkip when `chat.jobs` is missing. |
 | `testDragSheetCollapsedToHalf` | Drag the sheet handle up | `jobSheet.handle` | `jobSheet.collapsed` → `jobSheet.half` |
 | `testTapScrimCollapsesHalfSheet` | Tap the dimmed chat | `jobSheet.dim` | `jobSheet.half` → `jobSheet.collapsed` |
-| `testScanLogFromJobsHeader` | Jobs → Scan log | `jobHistory.scanLog` | `scanLog.grid` |
-| `testOpenGarageIfPresent` | Chat → Garage | `chat.garage` | **XCTSkip on this stack.** Garage is PR #111 (`onboarding.garage`, `garage.done`). Writes `taps/garage-unmet.json`. |
+| `testScanLogFromJobsHeader` | Jobs → Scan log | `jobHistory.scanLog` | `scanLog.grid`. **Later (#114).** XCTSkip when `jobHistory.list` is missing. |
 | `testComposerStaysPillWhenMultiline` | Tap the composer, type a long problem | `chat.composer` | `taps/taps-composer-multiline.png` + `taps/layout-composer-multiline.json` for the pill check |
-| `testRecordLayoutFrames` | Launch chat, Jobs, collapsed / half / full | leaf ids per screen | `taps/layout-frames.json` (points) for the composer and nav-button checks |
-| `testIdentifierAudit` | Launch each screen | every id listed under Identifiers | `taps/identifiers.json` found / missing; fails if a documented id is unreachable |
+| `testRecordLayoutFrames` | Launch chat, collapsed / half / full (Jobs if present) | leaf ids per screen | `taps/layout-frames.json` (points) for the composer and nav-button checks |
+| `testIdentifierAudit` | Launch each screen | every id listed under Identifiers | `taps/identifiers.json` found / missing / skipped; fails if a documented-on-this-checkout id is unreachable |
 
 The drag uses a vector from `jobSheet.handle`, not a raw screen coordinate of the sheet. The drag and scrim tests also save a before shot (`taps-sheet-before-drag.png`, `taps-sheet-before-scrim.png`). Every test launches with `-sidekick.onboarding.completed YES` unless it passes an onboarding flag itself.
 
-SwiftUI trap that broke three of these tests on the first Mac run: `.accessibilityIdentifier` on a container **overwrites every child identifier** unless the container has `.accessibilityElement(children: .contain)` first. `chat.messageList` swallowed `chat.jobs` / `chat.scanLog`, `jobHistory.list` swallowed `jobHistory.scanLog` and the rows, `jobSheet.outcome` swallowed the Worked / Partly / Didn't ids, `highlightViewer` swallowed its close button. A plain `VStack` with `.contain` can also drop out of the tree entirely, which is why `chat.header` and `jobSheet` were removed. Put new ids on leaves, add `.contain` to any container id, and let `testIdentifierAudit` catch regressions.
+SwiftUI trap that broke three of these tests on the first Mac run (on the #114 stack): `.accessibilityIdentifier` on a container **overwrites every child identifier** unless the container has `.accessibilityElement(children: .contain)` first. `chat.messageList` swallowed header buttons, `jobSheet.outcome` swallowed the Worked / Partly / Didn't ids, `highlightViewer` swallowed its close button, `onboarding.onboarding-1` would swallow Skip / Next. A plain `VStack` with `.contain` can also drop out of the tree entirely, which is why `chat.header` and `jobSheet` were never added on this branch. Put new ids on leaves, add `.contain` to any container id, and let `testIdentifierAudit` catch regressions.
 
 If `xcodegen generate` is run from `app/project.yml`, it recreates the UI test target. The committed `app/SidekickMechanic.xcodeproj` already includes it so a Mac without XcodeGen can still `xcodebuild test`.
 
 ### Identifiers (this checkout)
 
-Chat: `chat.jobs`, `chat.scanLog`, `chat.composer`, `chat.send`, `chat.messageList`, `chat.attach` (only when attach is shown), `demo.toggle` (`-showDemoChrome 1`). Garage `chat.garage` only on #111.
+Chat: `chat.garage`, `chat.composer`, `chat.send`, `chat.messageList`, `chat.attach` (only when attach is shown), `demo.toggle` (`-showDemoChrome 1`). Jobs / Scan log ids `chat.jobs`, `chat.scanLog` are later (#114).
 
-Job sheet: `jobSheet.collapsed` / `.half` / `.full` (the sheet frame itself: x = 8, width 386 on a 402 pt window today), `jobSheet.handle`, `jobSheet.title`, `jobSheet.peek`, `jobSheet.open` / `.close`, `jobSheet.dim`, `jobSheet.body`, `jobSheet.answer`, `jobSheet.photo`, `jobSheet.chips`, `jobSheet.steps`, `jobSheet.outcome`, `jobSheet.outcome.worked` / `.partly` / `.didnt`.
+Onboarding: `onboarding.welcome`, `onboarding.howItWorks`, `onboarding.garage`, `onboarding.skip`, `onboarding.next`, `onboarding.start`, `garage.done`. Root id `onboarding.onboarding-1` (etc.) uses `.contain` so those leaves stay reachable.
+
+Job sheet: `jobSheet.collapsed` / `.half` / `.full` (the sheet frame itself; `horizontalInset` is 0 on main), `jobSheet.handle`, `jobSheet.title`, `jobSheet.peek`, `jobSheet.open` / `.close`, `jobSheet.dim`, `jobSheet.body`, `jobSheet.answer`, `jobSheet.photo`, `jobSheet.chips`, `jobSheet.steps`, `jobSheet.outcome`, `jobSheet.outcome.worked` / `.partly` / `.didnt`.
 
 Highlight: `highlightViewer`, `highlightViewer.close`, `highlightViewer.photo`, `demo.confirm.yes` / `.notThis`.
 
-Jobs / scan log: `jobHistory.list`, `jobHistory.row.cold-idle`, `lookBack.back`, `scanLog.grid`, `scanLog.cell.scan-log-0`.
+Jobs / scan log (later, #114): `jobHistory.list`, `jobHistory.row.cold-idle`, `lookBack.back`, `scanLog.grid`, `scanLog.cell.scan-log-0`. Absent on main; screens and tests skip.
 
 Recipes for each feature: [features/README.md](features/README.md).
 
@@ -198,7 +201,7 @@ Every UI change must copy this table into the PR (and into `compare/checklist.md
 
 - **Edge to edge** (job-sheet-*): scans for the white sheet and reports the first white pixel from each side (px and pt), the gap under the sheet at full, rounded top corners, sheet colour and the scrim colour above it. Any side inset, a bottom gap at full, a non-white sheet, a dark scrim at collapsed or a light one at half/full is FAIL.
 - **Composer** (chat + the multiline tap shot): finds the outline around the `chat.composer` frame, fits the corner radius and compares it with half the height (pill needs fitted radius / half height ≥ 0.75 on one line **and** after typing a long problem; the circular fit reads `.continuous` corners ~15–20% small, hence 0.75), and samples the background above, below and left of it.
-- **Nav buttons** (chat, Jobs, half, full): looks for a tinted fill behind each `chat.jobs` / `chat.scanLog` / `lookBack.back` / `jobHistory.scanLog` / `jobSheet.close` frame (glass capsule = FAIL). Truncation is still yours to check.
+- **Nav buttons** (chat, onboarding, half, full; Jobs when present): looks for a tinted fill behind each `chat.garage` / `onboarding.skip` / `jobSheet.close` frame (and `chat.jobs` / `lookBack.back` / `jobHistory.scanLog` on #114). Glass capsule = FAIL. Truncation is still yours to check.
 - **Status bar / #F4F4F4**: status bar time contrast on every screen, `#F4F4F4` on chat / Jobs / Scan log. Can only FAIL; clipping and overlap stay REVIEW.
 - **Highlight outline** and **Matches Figma** are always REVIEW: open the side-by-side and list every difference.
 
@@ -213,10 +216,10 @@ The overall verdict is never PASS from the script; the best it says is NEEDS REV
 | Status bar and titles stay visible (no black-on-black). Nothing clipped or overlapping. Neutral `#F4F4F4` background. |  |  |
 | Match the Figma frame for the screen: list **every** visible difference, not just the ones asked about. |  |  |
 
-Current layout notes the next agent must still photograph, not assume:
+Current layout notes (code on main vs the Mac proof):
 
-- `JobSheetLayout.horizontalInset` is `8`, so the sheet is **not** full width yet. Measured on the Mac (Oct 6 2026, e65812b stack): first white pixel 27 px = 9 pt in from each side at collapsed / half / full / closeout (8 pt inset + the 1 pt stroke), and at full the sheet stops 22 pt above the screen bottom. The XCUITest frames agree: `jobSheet.collapsed` / `.half` / `.full` are `[8, y, 386, h]` and `.full` ends 21 pt short of 874. The edge-to-edge row FAILs until both are 0.
-- Composer corner radius is a fixed 18 on a rounded rectangle, not a capsule. On one line (≈37 pt tall) it measures close to a pill (fit ratio 0.80, PASS); once the text wraps to four lines (≈103 pt) the same 18 pt corners read 0.29 and the row FAILs. See `taps/taps-composer-multiline.png`.
+- `JobSheetLayout.horizontalInset` is `0` on main (#113). The Mac proof at `eb2f356` / `16c68be` was on the #114 stack (inset 8, paper Jobs header). Re-measure on main; do not treat those quoted 8 pt frames as current.
+- Composer on main is a SwiftUI `Capsule()`, not a fixed 18 pt corner. Re-check the pill row on main after typing a long problem.
 
 Do not report done without screenshots.
 
@@ -234,7 +237,7 @@ Cleanup uses `.cursor/skills/verify-sidekick/run/state.json` (gitignored):
 - Deletes the state file and `/tmp/sidekick-verify-sidekick/evidence-path`.
 - Does **not** delete `artifacts/verify/`. After `run`, the screenshots and `compare/` files must still exist.
 
-`run` calls cleanup in a `finally` block. Confirm the evidence directory is still there after it returns. Cleanup leaves the app terminated (the simulator shows the home screen); relaunch with `xcrun simctl launch booted com.zeketx.SidekickMechanic -screen job-sheet-half -demoPhoto hilux` if someone needs the app on screen afterwards.
+`run` calls cleanup in a `finally` block. Confirm the evidence directory is still there after it returns. Cleanup leaves the app terminated (the simulator shows the home screen); relaunch with `xcrun simctl launch booted com.zeketx.SidekickMechanic -screen job-sheet-half -demoPhoto hilux -sidekick.onboarding.completed YES` if someone needs the app on screen afterwards.
 
 If `taps/result.json` lists tests that are not in `DriveUITests.swift` (stale runner on the simulator, seen once with Xcode open on the same project), run `verify-ios.sh taps` again before trusting it.
 
@@ -254,10 +257,10 @@ All of them are executable. Invoke them from the repository root.
 
 ```bash
 python3 .cursor/skills/verify-sidekick/scripts/compare_figma.py \
-  --sim artifacts/verify/<id>/screenshots/job-history.png \
-  --figma .cursor/skills/verify-sidekick/features/figma/job-history.png \
-  --out artifacts/verify/<id>/compare/job-history.png \
-  --screen job-history
+  --sim artifacts/verify/<id>/screenshots/chat.png \
+  --figma .cursor/skills/verify-sidekick/features/figma/chat.png \
+  --out artifacts/verify/<id>/compare/chat.png \
+  --screen chat
 ```
 
 ```bash
@@ -270,4 +273,4 @@ UI tests live at `app/SidekickMechanicUITests/DriveUITests.swift` so Xcode compi
 
 ## Maintenance
 
-After a screen lands (onboarding merge, Garage button, real Figma export), run `/maintain-verification-skill` on a Mac and correct the map from a live `run`, not from memory.
+After a screen lands (Jobs / Scan log from #114, real Figma export), run `/maintain-verification-skill` on a Mac and correct the map from a live `run`, not from memory. The Mac proof of this skill was `eb2f356` / `16c68be` on the #114 stack; a re-run on main is pending.

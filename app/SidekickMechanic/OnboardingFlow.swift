@@ -15,6 +15,7 @@ struct OnboardingFlow: View {
             footer
         }
         .background(OnboardingPalette.paper)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("onboarding.\(page.rawValue)")
     }
 

@@ -39,7 +39,10 @@ HIGHLIGHT_SCREENS = (
 )
 NEUTRAL_BG_SCREENS = ("chat", "job-history", "scan-log")
 NAV_IDS = {
-    "chat": ["chat.jobs", "chat.scanLog"],
+    "chat": ["chat.garage"],
+    "onboarding-1": ["onboarding.skip"],
+    "onboarding-2": ["onboarding.skip"],
+    "onboarding-3": ["onboarding.skip"],
     "job-history": ["lookBack.back", "jobHistory.scanLog"],
     "job-sheet-half": ["jobSheet.close"],
     "job-sheet-full": ["jobSheet.close"],

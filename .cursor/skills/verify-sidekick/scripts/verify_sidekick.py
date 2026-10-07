@@ -32,6 +32,8 @@ SKILL = Path(__file__).resolve().parents[1]
 COMPARE = Path(__file__).resolve().parent / "compare_figma.py"
 PROJECT = REPO / "app" / "SidekickMechanic.xcodeproj"
 ONBOARDING_FILE = REPO / "app" / "SidekickMechanic" / "OnboardingFlow.swift"
+JOB_HISTORY_FILE = REPO / "app" / "SidekickMechanic" / "JobHistoryView.swift"
+SCAN_LOG_FILE = REPO / "app" / "SidekickMechanic" / "ScanLogView.swift"
 RUN_DIR = SKILL / "run"
 STATE_PATH = RUN_DIR / "state.json"
 POINTER = Path("/tmp/sidekick-verify-sidekick/evidence-path")
@@ -49,6 +51,7 @@ class ScreenSpec:
     args: tuple[str, ...]
     figma: str
     requires_onboarding: bool = False
+    requires_lookback: bool = False
     wait_s: float = 3.0
 
 
@@ -116,16 +119,21 @@ SCREENS: dict[str, ScreenSpec] = {
     "job-history": ScreenSpec(
         args=("-screen", "job-history"),
         figma="job-history.png",
+        requires_lookback=True,
         wait_s=3.5,
     ),
     "scan-log": ScreenSpec(
         args=("-screen", "scan-log"),
         figma="scan-log.png",
+        requires_lookback=True,
         wait_s=3.5,
     ),
 }
 
 DEFAULT_SCREENS = (
+    "onboarding-1",
+    "onboarding-2",
+    "onboarding-3",
     "chat",
     "highlight-confident",
     "highlight-unsure",
@@ -195,7 +203,7 @@ def add_run_flags(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--run-id")
     parser.add_argument(
         "--screens",
-        help="Comma-separated screen ids. Default: v1 UI stack (no onboarding).",
+        help="Comma-separated screen ids. Default: v1 screens (onboarding, chat, highlight, job sheet). Jobs / scan log skip until #114.",
     )
     parser.add_argument("--skip-taps", action="store_true")
     parser.add_argument("--skip-compare", action="store_true")
@@ -348,6 +356,8 @@ def doctor(evidence: Path | None = None) -> dict[str, Any]:
         "git": git,
         "backend": backend,
         "onboarding_in_checkout": ONBOARDING_FILE.is_file(),
+        "job_history_in_checkout": JOB_HISTORY_FILE.is_file(),
+        "scan_log_in_checkout": SCAN_LOG_FILE.is_file(),
         "preferred": {
             "xcode": PREFERRED_XCODE,
             "device": PREFERRED_DEVICE,
@@ -659,6 +669,8 @@ def capture_screens(udid: str, names: list[str], evidence: Path) -> None:
     shots.mkdir(parents=True, exist_ok=True)
     skipped: list[dict[str, str]] = []
     has_onboarding = ONBOARDING_FILE.is_file()
+    has_job_history = JOB_HISTORY_FILE.is_file()
+    has_scan_log = SCAN_LOG_FILE.is_file()
     for name in names:
         spec = SCREENS[name]
         if spec.requires_onboarding and not has_onboarding:
@@ -669,6 +681,17 @@ def capture_screens(udid: str, names: list[str], evidence: Path) -> None:
                 }
             )
             continue
+        if spec.requires_lookback:
+            present = has_job_history if name == "job-history" else has_scan_log
+            missing = JOB_HISTORY_FILE.name if name == "job-history" else SCAN_LOG_FILE.name
+            if not present:
+                skipped.append(
+                    {
+                        "screen": name,
+                        "reason": f"{missing} is not in this checkout (PR #114, later).",
+                    }
+                )
+                continue
         subprocess.run(
             ["xcrun", "simctl", "terminate", udid, BUNDLE_ID],
             capture_output=True,

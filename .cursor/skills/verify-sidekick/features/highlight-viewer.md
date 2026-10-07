@@ -15,7 +15,7 @@ The highlight viewer is a full-bleed card over chat. The mark is a precise outli
 - Launch `-screen highlight-confident|highlight-unsure|highlight-not-found|highlight-reference`.
 - From chat, open the answer-card photo.
 - From the job sheet, open the photo thumb (`jobSheet.photo`).
-- From scan log, choose a cell (`scanLog.cell.scan-log-0`).
+- From scan log, choose a cell (`scanLog.cell.scan-log-0`). Scan log is later (#114); skip that entry point on main.
 
 ## Driving it with verify-sidekick
 

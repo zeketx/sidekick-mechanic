@@ -1,9 +1,10 @@
 import XCTest
 
-/// Taps launch arguments cannot reach: Jobs, a history row, sheet detents, scrim.
+/// Taps launch arguments cannot reach: Garage sheet, sheet detents, scrim, composer typing.
 ///
-/// Garage (`chat.garage`) lives on PR #111. This stack has Jobs / Scan log instead;
-/// `testOpenGarageIfPresent` records that skip instead of inventing a button.
+/// Jobs (`chat.jobs`, `jobHistory.list`) and Scan log (`scanLog.grid`) are PR #114
+/// and later. Those tests XCTSkip when the identifier is missing, the same way
+/// Garage skipped before #111.
 ///
 /// The helper writes the evidence directory to
 /// `/tmp/sidekick-verify-sidekick/evidence-path` before `xcodebuild test`.
@@ -20,8 +21,13 @@ final class DriveUITests: XCTestCase {
         let app = launchApp(arguments: [
             "-sidekick.onboarding.completed", "YES",
         ])
+        try skipIfMissing(
+            app,
+            "chat.jobs",
+            feature: "job-history",
+            reason: "chat.jobs is PR #114 (later). This checkout has Garage, not Jobs / Scan log."
+        )
         let jobs = element(app, "chat.jobs")
-        XCTAssertTrue(jobs.waitForExistence(timeout: 8), "chat.jobs is missing")
         jobs.tap()
 
         let list = element(app, "jobHistory.list")
@@ -81,15 +87,13 @@ final class DriveUITests: XCTestCase {
         let app = launchApp(arguments: [
             "-sidekick.onboarding.completed", "YES",
         ])
+        try skipIfMissing(
+            app,
+            "chat.garage",
+            feature: "onboarding",
+            reason: "chat.garage is compiled with onboarding (#111). This checkout does not show Garage."
+        )
         let garage = element(app, "chat.garage")
-        if !garage.waitForExistence(timeout: 3) {
-            try writeSkip(
-                "garage-unmet.json",
-                feature: "onboarding",
-                reason: "chat.garage is compiled on PR #111 (cursor/v1-onboarding-5c2a), not this stack. Jobs is chat.jobs."
-            )
-            throw XCTSkip("Garage sheet is not on this branch. Use -screen job-history or merge #111.")
-        }
         garage.tap()
         XCTAssertTrue(element(app, "onboarding.garage").waitForExistence(timeout: 5))
         try writeShot("taps-garage.png")
@@ -99,12 +103,36 @@ final class DriveUITests: XCTestCase {
         }
     }
 
+    func testSkipOnboardingIfPresent() throws {
+        let app = launchApp(arguments: [
+            "-resetOnboarding",
+            "-screen", "onboarding-1",
+        ])
+        try skipIfMissing(
+            app,
+            "onboarding.welcome",
+            feature: "onboarding",
+            reason: "OnboardingFlow.swift is not in this checkout. Use -resetOnboarding after #111."
+        )
+        XCTAssertTrue(element(app, "onboarding.welcome").waitForExistence(timeout: 5))
+        try writeShot("taps-onboarding-1.png")
+        let skip = element(app, "onboarding.skip")
+        XCTAssertTrue(skip.waitForExistence(timeout: 3), "onboarding.skip is missing")
+        skip.tap()
+        XCTAssertTrue(element(app, "chat.composer").waitForExistence(timeout: 5), "Skip should land on chat")
+        try writeShot("taps-onboarding-skip.png")
+    }
+
     func testScanLogFromJobsHeader() throws {
         let app = launchApp(arguments: [
             "-screen", "job-history",
         ])
-        let list = element(app, "jobHistory.list")
-        XCTAssertTrue(list.waitForExistence(timeout: 8))
+        try skipIfMissing(
+            app,
+            "jobHistory.list",
+            feature: "scan-log",
+            reason: "jobHistory.list / scanLog.grid are PR #114 (later). Skip until that screen is in the checkout."
+        )
         let scanLog = element(app, "jobHistory.scanLog")
         XCTAssertTrue(scanLog.waitForExistence(timeout: 5), "jobHistory.scanLog is missing")
         scanLog.tap()
@@ -113,52 +141,88 @@ final class DriveUITests: XCTestCase {
     }
 
     func testRecordLayoutFrames() throws {
-        let cases: [(String, [String], [String])] = [
+        let cases: [(String, [String], [String], Bool)] = [
             (
                 "chat",
                 ["-sidekick.onboarding.completed", "YES"],
-                ["chat.composer", "chat.jobs", "chat.scanLog", "chat.send"]
+                ["chat.composer", "chat.garage", "chat.send"],
+                false
             ),
-            ("job-history", ["-screen", "job-history"], ["jobHistory.list", "lookBack.back", "jobHistory.scanLog"]),
+            (
+                "job-history",
+                ["-screen", "job-history"],
+                ["jobHistory.list", "lookBack.back", "jobHistory.scanLog"],
+                true
+            ),
             (
                 "job-sheet-collapsed",
                 ["-screen", "job-sheet-collapsed", "-demoPhoto", "hilux"],
-                ["jobSheet.collapsed", "jobSheet.handle", "jobSheet.title"]
+                ["jobSheet.collapsed", "jobSheet.handle", "jobSheet.title"],
+                false
             ),
             (
                 "job-sheet-half",
                 ["-screen", "job-sheet-half", "-demoPhoto", "hilux"],
-                ["jobSheet.half", "jobSheet.handle", "jobSheet.close", "jobSheet.dim"]
+                ["jobSheet.half", "jobSheet.handle", "jobSheet.close", "jobSheet.dim"],
+                false
             ),
             (
                 "job-sheet-full",
                 ["-screen", "job-sheet-full", "-demoPhoto", "hilux"],
-                ["jobSheet.full", "jobSheet.handle", "jobSheet.close"]
+                ["jobSheet.full", "jobSheet.handle", "jobSheet.close"],
+                false
             ),
         ]
         var screens: [String: Any] = [:]
-        for (name, arguments, identifiers) in cases {
+        for (name, arguments, identifiers, laterOnly) in cases {
             let app = launchApp(arguments: arguments)
+            if laterOnly, !element(app, identifiers[0]).waitForExistence(timeout: 3) {
+                screens[name] = [
+                    "skipped": true,
+                    "reason": "\(identifiers[0]) is not on this checkout (PR #114, later).",
+                ]
+                app.terminate()
+                continue
+            }
             screens[name] = try recordFrames(app, identifiers: identifiers, required: identifiers[0])
             app.terminate()
         }
         try writeJSON("layout-frames.json", ["screens": screens])
     }
 
-    /// Every identifier SKILL.md documents must be reachable. Writes identifiers.json with
-    /// found / missing per screen so a stale map or a container identifier that swallows its
-    /// children shows up as evidence, not as a mystery tap failure.
+    /// Every identifier SKILL.md documents for this checkout must be reachable.
+    /// Later-only screens (Jobs / Scan log until #114) are recorded as skipped, not missing.
     func testIdentifierAudit() throws {
-        let cases: [(String, [String], [String])] = [
+        let cases: [(String, [String], [String], Bool)] = [
+            (
+                "onboarding-1",
+                ["-resetOnboarding", "-screen", "onboarding-1"],
+                ["onboarding.welcome", "onboarding.skip", "onboarding.next"],
+                false
+            ),
+            (
+                "onboarding-2",
+                ["-resetOnboarding", "-screen", "onboarding-2"],
+                ["onboarding.howItWorks", "onboarding.skip", "onboarding.next"],
+                false
+            ),
+            (
+                "onboarding-3",
+                ["-resetOnboarding", "-screen", "onboarding-3"],
+                ["onboarding.garage", "onboarding.skip", "onboarding.start"],
+                false
+            ),
             (
                 "chat",
                 ["-sidekick.onboarding.completed", "YES"],
-                ["chat.jobs", "chat.scanLog", "chat.composer", "chat.send", "chat.messageList"]
+                ["chat.garage", "chat.composer", "chat.send", "chat.messageList"],
+                false
             ),
             (
                 "job-sheet-collapsed",
                 ["-screen", "job-sheet-collapsed", "-demoPhoto", "hilux"],
-                ["jobSheet.collapsed", "jobSheet.handle", "jobSheet.title", "jobSheet.peek", "jobSheet.open"]
+                ["jobSheet.collapsed", "jobSheet.handle", "jobSheet.title", "jobSheet.peek", "jobSheet.open"],
+                false
             ),
             (
                 "job-sheet-half",
@@ -167,24 +231,40 @@ final class DriveUITests: XCTestCase {
                     "jobSheet.half", "jobSheet.handle", "jobSheet.title", "jobSheet.close", "jobSheet.dim",
                     "jobSheet.body", "jobSheet.answer", "jobSheet.photo", "jobSheet.chips", "jobSheet.steps",
                     "jobSheet.outcome", "jobSheet.outcome.worked", "jobSheet.outcome.partly", "jobSheet.outcome.didnt",
-                ]
+                ],
+                false
             ),
             (
                 "highlight-confident",
                 ["-screen", "highlight-confident", "-demoPhoto", "hilux"],
-                ["highlightViewer", "highlightViewer.close", "highlightViewer.photo"]
+                ["highlightViewer", "highlightViewer.close", "highlightViewer.photo"],
+                false
             ),
             (
                 "job-history",
                 ["-screen", "job-history"],
-                ["jobHistory.list", "lookBack.back", "jobHistory.scanLog", "jobHistory.row.cold-idle"]
+                ["jobHistory.list", "lookBack.back", "jobHistory.scanLog", "jobHistory.row.cold-idle"],
+                true
             ),
-            ("scan-log", ["-screen", "scan-log"], ["scanLog.grid", "lookBack.back", "scanLog.cell.scan-log-0"]),
+            (
+                "scan-log",
+                ["-screen", "scan-log"],
+                ["scanLog.grid", "lookBack.back", "scanLog.cell.scan-log-0"],
+                true
+            ),
         ]
         var report: [String: Any] = [:]
         var allMissing: [String] = []
-        for (name, arguments, identifiers) in cases {
+        for (name, arguments, identifiers, laterOnly) in cases {
             let app = launchApp(arguments: arguments)
+            if laterOnly, !element(app, identifiers[0]).waitForExistence(timeout: 3) {
+                report[name] = [
+                    "skipped": true,
+                    "reason": "\(identifiers[0]) is not on this checkout (PR #114, later).",
+                ]
+                app.terminate()
+                continue
+            }
             _ = element(app, identifiers[0]).waitForExistence(timeout: 8)
             var found: [String] = []
             var missing: [String] = []
@@ -229,6 +309,20 @@ final class DriveUITests: XCTestCase {
         app.descendants(matching: .any).matching(identifier: identifier).firstMatch
     }
 
+    /// XCTSkip later-only screens the way Garage skipped before #111.
+    private func skipIfMissing(
+        _ app: XCUIApplication,
+        _ identifier: String,
+        feature: String,
+        reason: String
+    ) throws {
+        if element(app, identifier).waitForExistence(timeout: 3) {
+            return
+        }
+        try writeSkip("\(feature)-unmet.json", feature: feature, reason: reason)
+        throw XCTSkip(reason)
+    }
+
     private func recordFrames(
         _ app: XCUIApplication,
         identifiers: [String],
@@ -259,7 +353,7 @@ final class DriveUITests: XCTestCase {
 
     private func launchApp(arguments: [String]) -> XCUIApplication {
         let app = XCUIApplication()
-        // Skip first-run onboarding on stacks that have it (#111) unless a test opts in.
+        // Skip first-run onboarding unless a test opts in with -resetOnboarding.
         let onboarding = arguments.contains("-resetOnboarding") || arguments.contains("-sidekick.onboarding.completed")
         app.launchArguments = onboarding ? arguments : arguments + ["-sidekick.onboarding.completed", "YES"]
         app.launch()

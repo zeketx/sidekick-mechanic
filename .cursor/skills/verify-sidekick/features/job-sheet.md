@@ -14,7 +14,7 @@ The job sheet is a white bottom sheet on dimmed chat: collapsed peek, half with 
 ## How to get to it (user POV)
 
 - Launch `-screen job-sheet-collapsed|job-sheet-half|job-sheet-full|job-sheet-closeout`.
-- From Jobs, choose a row (Cold idle). That opens the sheet at half.
+- From Jobs, choose a row (Cold idle). That opens the sheet at half. Jobs is later (#114); on main use `-screen job-sheet-half`.
 - Drag the handle, choose Open / Close, or tap the dimmed chat.
 
 ## Driving it with verify-sidekick
@@ -23,7 +23,7 @@ Preconditions:
 
 - Doctor is green on a Mac, or you are about to `run` which boots and installs.
 - `-demoPhoto hilux` unless the recipe names another photo.
-- Feature map for Jobs is [job-history.md](./job-history.md) when the entry point is a row tap.
+- Feature map for Jobs is [job-history.md](./job-history.md) when the entry point is a row tap. That path is later (#114).
 
 - **Collapsed.** `.cursor/skills/verify-sidekick/scripts/verify-ios.sh screens --screens job-sheet-collapsed`. Identifiers `jobSheet.collapsed`, `jobSheet.open`, `jobSheet.peek`. Scrim is light. Composer can still show.
 - **Half.** `--screens job-sheet-half`. Identifiers `jobSheet.half`, `jobSheet.body`, `jobSheet.outcome`. Outcome labels are Worked, Partly, Didn't. Scrim is stronger. Tap `jobSheet.dim` is enabled.
@@ -31,13 +31,13 @@ Preconditions:
 - **Closeout.** `--screens job-sheet-closeout`. Half height. `jobSheet.outcome.worked` is selected (underlined).
 - **Drag.** `.cursor/skills/verify-sidekick/scripts/verify-ios.sh taps` runs `testDragSheetCollapsedToHalf`. Handle `jobSheet.handle`. Result `jobSheet.half`. Shots `taps/taps-sheet-before-drag.png` then `taps/taps-sheet-after-drag.png`.
 - **Scrim tap.** `testTapScrimCollapsesHalfSheet`. `jobSheet.dim` then `jobSheet.collapsed`. Shots `taps/taps-sheet-before-scrim.png` then `taps/taps-sheet-after-scrim.png`.
-- **Proof.** Side-by-sides `compare/job-sheet-collapsed.png`, `job-sheet-half.png`, `job-sheet-full.png`. The edge-to-edge row is measured per shot in `compare/checklist.md` (first white pixel from each side, gap under the sheet at full, scrim colour). While `JobSheetLayout.horizontalInset` is 8 it reports FAIL with 27 px / 9 pt each side and a 22 pt gap under the full sheet.
+- **Proof.** Side-by-sides `compare/job-sheet-collapsed.png`, `job-sheet-half.png`, `job-sheet-full.png`. The edge-to-edge row is measured per shot in `compare/checklist.md` (first white pixel from each side, gap under the sheet at full, scrim colour). `JobSheetLayout.horizontalInset` is `0` on main; re-measure. Quoted 8 pt frames were from the #114 Mac proof, not this checkout.
 
 ## Gotchas
 
 - Full is a detent only. Steps, notes, and tags beyond the two scripted checkboxes stay in later work. Do not fail the shot for missing editors.
 - `-showDemoChrome 1` adds tab-bar inset (`bottomChromeInset`). Default shots omit it so the sheet can sit on the home indicator.
 - Outcome `Didn't` uses identifier `jobSheet.outcome.didnt` (raw value `didnt`), not `didnt-work`. The `jobSheet.outcome` row needs `.accessibilityElement(children: .contain)` or it hides all three.
-- There is no `jobSheet` id on the sheet body. The detent ids carry the sheet frame: on the Mac `jobSheet.collapsed` / `.half` / `.full` start at x = 8 pt and are 386 pt wide on a 402 pt window, and `.full` ends 21 pt above the bottom. The checklist prints those frames next to the pixel scan.
+- There is no `jobSheet` id on the sheet body. The detent ids carry the sheet frame. Re-measure on main (`horizontalInset` is 0). The checklist prints those frames next to the pixel scan.
 - The photo thumb must show a part-shaped outline, not a rectangle, when the job has a photo.
 - Closeout has no dedicated #94 wireframe. `features/figma/job-sheet-closeout.png` is the half-frame until a Figma export exists.
