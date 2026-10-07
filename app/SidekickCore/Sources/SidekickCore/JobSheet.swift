@@ -193,14 +193,11 @@ public enum JobSheetLayout {
         case .collapsed:
             collapsedHeight
         case .half:
-            if isAccessibilitySize {
-                // Grow so a wrapped step can sit above Outcome. Leave a sliver
-                // of chat so this is still the half detent, not full paper.
-                let reserved = max(resolvedTopSafeArea(topSafeArea) * 0.35, 12)
-                max(screenHeight - reserved, 240)
-            } else {
-                min(screenHeight * halfHeightFraction, halfMaxHeight)
-            }
+            // Accessibility: grow so a wrapped step sits above Outcome. Leave a
+            // sliver of chat so this is still the half detent, not full paper.
+            isAccessibilitySize
+                ? max(screenHeight - max(resolvedTopSafeArea(topSafeArea) * 0.35, 12), 240)
+                : min(screenHeight * halfHeightFraction, halfMaxHeight)
         case .full:
             // Paper fills the window so the nav / Jobs header cannot peek and
             // there is no gray strip under the sheet. Title + Close sit below
