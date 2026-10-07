@@ -47,22 +47,89 @@ struct SidekickMechanicApp: App {
 
     var body: some Scene {
         WindowGroup {
-            Group {
-                if Self.launch.showDemoChrome {
-                    TabView {
-                        ChatScreen(model: chatModel, launch: Self.launch)
-                            .tabItem { Label("Chat", systemImage: "bubble.left.and.text.bubble.right") }
-                        ReadingsTab()
-                            .tabItem { Label("Readings", systemImage: "gauge.with.dots.needle.33percent") }
-                    }
-                } else {
-                    ChatScreen(model: chatModel, launch: Self.launch)
-                }
-            }
-            .background(JobSheetChrome.screen)
-            .statusBarHidden(false)
-            .persistentSystemOverlays(.visible)
+            AppRootView(chatModel: chatModel, launch: Self.launch)
+                .background(JobSheetChrome.screen)
+                .statusBarHidden(false)
+                .persistentSystemOverlays(.visible)
         }
+    }
+}
+
+/// First-open onboarding, then Chat. Garage is a sheet so chat is not wiped.
+struct AppRootView: View {
+    @Bindable var chatModel: ChatViewModel
+    var launch: DemoLaunchOptions
+    @AppStorage(OnboardingStorage.completedKey) private var onboardingCompleted = false
+    @State private var page: OnboardingPage
+    @State private var isOnboardingVisible: Bool
+    @State private var isGaragePresented = false
+
+    init(chatModel: ChatViewModel, launch: DemoLaunchOptions) {
+        self.chatModel = chatModel
+        self.launch = launch
+        let onboarding = OnboardingLaunchOptions.parse()
+        if onboarding.resetOnboarding {
+            UserDefaults.standard.set(false, forKey: OnboardingStorage.completedKey)
+        }
+        let completed = UserDefaults.standard.bool(forKey: OnboardingStorage.completedKey)
+        _page = State(initialValue: onboarding.screen ?? .welcome)
+        _isOnboardingVisible = State(initialValue: onboarding.screen != nil || !completed)
+    }
+
+    var body: some View {
+        Group {
+            if isOnboardingVisible {
+                OnboardingFlow(page: $page, onFinished: completeOnboarding)
+            } else {
+                mainContent
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var mainContent: some View {
+        Group {
+            if launch.showDemoChrome {
+                TabView {
+                    ChatScreen(
+                        model: chatModel,
+                        launch: launch,
+                        onOpenGarage: { isGaragePresented = true }
+                    )
+                    .tabItem { Label("Chat", systemImage: "bubble.left.and.text.bubble.right") }
+                    ReadingsTab()
+                        .tabItem { Label("Readings", systemImage: "gauge.with.dots.needle.33percent") }
+                }
+            } else {
+                ChatScreen(
+                    model: chatModel,
+                    launch: launch,
+                    onOpenGarage: { isGaragePresented = true }
+                )
+            }
+        }
+        .sheet(isPresented: $isGaragePresented) {
+            NavigationStack {
+                GarageListView(canvas: .white)
+                    .navigationTitle("Your garage")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Done") { isGaragePresented = false }
+                                .accessibilityIdentifier("garage.done")
+                        }
+                    }
+                    .toolbarBackground(.white, for: .navigationBar)
+                    .toolbarBackground(.visible, for: .navigationBar)
+            }
+            .presentationBackground(.white)
+            .presentationBackgroundInteraction(.disabled)
+        }
+    }
+
+    private func completeOnboarding() {
+        onboardingCompleted = true
+        isOnboardingVisible = false
     }
 }
 
