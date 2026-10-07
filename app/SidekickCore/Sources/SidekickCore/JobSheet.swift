@@ -198,7 +198,7 @@ public enum JobSheetLayout {
             // Accessibility: grow for wrapped steps, but stay below the island
             // with a real strip of dimmed chat so this still reads as a sheet.
             isAccessibilitySize
-                ? max(screenHeight - accessibilityHalfTopGap(topSafeArea), 240)
+                ? max(screenHeight - accessibilityHalfTopGap(topSafeArea: topSafeArea), 240)
                 : min(screenHeight * halfHeightFraction, halfMaxHeight)
         case .full:
             // Paper fills the window so the nav / Jobs header cannot peek and
