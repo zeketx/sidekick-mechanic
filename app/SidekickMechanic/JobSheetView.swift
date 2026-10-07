@@ -15,6 +15,8 @@ struct JobSheetView: View {
     var onOpenHighlight: () -> Void
     var onAttachPhoto: () -> Void
     @State private var showsCredit = false
+    @State private var isAddingTag = false
+    @State private var newTagText = ""
 
     var body: some View {
         VStack(spacing: 0) {
@@ -29,6 +31,7 @@ struct JobSheetView: View {
                 expandedBody
             }
         }
+        .padding(.top, contentTopInset)
         .frame(maxWidth: .infinity)
         .frame(height: sheetHeight)
         .clipShape(sheetShape)
@@ -36,9 +39,9 @@ struct JobSheetView: View {
             sheetShape
                 .fill(JobSheetChrome.paper)
                 .shadow(color: Color.black.opacity(0.12), radius: 12, y: -2)
-                .ignoresSafeArea(edges: .bottom)
+                .ignoresSafeArea(.container, edges: .bottom)
         }
-        .ignoresSafeArea(edges: .bottom)
+        .ignoresSafeArea(.container, edges: .bottom)
         .animation(.easeInOut(duration: 0.22), value: model.detent)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(detentIdentifier)
@@ -47,6 +50,20 @@ struct JobSheetView: View {
         } message: {
             Text(creditText)
         }
+        .alert(JobSheetCopy.addTagPrompt, isPresented: $isAddingTag) {
+            TextField(JobSheetCopy.tagsHeading, text: $newTagText)
+            Button(JobSheetCopy.addTag) {
+                model.addTag(newTagText)
+                newTagText = ""
+            }
+            Button("Cancel", role: .cancel) {
+                newTagText = ""
+            }
+        }
+    }
+
+    private var contentTopInset: CGFloat {
+        CGFloat(JobSheetLayout.contentTopInset(detent: model.detent, topSafeArea: Double(topSafeArea)))
     }
 
     private var detentIdentifier: String {
@@ -181,7 +198,7 @@ struct JobSheetView: View {
     private var expandedBody: some View {
         VStack(spacing: 0) {
             ScrollView {
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: model.detent == .full ? 16 : 8) {
                     photoStage
                     Text(model.job?.answerText ?? JobSheetCopy.answer(photoID: catalogPhotoID))
                         .font(.body)
@@ -192,16 +209,23 @@ struct JobSheetView: View {
                     if model.job?.hasPhoto != true {
                         attachButton
                     }
+                    if model.detent == .full {
+                        notesField
+                        tagsRow
+                        howDidItGo
+                        whatFixedField
+                    }
                 }
                 .padding(.horizontal, 16)
-                .padding(.bottom, 8)
+                .padding(.bottom, model.detent == .full ? 24 : 8)
             }
             .accessibilityIdentifier("jobSheet.body")
-            outcomeRow
-                .padding(.horizontal, 16)
-                .padding(.top, 4)
-                .padding(.bottom, 8 + bottomChromeInset)
-                .safeAreaPadding(.bottom)
+            if model.detent != .full {
+                halfOutcomeRow
+                    .padding(.horizontal, 16)
+                    .padding(.top, CGFloat(JobSheetLayout.halfOutcomeTopSpacing))
+                    .padding(.bottom, CGFloat(JobSheetLayout.homeIndicatorContentPad) + bottomChromeInset)
+            }
         }
     }
 
@@ -354,27 +378,131 @@ struct JobSheetView: View {
         .accessibilityIdentifier("jobSheet.steps")
     }
 
-    private var outcomeRow: some View {
+    private var notesBinding: Binding<String> {
+        Binding(
+            get: { model.job?.notes ?? "" },
+            set: { model.setNotes($0) }
+        )
+    }
+
+    private var whatFixedBinding: Binding<String> {
+        Binding(
+            get: { model.job?.whatFixed ?? "" },
+            set: { model.setWhatFixed($0) }
+        )
+    }
+
+    private var notesField: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(JobSheetCopy.outcomeHeading)
-                .font(.caption)
+            Text(JobSheetCopy.notesHeading)
+                .font(.subheadline)
                 .foregroundStyle(.secondary)
-            HStack(spacing: 16) {
+                .accessibilityIdentifier("jobSheet.notesHeading")
+            TextField(JobSheetCopy.notesPlaceholder, text: notesBinding, axis: .vertical)
+                .font(.body)
+                .lineLimit(3...6)
+                .padding(12)
+                .background(JobSheetChrome.fieldFill, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .accessibilityIdentifier("jobSheet.notes")
+        }
+    }
+
+    private var tagsRow: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(JobSheetCopy.tagsHeading)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("jobSheet.tagsHeading")
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(Array((model.job?.tags ?? []).enumerated()), id: \.offset) { index, tag in
+                        JobSheetChipLabel(text: tag)
+                            .accessibilityIdentifier("jobSheet.tag.\(index)")
+                    }
+                    Button(JobSheetCopy.addTag) {
+                        newTagText = ""
+                        isAddingTag = true
+                    }
+                    .buttonStyle(.plain)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("jobSheet.tags.add")
+                }
+            }
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("jobSheet.tags")
+    }
+
+    private var howDidItGo: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(JobSheetCopy.howDidItGo)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("jobSheet.howDidItGo")
+            HStack(spacing: 8) {
+                ForEach(JobOutcome.allCases, id: \.self) { outcome in
+                    let selected = model.job?.outcome == outcome
+                    Button {
+                        model.selectOutcome(outcome)
+                    } label: {
+                        Text(outcome.label)
+                            .font(.body.weight(.semibold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                            .foregroundStyle(selected ? JobSheetChrome.paper : Color.primary)
+                            .background(
+                                selected ? Color.primary : Color.clear,
+                                in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            )
+                            .overlay {
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .strokeBorder(Color.primary, lineWidth: 1)
+                            }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("jobSheet.outcome.\(outcome.rawValue)")
+                    .accessibilityAddTraits(selected ? .isSelected : [])
+                }
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("jobSheet.outcome")
+    }
+
+    private var whatFixedField: some View {
+        TextField(JobSheetCopy.whatFixedPlaceholder, text: whatFixedBinding, axis: .vertical)
+            .font(.body)
+            .lineLimit(1...3)
+            .padding(12)
+            .background(JobSheetChrome.fieldFill, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .accessibilityIdentifier("jobSheet.whatFixed")
+    }
+
+    /// Half / closeout: one row so the heading does not crowd the last step.
+    private var halfOutcomeRow: some View {
+        VStack(spacing: 0) {
+            Divider()
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Text(JobSheetCopy.outcomeHeading)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
                 ForEach(JobOutcome.allCases, id: \.self) { outcome in
                     let selected = model.job?.outcome == outcome
                     Button(outcome.label) {
                         model.selectOutcome(outcome)
                     }
                     .buttonStyle(.plain)
-                    .font(.body.weight(.bold))
+                    .font(.body.weight(selected ? .bold : .regular))
                     .foregroundStyle(Color.primary)
                     .underline(selected)
-                    .padding(.vertical, 12)
                     .accessibilityIdentifier("jobSheet.outcome.\(outcome.rawValue)")
                     .accessibilityAddTraits(selected ? .isSelected : [])
                 }
                 Spacer(minLength: 0)
             }
+            .padding(.top, 12)
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("jobSheet.outcome")
@@ -413,6 +541,8 @@ enum JobSheetChrome {
         if traits.userInterfaceStyle == .dark { return .secondarySystemBackground }
         return UIColor(red: 0.910, green: 0.910, blue: 0.910, alpha: 1)
     })
+
+    static var fieldFill: Color { screen }
 
     static var screenUIColor: UIColor {
         UIColor { traits in
@@ -488,6 +618,10 @@ struct WindowSafeAreaProbe: View {
 
 #Preview("Full") {
     JobSheetPreview(detent: .full)
+}
+
+#Preview("Full Worked") {
+    JobSheetPreview(detent: .full, outcome: .worked)
 }
 
 #Preview("Closeout") {

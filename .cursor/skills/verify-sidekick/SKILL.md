@@ -153,7 +153,7 @@ Chat: `chat.garage`, `chat.composer`, `chat.send`, `chat.messageList`, `chat.att
 
 Onboarding: `onboarding.welcome`, `onboarding.howItWorks`, `onboarding.garage`, `onboarding.skip`, `onboarding.next`, `onboarding.start`, `garage.done`. Root id `onboarding.onboarding-1` (etc.) uses `.contain` so those leaves stay reachable.
 
-Job sheet: `jobSheet.collapsed` / `.half` / `.full` (the sheet frame itself; `horizontalInset` is 0 on main), `jobSheet.handle`, `jobSheet.title`, `jobSheet.peek`, `jobSheet.open` / `.close`, `jobSheet.dim`, `jobSheet.body`, `jobSheet.answer`, `jobSheet.photo`, `jobSheet.chips`, `jobSheet.steps`, `jobSheet.outcome`, `jobSheet.outcome.worked` / `.partly` / `.didnt`.
+Job sheet: `jobSheet.collapsed` / `.half` / `.full` (the sheet frame itself; `horizontalInset` is 0 on main), `jobSheet.handle`, `jobSheet.title`, `jobSheet.peek`, `jobSheet.open` / `.close`, `jobSheet.dim`, `jobSheet.body`, `jobSheet.answer`, `jobSheet.photo`, `jobSheet.chips`, `jobSheet.steps`, `jobSheet.outcome`, `jobSheet.outcome.worked` / `.partly` / `.didnt`. Full also has `jobSheet.notes`, `jobSheet.tags`, `jobSheet.tags.add`, `jobSheet.whatFixed`.
 
 Highlight: `highlightViewer`, `highlightViewer.close`, `highlightViewer.photo`, `demo.confirm.yes` / `.notThis`.
 

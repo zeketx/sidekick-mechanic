@@ -45,6 +45,10 @@ struct ChatScreen: View {
                     ToolbarItem(placement: .topBarLeading) {
                         if let onOpenGarage {
                             Button("Garage", action: onOpenGarage)
+                                .buttonStyle(.plain)
+                                .font(.body)
+                                .foregroundStyle(.primary)
+                                .fixedSize()
                                 .accessibilityIdentifier("chat.garage")
                         }
                     }
@@ -71,7 +75,9 @@ struct ChatScreen: View {
                 bottomBar
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-            .ignoresSafeArea()
+            // Container (home indicator / status bar) so the sheet is edge to edge.
+            // Do not ignore `.keyboard` — that covered the composer while typing.
+            .ignoresSafeArea(.container)
         }
         .background(JobSheetChrome.screen)
         .background {
@@ -230,7 +236,15 @@ struct ChatScreen: View {
             composer
         }
         .background(JobSheetChrome.screen)
-        .safeAreaPadding(.bottom, jobSheet.hasJob ? 0 : nil)
+        .padding(
+            .bottom,
+            CGFloat(
+                JobSheetLayout.composerHomeInset(
+                    hasJob: jobSheet.hasJob,
+                    bottomSafeArea: Double(bottomSafeArea)
+                )
+            )
+        )
     }
 
     private var composer: some View {

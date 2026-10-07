@@ -36,7 +36,7 @@ Preconditions:
 ## Gotchas
 
 - `-showDemoChrome 1` adds Chat/Readings tabs and a demo banner. That is not the v1 chrome. Default shots omit it.
-- The composer `TextField` with `axis: .vertical` may appear as a text view in XCUITest. Query `chat.composer` with descendants, not only `textFields`.
+- The composer `TextField` with `axis: .vertical` may appear as a text view in XCUITest. Query `chat.composer` with descendants, not only `textFields`. The chat overlay ignores `.container` (home indicator) but not `.keyboard`, so a long problem stays above the software keyboard. `testComposerStaysPillWhenMultiline` asserts that when a keyboard is present.
 - `chat.messageList` needs `.accessibilityElement(children: .contain)` or its identifier replaces child ids. Do not put a container id on the navigation bar (`chat.header` was removed for that reason).
 - Composer hiding on Jobs / Scan log is later (#114). On main the composer stays on chat.
 - Do not treat `swift test` ChatViewModel tests as this screen.

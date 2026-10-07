@@ -235,6 +235,17 @@ final class DriveUITests: XCTestCase {
                 false
             ),
             (
+                "job-sheet-full",
+                ["-screen", "job-sheet-full", "-demoPhoto", "hilux"],
+                [
+                    "jobSheet.full", "jobSheet.handle", "jobSheet.title", "jobSheet.close",
+                    "jobSheet.body", "jobSheet.notes", "jobSheet.tags", "jobSheet.tags.add",
+                    "jobSheet.outcome", "jobSheet.outcome.worked", "jobSheet.outcome.partly",
+                    "jobSheet.outcome.didnt", "jobSheet.whatFixed",
+                ],
+                false
+            ),
+            (
                 "highlight-confident",
                 ["-screen", "highlight-confident", "-demoPhoto", "hilux"],
                 ["highlightViewer", "highlightViewer.close", "highlightViewer.photo"],
@@ -296,6 +307,14 @@ final class DriveUITests: XCTestCase {
         )
         // Let the vertical TextField grow to its wrapped height before measuring.
         Thread.sleep(forTimeInterval: 0.6)
+        let keyboard = app.keyboards.firstMatch
+        if keyboard.waitForExistence(timeout: 2) {
+            XCTAssertLessThanOrEqual(
+                composer.frame.maxY,
+                keyboard.frame.minY + 2,
+                "Keyboard covers the composer. Overlay must ignore .container only, not .keyboard."
+            )
+        }
         try writeShot("taps-composer-multiline.png")
         let frames = try recordFrames(app, identifiers: ["chat.composer", "chat.send"], required: "chat.composer")
         try writeJSON("layout-composer-multiline.json", ["screens": ["chat-multiline": frames]])
