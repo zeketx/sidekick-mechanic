@@ -3,10 +3,11 @@ import SwiftUI
 
 @main
 struct SidekickMechanicApp: App {
+    private static let launch = DemoLaunchOptions.parse()
     @State private var chatModel = SidekickMechanicApp.makeChatModel()
 
     private static func makeChatModel() -> ChatViewModel {
-        let launch = DemoLaunchOptions.parse()
+        let launch = Self.launch
         return ChatViewModel(
             conversationID: ConversationID(rawValue: UUID().uuidString)!,
             composerText: launch.enablesDemoMode ? launch.cannedQuestion : "",
@@ -20,7 +21,7 @@ struct SidekickMechanicApp: App {
     var body: some Scene {
         WindowGroup {
             TabView {
-                ChatScreen(model: chatModel)
+                ChatScreen(model: chatModel, launch: Self.launch)
                     .tabItem { Label("Chat", systemImage: "bubble.left.and.text.bubble.right") }
                 ReadingsTab()
                     .tabItem { Label("Readings", systemImage: "gauge.with.dots.needle.33percent") }

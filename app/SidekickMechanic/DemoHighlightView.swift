@@ -9,30 +9,49 @@ struct DemoHighlightView: View {
     let geometry: HighlightGeometry?
     let style: DemoHighlightStyle
     let confirm: Bool
+    var dashed: Bool = false
     let attribution: String
     let shareAlike: Bool
     let notFound: Bool
+    var cornerRadius: CGFloat = 12
+    /// When nil, stroke and fill scale from the rendered width (thumbnails stay outlines).
+    var outlineInk: HighlightOutlineInk? = nil
+    var fillsContainer: Bool = false
 
     var body: some View {
-        Color.clear
-            .aspectRatio(image.size, contentMode: .fit)
-            .overlay {
-                Image(uiImage: image)
-                    .resizable()
-                    .interpolation(.medium)
+        Group {
+            if fillsContainer {
+                Color.clear
+                    .overlay {
+                        Image(uiImage: image)
+                            .resizable()
+                            .interpolation(.medium)
+                            .scaledToFill()
+                    }
                     .overlay { styleOverlay }
+                    .clipped()
+            } else {
+                Color.clear
+                    .aspectRatio(image.size, contentMode: .fit)
+                    .overlay {
+                        Image(uiImage: image)
+                            .resizable()
+                            .interpolation(.medium)
+                            .overlay { styleOverlay }
+                    }
             }
-            .overlay(alignment: .bottomLeading) {
-                Text(attributionLine)
-                    .font(.caption2)
-                    .foregroundStyle(.white)
-                    .padding(6)
-                    .background(.black.opacity(0.55), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-                    .padding(8)
-            }
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            .accessibilityIdentifier("answerCard.demoHighlight")
-            .accessibilityLabel(accessibilityText)
+        }
+        .overlay(alignment: .bottomLeading) {
+            Text(attributionLine)
+                .font(.caption2)
+                .foregroundStyle(.white)
+                .padding(6)
+                .background(.black.opacity(0.55), in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                .padding(8)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .accessibilityIdentifier("answerCard.demoHighlight")
+        .accessibilityLabel(accessibilityText)
     }
 
     private var attributionLine: String {
@@ -56,12 +75,31 @@ struct DemoHighlightView: View {
         if notFound { EmptyView() }
         else {
             let rings = geometry?.polygons ?? []
-            let width = confirm ? 3.0 : 6.0
             switch style {
             case .outline:
                 Canvas { context, size in
-                    for path in Self.paths(rings, in: size) {
-                        context.stroke(path, with: .color(Self.fuchsia), lineWidth: width)
+                    let ink = outlineInk ?? HighlightOutlineInk.scaled(
+                        renderedWidth: size.width,
+                        dashed: confirm || dashed
+                    )
+                    let mapped = Self.imageRect(
+                        imageSize: image.size,
+                        bounds: size,
+                        fill: fillsContainer
+                    )
+                    let fill = Self.fillFuchsia.opacity(ink.fillOpacity)
+                    for path in Self.smoothPaths(rings, in: mapped) {
+                        context.fill(path, with: .color(fill))
+                        context.stroke(
+                            path,
+                            with: .color(Self.fuchsia),
+                            style: StrokeStyle(
+                                lineWidth: ink.strokeWidth,
+                                lineCap: .round,
+                                lineJoin: .round,
+                                dash: ink.dash.map { CGFloat($0) }
+                            )
+                        )
                     }
                 }
                 .allowsHitTesting(false)
@@ -90,7 +128,8 @@ struct DemoHighlightView: View {
 
     private func polygonFill(_ rings: [HighlightPolygon]) -> some View {
         Canvas { context, size in
-            for path in Self.paths(rings, in: size) {
+            let mapped = Self.imageRect(imageSize: image.size, bounds: size, fill: fillsContainer)
+            for path in Self.smoothPaths(rings, in: mapped) {
                 context.fill(path, with: .color(.white))
             }
         }
@@ -98,8 +137,9 @@ struct DemoHighlightView: View {
 
     private func inverseFill(_ rings: [HighlightPolygon]) -> some View {
         Canvas { context, size in
+            let mapped = Self.imageRect(imageSize: image.size, bounds: size, fill: fillsContainer)
             var path = Path(CGRect(origin: .zero, size: size))
-            for ring in Self.paths(rings, in: size) {
+            for ring in Self.smoothPaths(rings, in: mapped) {
                 path.addPath(ring)
             }
             context.fill(path, with: .color(.white), style: FillStyle(eoFill: true))
@@ -107,15 +147,41 @@ struct DemoHighlightView: View {
     }
 
     private static let fuchsia = Color(red: 1, green: 0, blue: 1)
+    private static let fillFuchsia = Color(red: 1, green: 0.45, blue: 0.95)
 
-    private static func paths(_ rings: [HighlightPolygon], in size: CGSize) -> [Path] {
+    private static func imageRect(imageSize: CGSize, bounds: CGSize, fill: Bool) -> OutlineRect {
+        if fill {
+            return HighlightOutlineLayout.aspectFill(
+                imageWidth: imageSize.width,
+                imageHeight: imageSize.height,
+                boundsWidth: bounds.width,
+                boundsHeight: bounds.height
+            )
+        }
+        return HighlightOutlineLayout.aspectFit(
+            imageWidth: imageSize.width,
+            imageHeight: imageSize.height,
+            boundsWidth: bounds.width,
+            boundsHeight: bounds.height
+        )
+    }
+
+    private static func smoothPaths(_ rings: [HighlightPolygon], in rect: OutlineRect) -> [Path] {
         rings.compactMap { ring in
-            guard ring.points.count >= 3 else { return nil }
+            let cubics = HighlightOutlineCurve.closedCubics(points: ring.points)
+            guard let first = cubics.first else { return nil }
             var path = Path()
-            let first = CGPoint(x: ring.points[0].x * size.width, y: ring.points[0].y * size.height)
-            path.move(to: first)
-            for point in ring.points.dropFirst() {
-                path.addLine(to: CGPoint(x: point.x * size.width, y: point.y * size.height))
+            let start = HighlightOutlineLayout.map(first.start, in: rect)
+            path.move(to: CGPoint(x: start.x, y: start.y))
+            for cubic in cubics {
+                let c1 = HighlightOutlineLayout.map(cubic.control1, in: rect)
+                let c2 = HighlightOutlineLayout.map(cubic.control2, in: rect)
+                let end = HighlightOutlineLayout.map(cubic.end, in: rect)
+                path.addCurve(
+                    to: CGPoint(x: end.x, y: end.y),
+                    control1: CGPoint(x: c1.x, y: c1.y),
+                    control2: CGPoint(x: c2.x, y: c2.y)
+                )
             }
             path.closeSubpath()
             return path
@@ -127,9 +193,13 @@ struct DemoHighlightView: View {
         in size: CGSize,
         padding: CGFloat
     ) -> CGRect? {
+        let fitted = imageRect(imageSize: size, bounds: size, fill: false)
         let points = rings.flatMap(\.points)
         guard !points.isEmpty else { return nil }
-        let mapped = points.map { CGPoint(x: $0.x * size.width, y: $0.y * size.height) }
+        let mapped = points.map {
+            let point = HighlightOutlineLayout.map($0, in: fitted)
+            return CGPoint(x: point.x, y: point.y)
+        }
         let minX = mapped.map(\.x).min() ?? 0
         let maxX = mapped.map(\.x).max() ?? 0
         let minY = mapped.map(\.y).min() ?? 0
