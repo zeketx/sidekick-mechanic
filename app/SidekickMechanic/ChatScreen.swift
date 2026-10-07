@@ -4,15 +4,36 @@ import SwiftUI
 /// Message list and composer. Assistant replies use `AnswerCardView`.
 struct ChatScreen: View {
     @Bindable var model: ChatViewModel
+    var backendURL: URL = AppConfig.backendURL
+    @State private var demoImages = DemoImageStore()
+
+    private var configuration: ChatClientConfiguration {
+        ChatClientConfiguration(baseURL: backendURL)
+    }
 
     var body: some View {
         NavigationStack {
             messageList
+                .safeAreaInset(edge: .top, spacing: 0) {
+                    if model.isDemoMode {
+                        DemoModeChrome(
+                            model: model,
+                            store: demoImages,
+                            configuration: configuration
+                        )
+                    }
+                }
                 .safeAreaInset(edge: .bottom, spacing: 0) {
                     bottomBar
                 }
                 .navigationTitle("Sidekick")
                 .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Toggle("Demo mode", isOn: $model.isDemoMode)
+                            .accessibilityIdentifier("demo.toggle")
+                    }
+                }
                 .background(.background)
         }
     }
@@ -28,7 +49,10 @@ struct ChatScreen: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     ForEach(model.messages, id: \.id) { message in
-                        MessageBubble(message: message)
+                        MessageBubble(
+                            message: message,
+                            demoContext: demoContext(for: message)
+                        )
                             .id(message.id)
                     }
                     if model.isLoading {
@@ -120,11 +144,56 @@ struct ChatScreen: View {
     }
 
     private static let loadingID = "chat-loading"
+
+    private func demoContext(for message: Message) -> DemoAnswerContext? {
+        guard model.isDemoMode else { return nil }
+        let highlight: HighlightRef?
+        if case let .assistant(assistant) = message, case let .found(found) = assistant.answer {
+            highlight = found.highlight
+        } else {
+            highlight = nil
+        }
+        let photoID = highlight?.bayPhotoID.rawValue ?? model.selectedDemoPhotoID
+        let photoInfo = demoImages.catalog?.photos.first { $0.photoID == photoID }
+        let display = model.effectiveDisplay(for: message.id, highlight: highlight)
+        return DemoAnswerContext(
+            isDemoMode: true,
+            photo: photoID.flatMap { demoImages.images[$0] },
+            attribution: photoInfo?.attribution ?? "Demo data. Not Zeke's truck.",
+            shareAlike: photoInfo?.shareAlike ?? false,
+            style: model.highlightStyle,
+            highlight: highlight,
+            display: display,
+            onYes: {
+                model.applyDemoConfirm(messageID: message.id, decision: .yes)
+                if let photoID, let partID = highlight?.partID.rawValue {
+                    postDemoFeedback(
+                        configuration: configuration,
+                        photoID: photoID,
+                        partID: partID,
+                        action: .yes
+                    )
+                }
+            },
+            onNotThis: {
+                model.applyDemoConfirm(messageID: message.id, decision: .notThis)
+                if let photoID, let partID = highlight?.partID.rawValue {
+                    postDemoFeedback(
+                        configuration: configuration,
+                        photoID: photoID,
+                        partID: partID,
+                        action: .notThis
+                    )
+                }
+            }
+        )
+    }
 }
 
 /// User turns stay text bubbles. Assistant turns are answer cards.
 private struct MessageBubble: View {
     let message: Message
+    var demoContext: DemoAnswerContext?
 
     var body: some View {
         switch message {
@@ -145,7 +214,11 @@ private struct MessageBubble: View {
             .accessibilityLabel("You said \(user.text)")
         case let .assistant(assistant):
             HStack(alignment: .top, spacing: 0) {
-                AnswerCardView(content: AnswerCardContent(answer: assistant.answer))
+                AnswerCardView(
+                    content: AnswerCardContent(answer: assistant.answer),
+                    messageID: assistant.id,
+                    demoContext: demoContext
+                )
                 Spacer(minLength: 32)
             }
         }
@@ -154,7 +227,12 @@ private struct MessageBubble: View {
 
 @MainActor
 private enum ChatScreenPreview {
-    static func conversation(isLoading: Bool = false, errorMessage: String? = nil) -> ChatViewModel {
+    static func conversation(
+        isLoading: Bool = false,
+        errorMessage: String? = nil,
+        isDemoMode: Bool = false,
+        selectedDemoPhotoID: String? = nil
+    ) -> ChatViewModel {
         ChatViewModel(
             conversationID: ConversationID(rawValue: "preview-conversation")!,
             messages: [
@@ -178,6 +256,8 @@ private enum ChatScreenPreview {
             composerText: "Still doing it.",
             isLoading: isLoading,
             errorMessage: errorMessage,
+            isDemoMode: isDemoMode,
+            selectedDemoPhotoID: selectedDemoPhotoID,
             client: IdleChatClient()
         )
     }
@@ -201,7 +281,7 @@ private enum ChatScreenPreview {
 }
 
 private struct IdleChatClient: ChatClient {
-    func send(_ conversation: Conversation) async throws -> Answer {
+    func send(_ conversation: Conversation, demoPhotoID: String?) async throws -> Answer {
         throw ChatClientError.offline
     }
 }
@@ -229,4 +309,14 @@ private struct IdleChatClient: ChatClient {
     ChatScreen(model: ChatScreenPreview.conversation(
         errorMessage: ChatClientError.offline.userMessage
     ))
+}
+
+#Preview("Demo mode") {
+    ChatScreen(
+        model: ChatScreenPreview.conversation(
+            isDemoMode: true,
+            selectedDemoPhotoID: DemoLaunchOptions.defaultPhotoID
+        )
+    )
+    .preferredColorScheme(.light)
 }

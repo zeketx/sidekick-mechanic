@@ -199,12 +199,52 @@ final class ChatViewModelTests: XCTestCase {
         XCTAssertEqual(try userText(client.sent[1].messages[1]), "second try")
     }
 
+    func testDemoModeRequiresAPhotoToSend() {
+        let model = makeModel(composerText: "where's the throttle body?", isDemoMode: true)
+        XCTAssertFalse(model.canSend)
+        model.selectedDemoPhotoID = "hrymx-2jz-ge-25308847029"
+        XCTAssertTrue(model.canSend)
+        model.isDemoMode = false
+        XCTAssertTrue(model.canSend)
+        XCTAssertNil(model.activeDemoPhotoID)
+    }
+
+    func testSendPassesDemoPhotoIDWhenDemoModeIsOn() async throws {
+        let client = ScriptedChatClient(results: [.success(plainAnswer())])
+        let model = makeModel(
+            client: client,
+            composerText: "where's the throttle body?",
+            isDemoMode: true,
+            selectedDemoPhotoID: "hrymx-2jz-ge-25308847029"
+        )
+        await model.send()
+        XCTAssertEqual(client.sentDemoPhotoIDs, ["hrymx-2jz-ge-25308847029"])
+    }
+
+    func testConfirmYesPromotesToOutline() throws {
+        let model = makeModel()
+        let highlight = HighlightRef(
+            bayPhotoID: try XCTUnwrap(BayPhotoID(rawValue: "hrymx-2jz-ge-25308847029")),
+            partID: try XCTUnwrap(PartID(rawValue: "intake-plenum")),
+            display: .confirm,
+            isDemo: true
+        )
+        let id = try XCTUnwrap(MessageID(rawValue: "msg-1"))
+        XCTAssertEqual(model.effectiveDisplay(for: id, highlight: highlight), .confirm)
+        model.applyDemoConfirm(messageID: id, decision: .yes)
+        XCTAssertEqual(model.effectiveDisplay(for: id, highlight: highlight), .outline)
+        model.applyDemoConfirm(messageID: id, decision: .notThis)
+        XCTAssertNil(model.effectiveDisplay(for: id, highlight: highlight))
+    }
+
     private func makeModel(
         client: any ChatClient = ScriptedChatClient(results: []),
         messages: [Message] = [],
         composerText: String = "",
         isLoading: Bool = false,
         errorMessage: String? = nil,
+        isDemoMode: Bool = false,
+        selectedDemoPhotoID: String? = nil,
         makeMessageID: (@Sendable () -> MessageID)? = nil
     ) -> ChatViewModel {
         let ids = SequentialMessageIDs(values: ["msg-1", "msg-2", "msg-3", "msg-4"])
@@ -214,6 +254,8 @@ final class ChatViewModelTests: XCTestCase {
             composerText: composerText,
             isLoading: isLoading,
             errorMessage: errorMessage,
+            isDemoMode: isDemoMode,
+            selectedDemoPhotoID: selectedDemoPhotoID,
             client: client,
             makeMessageID: makeMessageID ?? { ids.next() }
         )
@@ -247,7 +289,8 @@ final class ChatViewModelTests: XCTestCase {
 private struct SampleFailure: Error {}
 
 private struct SleepingChatClient: ChatClient {
-    func send(_ conversation: Conversation) async throws -> Answer {
+    func send(_ conversation: Conversation, demoPhotoID: String?) async throws -> Answer {
+        _ = demoPhotoID
         try await Task.sleep(for: .seconds(30))
         throw ChatClientError.timeout
     }
@@ -272,16 +315,18 @@ private final class ScriptedChatClient: ChatClient, @unchecked Sendable {
     private let lock = NSLock()
     private var results: [Result<Answer, Error>]
     private(set) var sent: [Conversation] = []
+    private(set) var sentDemoPhotoIDs: [String?] = []
 
     init(results: [Result<Answer, Error>]) {
         self.results = results
     }
 
-    func send(_ conversation: Conversation) async throws -> Answer {
+    func send(_ conversation: Conversation, demoPhotoID: String?) async throws -> Answer {
         let result: Result<Answer, Error> = {
             lock.lock()
             defer { lock.unlock() }
             sent.append(conversation)
+            sentDemoPhotoIDs.append(demoPhotoID)
             return results.removeFirst()
         }()
         return try result.get()
@@ -293,8 +338,9 @@ private final class GateChatClient: ChatClient, @unchecked Sendable {
     private var waiter: CheckedContinuation<Answer, Error>?
     private(set) var sent: [Conversation] = []
 
-    func send(_ conversation: Conversation) async throws -> Answer {
-        try await withCheckedThrowingContinuation { continuation in
+    func send(_ conversation: Conversation, demoPhotoID: String?) async throws -> Answer {
+        _ = demoPhotoID
+        return try await withCheckedThrowingContinuation { continuation in
             lock.lock()
             sent.append(conversation)
             waiter = continuation

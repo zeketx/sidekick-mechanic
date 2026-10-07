@@ -1,9 +1,12 @@
 import SidekickCore
 import SwiftUI
+import UIKit
 
 /// Layout for one assistant reply. Copy and visibility come from `AnswerCardContent`.
 struct AnswerCardView: View {
     let content: AnswerCardContent
+    var messageID: MessageID?
+    var demoContext: DemoAnswerContext?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -25,7 +28,9 @@ struct AnswerCardView: View {
                 chipRow
             }
 
-            if content.showsHighlightSlot, let highlightLabel = content.highlightAccessibilityLabel {
+            if let demoContext, demoContext.isDemoMode, let image = demoContext.photo {
+                demoHighlight(demoContext, image: image)
+            } else if content.showsHighlightSlot, let highlightLabel = content.highlightAccessibilityLabel {
                 highlightSlot(highlightLabel)
             }
         }
@@ -63,6 +68,25 @@ struct AnswerCardView: View {
         }
         .fixedSize(horizontal: false, vertical: true)
         .accessibilityIdentifier("answerCard.chips")
+    }
+
+    @ViewBuilder
+    private func demoHighlight(_ demo: DemoAnswerContext, image: UIImage) -> some View {
+        let hidden = demo.display == nil && demo.highlight != nil
+        VStack(alignment: .leading, spacing: 8) {
+            DemoHighlightView(
+                image: image,
+                geometry: hidden ? nil : demo.highlight?.geometry,
+                style: demo.style,
+                confirm: demo.display == .confirm,
+                attribution: demo.attribution,
+                shareAlike: demo.shareAlike,
+                notFound: demo.highlight == nil || hidden
+            )
+            if demo.display == .confirm, let onYes = demo.onYes, let onNotThis = demo.onNotThis {
+                DemoConfirmBar(onYes: onYes, onNotThis: onNotThis)
+            }
+        }
     }
 
     private func highlightSlot(_ accessibilityLabel: String) -> some View {
@@ -132,4 +156,17 @@ private struct AnswerCardPreview: View {
 
 #Preview("No highlight") {
     AnswerCardPreview(answer: AnswerCardFixture.plain)
+}
+
+/// Demo-mode fields the answer card needs. Images stay in the app target.
+struct DemoAnswerContext {
+    var isDemoMode: Bool
+    var photo: UIImage?
+    var attribution: String
+    var shareAlike: Bool
+    var style: DemoHighlightStyle
+    var highlight: HighlightRef?
+    var display: HighlightDisplay?
+    var onYes: (() -> Void)?
+    var onNotThis: (() -> Void)?
 }
