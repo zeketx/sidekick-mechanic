@@ -125,6 +125,7 @@ struct AppRootView: View {
             }
             .presentationBackground(.white)
             .presentationBackgroundInteraction(.disabled)
+            .modifier(AccessibilityLaunchModifier(enabled: launch.prefersAccessibilitySize))
         }
     }
 
@@ -135,7 +136,9 @@ struct AppRootView: View {
 }
 
 /// UI tests pass `-dynamicTypeSize accessibility5`. Real launches leave system Dynamic Type.
-private struct AccessibilityLaunchModifier: ViewModifier {
+/// Presented sheets / covers do not always inherit the root environment, so apply this
+/// on those roots as well as on `AppRootView`.
+struct AccessibilityLaunchModifier: ViewModifier {
     var enabled: Bool
 
     func body(content: Content) -> some View {

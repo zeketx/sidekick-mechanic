@@ -8,6 +8,7 @@ struct AnswerCardView: View {
     var messageID: MessageID?
     var demoContext: DemoAnswerContext?
     var onOpenHighlight: (() -> Void)?
+    var onOpenCitation: ((Citation) -> Void)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -47,8 +48,8 @@ struct AnswerCardView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 ForEach(content.chips) { chip in
-                    NavigationLink {
-                        CitationPageView(citation: chip.citation)
+                    Button {
+                        onOpenCitation?(chip.citation)
                     } label: {
                         Text(chip.label)
                             .font(.subheadline)
@@ -132,14 +133,19 @@ struct AnswerCardView: View {
 
 private struct AnswerCardPreview: View {
     let answer: Answer
+    @State private var citation: Citation?
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                AnswerCardView(content: AnswerCardContent(answer: answer))
-                    .padding(16)
+                AnswerCardView(
+                    content: AnswerCardContent(answer: answer),
+                    onOpenCitation: { citation = $0 }
+                )
+                .padding(16)
             }
             .background(.background)
+            .citationSheet($citation)
         }
     }
 }

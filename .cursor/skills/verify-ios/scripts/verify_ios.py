@@ -30,7 +30,12 @@ SCHEME = "SidekickMechanic"
 TEST_CLASS = "SidekickMechanicUITests/ChatSendUITests"
 SHOTS = {
     "chat": ("chat-composer.png", "chat-answer.png"),
-    "answer-card": ("answer-card.png", "answer-card-refusal.png"),
+    "answer-card": (
+        "answer-card.png",
+        "citation-page.png",
+        "citation-page-closed.png",
+        "answer-card-refusal.png",
+    ),
     "mock-mode": ("mock-highlight.png",),
 }
 METHODS = {

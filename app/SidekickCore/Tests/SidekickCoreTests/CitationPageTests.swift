@@ -92,10 +92,13 @@ final class ManualPageSourceTests: XCTestCase {
         )
     }
 
-    func testMissingBackendURLFailsWithoutANetworkCall() async {
+    func testMissingBackendURLFailsForRealDocumentsWithoutANetworkCall() async {
         let source = ManualPageSources.makeFromEnvironment(environment: [:], infoDictionary: nil)
         do {
-            _ = try await source.pageImage(docID: fakeDocument(), page: fakePage())
+            _ = try await source.pageImage(
+                docID: DocumentID(rawValue: "2jz-ge-rm")!,
+                page: fakePage()
+            )
             XCTFail("expected not configured")
         } catch let error as ManualPageError {
             XCTAssertEqual(error, .notConfigured)
@@ -104,7 +107,15 @@ final class ManualPageSourceTests: XCTestCase {
         }
     }
 
-    func testConfiguredEnvironmentUsesTheCachingSource() throws {
+    func testFakeDocumentsLoadWithoutABackend() async throws {
+        let source = ManualPageSources.makeFromEnvironment(environment: [:], infoDictionary: nil)
+        let image = try await source.pageImage(docID: fakeDocument(), page: fakePage())
+        XCTAssertEqual(image.pngData, ManualPagePlaceholder.pngData())
+        XCTAssertEqual(image.docID, fakeDocument())
+        XCTAssertEqual(image.page, fakePage())
+    }
+
+    func testConfiguredEnvironmentUsesTheCompositeSource() throws {
         let cache = try makeCache()
         let source = ManualPageSources.makeFromEnvironment(
             environment: [
@@ -113,7 +124,7 @@ final class ManualPageSourceTests: XCTestCase {
             ],
             infoDictionary: nil
         )
-        XCTAssertTrue(source is CachingManualPageSource)
+        XCTAssertTrue(source is CompositeManualPageSource)
     }
 
     func testCacheHitSkipsTheBackend() async throws {
@@ -216,6 +227,90 @@ final class ManualPageSourceTests: XCTestCase {
         XCTAssertEqual(try FileManager.default.contentsOfDirectory(atPath: cache.path), [])
     }
 
+    func testGoDeeperFetchHitsTheBackendJSON() async throws {
+        let cache = try makeCache()
+        let payload = Data(
+            """
+            {"how_it_works":"From this page: FAKE-CHUNK.","what_to_test":"Look at the cover."}
+            """.utf8
+        )
+        let http = FakeHTTP(
+            result: .success(
+                (
+                    payload,
+                    HTTPURLResponse(
+                        url: URL(string: "http://example.test:9/manuals/2jz-ge-rm/pages/12/go-deeper")!,
+                        statusCode: 200,
+                        httpVersion: "HTTP/1.1",
+                        headerFields: ["Content-Type": "application/json"]
+                    )!
+                )
+            )
+        )
+        let source = CachingGoDeeperSource(configuration: configuration(cache), http: http)
+        let doc = try XCTUnwrap(DocumentID(rawValue: "2jz-ge-rm"))
+        let page = try XCTUnwrap(PageNumber(rawValue: 12))
+
+        let block = try await source.goDeeper(docID: doc, page: page, snippet: "")
+
+        XCTAssertEqual(block.howItWorks, "From this page: FAKE-CHUNK.")
+        XCTAssertEqual(block.whatToTest, "Look at the cover.")
+        XCTAssertNil(block.tools)
+        XCTAssertEqual(http.requests.count, 1)
+        XCTAssertEqual(
+            http.requests[0].url,
+            URL(string: "http://example.test:9/manuals/2jz-ge-rm/pages/12/go-deeper")
+        )
+    }
+
+    func testCannedGoDeeperDoesNotHitTheNetwork() async throws {
+        let http = FakeHTTP(result: .failure(URLError(.notConnectedToInternet)))
+        let source = CompositeGoDeeperSource(
+            remote: CachingGoDeeperSource(configuration: configuration(try makeCache()), http: http)
+        )
+        let doc = try XCTUnwrap(DocumentID(rawValue: "FAKE-DOC-2JZ"))
+        let block = try await source.goDeeper(docID: doc, page: fakePage(), snippet: "")
+        XCTAssertEqual(block, CannedGoDeeper.fuseBox)
+        XCTAssertTrue(http.requests.isEmpty)
+    }
+
+    func testGoDeeperJSONIgnoresExtraKeysAndEmptySections() throws {
+        let data = Data(
+            """
+            {"doc_id":"2jz-ge-rm","page":12,"how_it_works":"From this page: FAKE-CHUNK.","what_to_test":"","tools":"A flashlight."}
+            """.utf8
+        )
+        let block = try JSONDecoder().decode(GoDeeper.self, from: data)
+        XCTAssertEqual(block.howItWorks, "From this page: FAKE-CHUNK.")
+        XCTAssertNil(block.whatToTest)
+        XCTAssertNil(block.howToTest)
+        XCTAssertEqual(block.tools, "A flashlight.")
+        XCTAssertEqual(block.sections.map(\.title), ["How this works", "Tools"])
+    }
+
+    func testPageExcerptStripsControlCharactersAndCapsAroundSnippet() {
+        let raw = "Torque:\u{0001} 18 N·m\n\tmore\u{007F}"
+        XCTAssertEqual(PageExcerpt.stripControlCharacters(raw), "Torque: 18 N·m\n\tmore")
+
+        let snippet = "Torque: 18 N·m is the spec"
+        let page = "B02630\u{0001} " + String(repeating: "junk ", count: 40) + ". " + snippet + " " + String(repeating: "extra ", count: 80)
+        let excerpt = PageExcerpt.aroundSnippet(pageText: page, snippet: snippet, limit: 80)
+        XCTAssertEqual(excerpt?.contains("Torque: 18 N·m"), true)
+        XCTAssertEqual(excerpt?.contains("\u{0001}"), false)
+        XCTAssertEqual(excerpt?.contains("B02630"), false)
+        XCTAssertLessThanOrEqual(excerpt?.count ?? 0, 81)
+        XCTAssertEqual(excerpt?.hasSuffix("…"), true)
+
+        XCTAssertNil(PageExcerpt.aroundSnippet(pageText: "inspect the cover.", snippet: "spark plug torque"))
+        XCTAssertNil(PageExcerpt.aroundSnippet(pageText: "inspect the cover.", snippet: "  "))
+    }
+
+    func testGoDeeperStripsControlCharactersFromJSON() throws {
+        let data = Data("{\"how_it_works\":\"Torque:\\u0001 18 N·m\"}".utf8)
+        let block = try JSONDecoder().decode(GoDeeper.self, from: data)
+        XCTAssertEqual(block.howItWorks, "Torque: 18 N·m")
+    }
+
     func testCancelledFetchIsNotAPageFailure() async throws {
         let http = FakeHTTP(result: .failure(URLError(.cancelled)))
         let source = CachingManualPageSource(configuration: configuration(try makeCache()), http: http)
@@ -287,6 +382,7 @@ final class CitationPageModelTests: XCTestCase {
         XCTAssertEqual(model.headerPage, "Page 999")
         XCTAssertEqual(model.snippet, "FAKE-SNIPPET quoted text")
         XCTAssertEqual(model.phase, .idle)
+        XCTAssertNil(model.goDeeper)
         XCTAssertFalse(model.isLoading)
 
         await model.load()
@@ -297,8 +393,43 @@ final class CitationPageModelTests: XCTestCase {
         XCTAssertEqual(image.pngData, png)
         XCTAssertEqual(image.docID.rawValue, "FAKE-DOC")
         XCTAssertEqual(image.page.rawValue, 999)
+        XCTAssertEqual(model.goDeeper, CannedGoDeeper.fixturePage)
         XCTAssertFalse(model.isLoading)
         XCTAssertEqual(source.requestCount, 1)
+    }
+
+    func testLoadShowsCannedGoDeeperForTheFuseFixture() async throws {
+        let citation = try XCTUnwrap(
+            Citation(
+                docID: DocumentID(rawValue: "FAKE-DOC-2JZ")!,
+                page: PageNumber(rawValue: 999)!,
+                snippet: "FAKE-SNIPPET: check the mapped fixture part."
+            )
+        )
+        let source = ScriptedManualPageSource(results: [
+            .success(
+                ManualPageImage(
+                    docID: citation.docID,
+                    page: citation.page,
+                    pngData: ManualPagePlaceholder.pngData()
+                )
+            ),
+        ])
+        let model = CitationPageModel(citation: citation, source: source)
+
+        await model.load()
+
+        XCTAssertEqual(model.goDeeper, CannedGoDeeper.fuseBox)
+        XCTAssertEqual(CannedGoDeeper.fuseBox.sections.map(\.title), [
+            "How this works",
+            "What to test",
+            "How to test it",
+            "Tools",
+        ])
+        for section in CannedGoDeeper.fuseBox.sections {
+            XCTAssertTrue(CannedGoDeeper.fakePageText.contains(section.body))
+        }
+        XCTAssertFalse(CannedGoDeeper.fuseBox.howItWorks?.contains("FAKE-SPEC") == true)
     }
 
     func testMissingPageIsAnErrorAndStillShowsTheSnippet() async throws {

@@ -10,6 +10,7 @@
 		0687133FFA68D04738B1D1D8 /* ReadingsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 904C89F9DDB9E60BB4A35912 /* ReadingsScreen.swift */; };
 		30B997E25F99A2D2378CD282 /* SidekickCore in Frameworks */ = {isa = PBXBuildFile; productRef = 969A2B719E26CFCC4865B1F2 /* SidekickCore */; };
 		41976CE283ADE9BF1B986389 /* CitationPageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9890FA44BA3B2B62C0293DC5 /* CitationPageView.swift */; };
+		B4C8E1D02A91F4C6B7D3E0A1 /* CitationSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8D1A2B03C82E5D7A6F4B0C2 /* CitationSheet.swift */; };
 		A5EE67255E6EED9CC4E0D94D /* SidekickMechanicApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13B80ACAAD45356A974F77C2 /* SidekickMechanicApp.swift */; };
 		D710CCA0D98A9429B1D09428 /* AnswerCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CEEF8A9243926DFB350F145 /* AnswerCardView.swift */; };
 		E3B11CEF4C0FAF51B5B38689 /* DemoHighlightView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA6E449AB2CCC4A451FC49CA /* DemoHighlightView.swift */; };
@@ -40,6 +41,7 @@
 		904C89F9DDB9E60BB4A35912 /* ReadingsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingsScreen.swift; sourceTree = "<group>"; };
 		96D043F94A922D255BB8222B /* SidekickCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = SidekickCore; path = SidekickCore; sourceTree = SOURCE_ROOT; };
 		9890FA44BA3B2B62C0293DC5 /* CitationPageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CitationPageView.swift; sourceTree = "<group>"; };
+		C8D1A2B03C82E5D7A6F4B0C2 /* CitationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CitationSheet.swift; sourceTree = "<group>"; };
 		BA6E449AB2CCC4A451FC49CA /* DemoHighlightView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoHighlightView.swift; sourceTree = "<group>"; };
 		C2690995B0121B547CC4651A /* ChatScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatScreen.swift; sourceTree = "<group>"; };
 		7C4E1A90B3D24F6E8A1C2D3E /* HighlightViewerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HighlightViewerView.swift; sourceTree = "<group>"; };
@@ -109,6 +111,7 @@
 				1CEEF8A9243926DFB350F145 /* AnswerCardView.swift */,
 				C2690995B0121B547CC4651A /* ChatScreen.swift */,
 				9890FA44BA3B2B62C0293DC5 /* CitationPageView.swift */,
+				C8D1A2B03C82E5D7A6F4B0C2 /* CitationSheet.swift */,
 				7C4E1A90B3D24F6E8A1C2D3E /* HighlightViewerView.swift */,
 				8D2E4B71C0A93F15E6B7D802 /* JobSheetView.swift */,
 				BA6E449AB2CCC4A451FC49CA /* DemoHighlightView.swift */,
@@ -211,6 +214,7 @@
 				D710CCA0D98A9429B1D09428 /* AnswerCardView.swift in Sources */,
 				EF2F2ADDFB91BBD9D49CCA4A /* ChatScreen.swift in Sources */,
 				41976CE283ADE9BF1B986389 /* CitationPageView.swift in Sources */,
+				B4C8E1D02A91F4C6B7D3E0A1 /* CitationSheet.swift in Sources */,
 				F1A8C4D29B3E5F708C1D2E4A /* HighlightViewerView.swift in Sources */,
 				A91F0C2E7B4D81A35E6C0D11 /* JobSheetView.swift in Sources */,
 				E3B11CEF4C0FAF51B5B38689 /* DemoHighlightView.swift in Sources */,

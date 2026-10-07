@@ -110,11 +110,15 @@ public enum ManualPageSources {
                 environment: environment,
                 infoDictionary: infoDictionary
             )
-            return CachingManualPageSource(configuration: configuration)
+            return CompositeManualPageSource(
+                remote: CachingManualPageSource(configuration: configuration)
+            )
         } catch let error as ManualPageError {
-            return FailingManualPageSource(error: error)
+            return CompositeManualPageSource(remote: FailingManualPageSource(error: error))
         } catch {
-            return FailingManualPageSource(error: .notConfigured)
+            return CompositeManualPageSource(
+                remote: FailingManualPageSource(error: .notConfigured)
+            )
         }
     }
 }
@@ -208,7 +212,7 @@ public struct CachingManualPageSource: ManualPageSource {
         try data.write(to: url, options: .atomic)
     }
 
-    private static func mapTransport(_ error: Error) -> Error {
+    static func mapTransport(_ error: Error) -> Error {
         if error is CancellationError { return error }
         if let pageError = error as? ManualPageError { return pageError }
         if let urlError = error as? URLError {
@@ -260,6 +264,26 @@ enum ManualPageLocation {
             .appendingPathComponent(name)
             .appendingPathComponent("pages")
             .appendingPathComponent("\(page.rawValue).png")
+    }
+
+    static func goDeeperURL(
+        baseURL: URL,
+        docID: DocumentID,
+        page: PageNumber,
+        snippet: String = ""
+    ) -> URL? {
+        guard let name = safeName(docID.rawValue) else { return nil }
+        let path = baseURL
+            .appendingPathComponent("manuals")
+            .appendingPathComponent(name)
+            .appendingPathComponent("pages")
+            .appendingPathComponent("\(page.rawValue)")
+            .appendingPathComponent("go-deeper")
+        let trimmed = snippet.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return path }
+        var components = URLComponents(url: path, resolvingAgainstBaseURL: false)
+        components?.queryItems = [URLQueryItem(name: "snippet", value: trimmed)]
+        return components?.url
     }
 
     /// Document IDs become a single path component. `.` and `..` would escape the cache.

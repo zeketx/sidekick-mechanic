@@ -65,6 +65,29 @@ final class DriveUITests: XCTestCase {
         try writeShot("taps-sheet-after-drag.png")
     }
 
+    func testOpenCitationFromJobChip() throws {
+        let app = launchApp(arguments: [
+            "-screen", "job-sheet-half",
+            "-demoPhoto", "hilux",
+        ])
+        XCTAssertTrue(element(app, "jobSheet.half").waitForExistence(timeout: 8))
+        let chip = element(app, "jobSheet.chip.0")
+        XCTAssertTrue(chip.waitForExistence(timeout: 5), "jobSheet.chip.0 is missing")
+        chip.tap()
+
+        XCTAssertTrue(element(app, "citation.viewer").waitForExistence(timeout: 5))
+        XCTAssertTrue(element(app, "citation.goDeeper").waitForExistence(timeout: 5))
+        try writeShot("taps-citation-page.png")
+        element(app, "citation.close").tap()
+
+        XCTAssertTrue(
+            element(app, "jobSheet.half").waitForExistence(timeout: 5),
+            "Close should return to the job sheet"
+        )
+        XCTAssertTrue(element(app, "jobSheet.chip.0").waitForExistence(timeout: 5))
+        try writeShot("taps-citation-closed.png")
+    }
+
     func testTapScrimCollapsesHalfSheet() throws {
         let app = launchApp(arguments: [
             "-screen", "job-sheet-half",
@@ -247,7 +270,8 @@ final class DriveUITests: XCTestCase {
                 ["-screen", "job-sheet-half", "-demoPhoto", "hilux"],
                 [
                     "jobSheet.half", "jobSheet.handle", "jobSheet.title", "jobSheet.close", "jobSheet.dim",
-                    "jobSheet.body", "jobSheet.answer", "jobSheet.photo", "jobSheet.chips", "jobSheet.steps",
+                    "jobSheet.body", "jobSheet.answer", "jobSheet.photo", "jobSheet.chips", "jobSheet.chip.0",
+                    "jobSheet.steps",
                     "jobSheet.step.2",
                     "jobSheet.outcome", "jobSheet.outcome.worked", "jobSheet.outcome.partly", "jobSheet.outcome.didnt",
                 ],
@@ -271,6 +295,15 @@ final class DriveUITests: XCTestCase {
                     "jobSheet.half", "jobSheet.handle", "jobSheet.title", "jobSheet.close",
                     "jobSheet.outcome", "jobSheet.outcome.worked", "jobSheet.outcome.partly",
                     "jobSheet.outcome.didnt",
+                ],
+                false
+            ),
+            (
+                "citation-page",
+                ["-screen", "citation-page", "-demoPhoto", "hilux"],
+                [
+                    "citation.viewer", "citation.close", "citation.title", "citation.goDeeper",
+                    "citation.pageImage", "citation.document", "jobSheet.half",
                 ],
                 false
             ),
@@ -424,6 +457,66 @@ final class DriveUITests: XCTestCase {
             screen: "job-sheet-closeout axxxl"
         )
         try writeShot("taps-job-sheet-closeout-axxxl.png")
+        closeout.terminate()
+
+        let defaultCitation = launchApp(arguments: [
+            "-screen", "citation-page",
+            "-demoPhoto", "hilux",
+        ])
+        XCTAssertTrue(
+            element(defaultCitation, "citation.viewer").waitForExistence(timeout: 8),
+            "citation.viewer is missing at default size"
+        )
+        let defaultDoc = element(defaultCitation, "citation.document")
+        XCTAssertTrue(defaultDoc.waitForExistence(timeout: 5), "citation.document is missing at default size")
+        let defaultDocHeight = defaultDoc.frame.height
+        defaultCitation.terminate()
+
+        let citation = launchApp(arguments: [
+            "-screen", "citation-page",
+            "-demoPhoto", "hilux",
+            "-dynamicTypeSize", "accessibility5",
+        ])
+        XCTAssertTrue(
+            element(citation, "citation.viewer").waitForExistence(timeout: 8),
+            "citation.viewer is missing at Accessibility XXXL"
+        )
+        assertCitationHeaderAtAccessibilitySize(
+            citation,
+            defaultDocumentHeight: defaultDocHeight,
+            screen: "citation-page axxxl"
+        )
+        try writeShot("taps-citation-page-axxxl.png")
+    }
+
+    private func assertCitationHeaderAtAccessibilitySize(
+        _ app: XCUIApplication,
+        defaultDocumentHeight: CGFloat,
+        screen: String
+    ) {
+        let inset = topSafeAreaInset(app)
+        XCTAssertFalse(
+            element(app, "citation.title").waitForExistence(timeout: 1),
+            "\(screen): Manual page title should be hidden at Accessibility XXXL"
+        )
+        let close = element(app, "citation.close")
+        XCTAssertTrue(close.waitForExistence(timeout: 5), "\(screen): citation.close is missing")
+        XCTAssertGreaterThanOrEqual(
+            close.frame.minY,
+            inset,
+            "\(screen): Close minY \(close.frame.minY) sits under the status bar / island (safe area \(inset))"
+        )
+        XCTAssertTrue(close.isHittable, "\(screen): Close must stay hittable at Accessibility XXXL")
+        let document = element(app, "citation.document")
+        XCTAssertTrue(document.waitForExistence(timeout: 5), "\(screen): citation.document is missing")
+        XCTAssertTrue(document.isHittable, "\(screen): document name must stay visible at Accessibility XXXL")
+        XCTAssertGreaterThan(
+            document.frame.height,
+            defaultDocumentHeight,
+            "\(screen): citation.document height \(document.frame.height) did not grow vs default \(defaultDocumentHeight); launch-arg Dynamic Type may not have reached the sheet"
+        )
+        let pageNumber = element(app, "citation.pageNumber")
+        XCTAssertTrue(pageNumber.waitForExistence(timeout: 3), "\(screen): citation.pageNumber is missing")
     }
 
     private func stepFullyVisible(

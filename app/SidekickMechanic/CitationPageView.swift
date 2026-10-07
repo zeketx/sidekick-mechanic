@@ -4,17 +4,26 @@ import UIKit
 
 /// Page the owner sees after tapping a citation chip.
 ///
-/// The answer card calls `CitationPageView(citation:)` with the chip's `Citation`.
-/// This view does not draw the chip. Page bytes come from the backend or the local cache.
+/// Chat and the job sheet present this as a white sheet. Page bytes come from
+/// the backend for real manuals, or a canned FAKE-DOC stand-in.
 @MainActor
 struct CitationPageView: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var model: CitationPageModel
 
     init(
         citation: Citation,
-        source: any ManualPageSource = ManualPageSources.makeFromEnvironment()
+        source: any ManualPageSource = ManualPageSources.makeFromEnvironment(),
+        goDeeperSource: any GoDeeperSource = GoDeeperSources.makeFromEnvironment()
     ) {
-        _model = State(wrappedValue: CitationPageModel(citation: citation, source: source))
+        _model = State(
+            wrappedValue: CitationPageModel(
+                citation: citation,
+                source: source,
+                goDeeperSource: goDeeperSource
+            )
+        )
     }
 
     var body: some View {
@@ -23,15 +32,85 @@ struct CitationPageView: View {
                 header
                 pageBody
                 snippetNote
+                goDeeperBlock
             }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .background(.background)
-        .navigationTitle("Manual page")
-        .navigationBarTitleDisplayMode(.inline)
+        .safeAreaInset(edge: .top, spacing: 0) {
+            headerBar
+        }
+        .background(JobSheetChrome.paper)
+        .modifier(
+            AccessibilityLaunchModifier(
+                enabled: DemoLaunchOptions.parse().prefersAccessibilitySize
+            )
+        )
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("citation.viewer")
         .task { await model.load() }
+    }
+
+    private var isAccessibilitySize: Bool { dynamicTypeSize.isAccessibilitySize }
+
+    private var headerBar: some View {
+        Group {
+            if isAccessibilitySize {
+                accessibilityHeader
+            } else {
+                defaultHeader
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(JobSheetChrome.paper)
+        .accessibilityElement(children: .contain)
+    }
+
+    /// Centered title with a matching hidden Close so the label stays in the middle.
+    private var defaultHeader: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            closeTextButton
+                .accessibilityIdentifier("citation.close")
+            Text("Manual page")
+                .font(.headline)
+                .foregroundStyle(.primary)
+                .multilineTextAlignment(.center)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity)
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityIdentifier("citation.title")
+            closeTextButton
+                .hidden()
+                .accessibilityHidden(true)
+        }
+    }
+
+    /// Close plus the doc/page labels already in the body; no centered title.
+    private var accessibilityHeader: some View {
+        HStack {
+            Button(action: { dismiss() }) {
+                Image(systemName: "xmark")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .frame(minWidth: 44, minHeight: 44, alignment: .leading)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Close")
+            .accessibilityIdentifier("citation.close")
+            Spacer(minLength: 0)
+        }
+    }
+
+    private var closeTextButton: some View {
+        Button("Close") { dismiss() }
+            .buttonStyle(.plain)
+            .font(.body)
+            .foregroundStyle(.primary)
+            .fixedSize(horizontal: true, vertical: false)
+            .layoutPriority(1)
     }
 
     private var header: some View {
@@ -45,8 +124,7 @@ struct CitationPageView: View {
                 .foregroundStyle(.secondary)
                 .accessibilityIdentifier("citation.pageNumber")
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(model.headerDocument), \(model.headerPage)")
+        .accessibilityElement(children: .contain)
     }
 
     @ViewBuilder
@@ -121,11 +199,37 @@ struct CitationPageView: View {
         .accessibilityIdentifier("citation.snippet")
         .accessibilityLabel("Cited snippet. \(model.snippet)")
     }
+
+    @ViewBuilder
+    private var goDeeperBlock: some View {
+        if let goDeeper = model.goDeeper, goDeeper.hasContent {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Go deeper")
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+                    .accessibilityAddTraits(.isHeader)
+                ForEach(Array(goDeeper.sections.enumerated()), id: \.offset) { _, section in
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(section.title)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        Text(section.body)
+                            .font(.body)
+                            .foregroundStyle(.primary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("citation.goDeeper")
+        }
+    }
 }
 
 private func previewCitation() -> Citation {
     Citation(
-        docID: DocumentID(rawValue: "FAKE-DOC")!,
+        docID: DocumentID(rawValue: "FAKE-DOC-2JZ")!,
         page: PageNumber(rawValue: 999)!,
         snippet: "FAKE-SNIPPET on a generated page image."
     )!
@@ -150,7 +254,8 @@ private struct HangingManualPageSource: ManualPageSource {
     NavigationStack {
         CitationPageView(
             citation: previewCitation(),
-            source: PreviewPageSource(pngData: ManualPagePlaceholder.pngData())
+            source: PreviewPageSource(pngData: ManualPagePlaceholder.pngData()),
+            goDeeperSource: CannedGoDeeperSource()
         )
     }
     .preferredColorScheme(.light)
@@ -160,7 +265,8 @@ private struct HangingManualPageSource: ManualPageSource {
     NavigationStack {
         CitationPageView(
             citation: previewCitation(),
-            source: PreviewPageSource(pngData: ManualPagePlaceholder.pngData())
+            source: PreviewPageSource(pngData: ManualPagePlaceholder.pngData()),
+            goDeeperSource: CannedGoDeeperSource()
         )
     }
     .preferredColorScheme(.dark)
@@ -170,7 +276,8 @@ private struct HangingManualPageSource: ManualPageSource {
     NavigationStack {
         CitationPageView(
             citation: previewCitation(),
-            source: PreviewPageSource(pngData: ManualPagePlaceholder.pngData())
+            source: PreviewPageSource(pngData: ManualPagePlaceholder.pngData()),
+            goDeeperSource: CannedGoDeeperSource()
         )
     }
     .environment(\.dynamicTypeSize, .accessibility3)
@@ -186,7 +293,8 @@ private struct HangingManualPageSource: ManualPageSource {
     NavigationStack {
         CitationPageView(
             citation: previewCitation(),
-            source: FailingManualPageSource(error: .missingPage)
+            source: FailingManualPageSource(error: .missingPage),
+            goDeeperSource: CannedGoDeeperSource()
         )
     }
 }

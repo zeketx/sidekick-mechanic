@@ -37,6 +37,16 @@ final class ChatSendUITests: XCTestCase {
         XCTAssertEqual(chip.label, "FAKE-DOC-2JZ · p. 999")
         XCTAssertTrue(app.descendants(matching: .any)["answerCard.found"].exists)
         try writeShot("answer-card.png")
+        chip.tap()
+
+        let viewer = app.descendants(matching: .any)["citation.viewer"]
+        XCTAssertTrue(viewer.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["citation.goDeeper"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["citation.pageImage"].exists)
+        try writeShot("citation-page.png")
+        app.buttons["citation.close"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["answerCard.chip.0"].waitForExistence(timeout: 5))
+        try writeShot("citation-page-closed.png")
     }
 
     func testAnswerCardShowsRefusal() throws {
