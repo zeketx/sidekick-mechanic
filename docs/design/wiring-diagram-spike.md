@@ -4,7 +4,7 @@ Issue #22 asks whether a wiring diagram page can be searched as text, or whether
 
 ## What was measured
 
-`lj78-wiring` is not in this measurement. `docs/MANUALS.md` still lists its SHA-256 as `TBD`, and the PDF is not in the repo. Accuracy on that file is `TBD`.
+`lj78-wiring` is not in this measurement. The PDF is not in the repo. Accuracy on that file is `TBD`.
 
 `backend/spikes/wiring_spike.py` builds five synthetic one-page PDFs and reads each page two ways. `pypdf` reads the text layer. Poppler rasterizes the page at 150 DPI, and Tesseract reads that image. A reading counts as usable for lookup only when every planted label is present and labels that share a row stay next to each other. The match is an exact substring. A near miss counts as missing, because one wrong character would be a wrong label.
 
@@ -88,7 +88,7 @@ Install `tesseract-ocr`, `poppler-utils`, and `fonts-dejavu-core`. From `backend
 python3 spikes/wiring_spike.py --output eval/results/wiring-spike.json
 ```
 
-When `manuals/lj78-wiring.pdf` is on disk and its SHA-256 is filled in `docs/MANUALS.md`, measure that file in a new issue. Quote a label from it only with the document id and the page.
+`docs/MANUALS.md` records the SHA-256 for `lj78-wiring`. The on-disk PDF is AES-encrypted, and `backend/ingest.py` refuses encrypted PDFs. Measuring that file is a later issue. Quote a label from it only with the document id and the page.
 
 ## Limits
 

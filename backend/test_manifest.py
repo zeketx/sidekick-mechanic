@@ -80,18 +80,24 @@ def test_missing_file(tmp_path: Path) -> None:
     assert str(tmp_path / "fixture-a.pdf") in message
 
 
-def test_committed_manifest_parses_with_tbd_checksums() -> None:
+def test_committed_manifest_records_phase1_pdfs() -> None:
     documents = load_manifest(COMMITTED_MANIFEST)
 
     assert [document.id for document in documents] == [
         "2jz-ge-rm",
         "lj78-wiring",
     ]
-    assert documents[0].title == "2JZ-GE repair manual"
-    assert documents[1].title == "LJ78 wiring documentation"
-    assert documents[0].edition == "TBD"
-    assert documents[1].edition == "TBD"
-    assert documents[0].page_count == "TBD"
-    assert documents[1].page_count == "TBD"
-    assert documents[0].sha256 == "TBD"
-    assert documents[1].sha256 == "TBD"
+    assert documents[0].title == (
+        "Lexus IS300 2004 repair manual RM1054U (2JZ-GE VVTi)"
+    )
+    assert documents[1].title == "Toyota EWD117F Dec 1990 (LJ7x wiring)"
+    assert documents[0].edition == "RM1054U"
+    assert documents[1].edition == "EWD117F"
+    assert documents[0].page_count == "1959"
+    assert documents[1].page_count == "84"
+    assert documents[0].sha256 == (
+        "4464676a7fda45ada554909dc875ce12c4554f96d45c9ef400788e5e20d6008d"
+    )
+    assert documents[1].sha256 == (
+        "eff462ba654ae488df12dbacb040771dba20d4f12eb8e5926024e8f03f632851"
+    )
