@@ -186,19 +186,37 @@ public enum JobSheetLayout {
     public static func height(
         detent: JobSheetDetent,
         screenHeight: Double,
-        topSafeArea: Double
+        topSafeArea: Double,
+        isAccessibilitySize: Bool = false
     ) -> Double {
         return switch detent {
         case .collapsed:
             collapsedHeight
         case .half:
-            min(screenHeight * halfHeightFraction, halfMaxHeight)
+            if isAccessibilitySize {
+                // Grow so a wrapped step can sit above Outcome. Leave a sliver
+                // of chat so this is still the half detent, not full paper.
+                let reserved = max(resolvedTopSafeArea(topSafeArea) * 0.35, 12)
+                max(screenHeight - reserved, 240)
+            } else {
+                min(screenHeight * halfHeightFraction, halfMaxHeight)
+            }
         case .full:
             // Paper fills the window so the nav / Jobs header cannot peek and
             // there is no gray strip under the sheet. Title + Close sit below
             // the island via `contentTopInset`, not by shortening the sheet.
             max(screenHeight - fullTopGap, 240)
         }
+    }
+
+    /// Half photo at default size matches Figma. Accessibility sizes drop it.
+    public static func halfPhotoHeight(isAccessibilitySize: Bool) -> Double {
+        isAccessibilitySize ? 0 : halfPhotoHeight
+    }
+
+    /// Accessibility: Outcome label above full-width segments so Worked is tappable.
+    public static func stacksOutcome(isAccessibilitySize: Bool) -> Bool {
+        isAccessibilitySize
     }
 
     /// Full detent only. Half and collapsed already sit below the status bar.
@@ -227,12 +245,14 @@ public enum JobSheetLayout {
     public static func originY(
         detent: JobSheetDetent,
         screenHeight: Double,
-        topSafeArea: Double
+        topSafeArea: Double,
+        isAccessibilitySize: Bool = false
     ) -> Double {
         screenHeight - height(
             detent: detent,
             screenHeight: screenHeight,
-            topSafeArea: topSafeArea
+            topSafeArea: topSafeArea,
+            isAccessibilitySize: isAccessibilitySize
         )
     }
 

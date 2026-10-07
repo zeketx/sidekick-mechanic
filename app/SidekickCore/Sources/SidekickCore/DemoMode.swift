@@ -150,6 +150,8 @@ public struct DemoLaunchOptions: Equatable, Sendable {
     public var jobSheetScreen: JobSheetScreen?
     public var showDemoChrome: Bool
     public var unsureHighlight: Bool
+    /// UI tests / verify-sidekick. Not a user setting.
+    public var prefersAccessibilitySize: Bool
 
     public var enablesDemoMode: Bool {
         photoID != nil
@@ -203,7 +205,8 @@ public struct DemoLaunchOptions: Equatable, Sendable {
         screen: HighlightViewerScreen? = nil,
         jobSheetScreen: JobSheetScreen? = nil,
         showDemoChrome: Bool = false,
-        unsureHighlight: Bool = false
+        unsureHighlight: Bool = false,
+        prefersAccessibilitySize: Bool = false
     ) {
         self.photoID = photoID.map(Self.resolvePhotoID)
         self.partID = partID
@@ -213,6 +216,7 @@ public struct DemoLaunchOptions: Equatable, Sendable {
         self.jobSheetScreen = jobSheetScreen
         self.showDemoChrome = showDemoChrome
         self.unsureHighlight = unsureHighlight || screen == .unsure
+        self.prefersAccessibilitySize = prefersAccessibilitySize
     }
 
     public static func parse(
@@ -238,8 +242,25 @@ public struct DemoLaunchOptions: Equatable, Sendable {
                     ?? environment["SIDEKICK_SHOW_DEMO_CHROME"]
             ),
             unsureHighlight: FeatureFlags.parse(arguments: arguments, environment: environment)
-                .unsureHighlight
+                .unsureHighlight,
+            prefersAccessibilitySize: Self.parsePrefersAccessibilitySize(
+                arguments: arguments,
+                environment: environment
+            )
         )
+    }
+
+    /// `-dynamicTypeSize accessibility5` or `-UIPreferredContentSizeCategoryName UIContentSizeCategoryAccessibilityXXXL`.
+    public static func parsePrefersAccessibilitySize(
+        arguments: [String],
+        environment: [String: String]
+    ) -> Bool {
+        let raw = LaunchArgument.flag(arguments, "-dynamicTypeSize")
+            ?? LaunchArgument.flag(arguments, "-UIPreferredContentSizeCategoryName")
+            ?? environment["SIDEKICK_DYNAMIC_TYPE"]
+            ?? ""
+        let value = raw.lowercased()
+        return value.contains("access") || value.contains("xxx")
     }
 
     public static func shortName(for photoID: String) -> String {

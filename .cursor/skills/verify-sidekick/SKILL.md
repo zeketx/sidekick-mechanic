@@ -66,6 +66,7 @@ Launch arguments (parsed in `DemoLaunchOptions` / `OnboardingLaunchOptions`). Pa
 | `-screen scan-log` | Scan log grid. **Later (#114).** Same skip when `ScanLogView.swift` is absent. |
 | `-demoPhoto hilux\|supra\|hrymx\|flickr` | Demo bay photo. Default `hilux` → `commons-hilux-2jz`. |
 | `-showDemoChrome 1` | Demo toggle, demo banner, Chat/Readings tabs. |
+| `-dynamicTypeSize accessibility5` | Accessibility XXXL. UI tests use this for `testAccessibilityXXXLHeaderAndHalfSheet`. |
 | `-flagUnsureHighlight 1` | Internal unsure card. Off in v1 unless the screen is `highlight-unsure`. |
 
 The helper terminates the app between `-screen` launches and waits (2.5–4 s) so the next shot is that screen, not a leftover cover. Every non-onboarding screen also gets `-sidekick.onboarding.completed YES`.
@@ -110,7 +111,7 @@ xcrun simctl io <udid> screenshot artifacts/verify/<run-id>/screenshots/onboardi
 
 ### Real taps (XCUITest)
 
-Launch args cannot open the Garage sheet, skip onboarding, drag the sheet, tap the scrim, or type in the composer. Those go through `app/SidekickMechanicUITests/DriveUITests.swift` on target `SidekickMechanicUITests`. A tap failure does not stop `run`: it records `taps/result.json` (passed / failed / skipped tests and the assertion lines), still stitches and measures, then exits 1. Jobs / Scan log tests XCTSkip when their identifiers are missing.
+Launch args cannot open the Garage sheet, skip onboarding, drag the sheet, tap the scrim, or type in the composer. Those go through `app/SidekickMechanicUITests/DriveUITests.swift` on target `SidekickMechanicUITests`. Before `xcodebuild test`, the helper uninstalls `com.zeketx.SidekickMechanicUITests.xctrunner` (and the UI test bundle) so a newly added method is not skipped by a stale runner. A tap failure does not stop `run`: it records `taps/result.json` (passed / failed / skipped tests and the assertion lines), still stitches and measures, then exits 1. **0 tests executed is also exit 1**, not a pass. Jobs / Scan log tests XCTSkip when their identifiers are missing.
 
 ```bash
 .cursor/skills/verify-sidekick/scripts/verify-ios.sh taps
@@ -140,6 +141,7 @@ xcodebuild test \
 | `testComposerStaysPillWhenMultiline` | Tap the composer, type a long problem | `chat.composer` | `taps/taps-composer-multiline.png` + `taps/layout-composer-multiline.json` for the pill check |
 | `testRecordLayoutFrames` | Launch chat, collapsed / half / full (Jobs if present) | leaf ids per screen | `taps/layout-frames.json` (points) for the composer and nav-button checks |
 | `testIdentifierAudit` | Launch each screen | every id listed under Identifiers | `taps/identifiers.json` found / missing / skipped; fails if a documented-on-this-checkout id is unreachable |
+| `testAccessibilityXXXLHeaderAndHalfSheet` | `-dynamicTypeSize accessibility5` on chat then job-sheet-half | `chat.garage`, `jobSheet.step.2`, `jobSheet.outcome.worked` | Garage does not overlap Sidekick; last step fully visible above Outcome; Worked is tappable and not a truncated sliver |
 
 The drag uses a vector from `jobSheet.handle`, not a raw screen coordinate of the sheet. The drag and scrim tests also save a before shot (`taps-sheet-before-drag.png`, `taps-sheet-before-scrim.png`). Every test launches with `-sidekick.onboarding.completed YES` unless it passes an onboarding flag itself.
 
@@ -240,7 +242,7 @@ Cleanup uses `.cursor/skills/verify-sidekick/run/state.json` (gitignored):
 
 `run` calls cleanup in a `finally` block. Confirm the evidence directory is still there after it returns. Cleanup leaves the app terminated (the simulator shows the home screen); relaunch with `xcrun simctl launch booted com.zeketx.SidekickMechanic -screen job-sheet-half -demoPhoto hilux -sidekick.onboarding.completed YES` if someone needs the app on screen afterwards.
 
-If `taps/result.json` lists tests that are not in `DriveUITests.swift` (stale runner on the simulator, seen once with Xcode open on the same project), run `verify-ios.sh taps` again before trusting it.
+`run_ui_tests` uninstalls `com.zeketx.SidekickMechanicUITests.xctrunner` before `xcodebuild test`. If `taps/result.json` still reports 0 tests, that is a harness FAIL (exit 1), not a pass.
 
 ## Helpers
 

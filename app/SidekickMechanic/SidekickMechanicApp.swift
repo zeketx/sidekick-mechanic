@@ -84,6 +84,7 @@ struct AppRootView: View {
                 mainContent
             }
         }
+        .modifier(AccessibilityLaunchModifier(enabled: launch.prefersAccessibilitySize))
     }
 
     @ViewBuilder
@@ -130,6 +131,21 @@ struct AppRootView: View {
     private func completeOnboarding() {
         onboardingCompleted = true
         isOnboardingVisible = false
+    }
+}
+
+/// UI tests pass `-dynamicTypeSize accessibility5`. Real launches leave system Dynamic Type.
+private struct AccessibilityLaunchModifier: ViewModifier {
+    var enabled: Bool
+
+    func body(content: Content) -> some View {
+        Group {
+            if enabled {
+                content.dynamicTypeSize(.accessibility5)
+            } else {
+                content
+            }
+        }
     }
 }
 

@@ -343,6 +343,75 @@ final class DriveUITests: XCTestCase {
         try writeJSON("layout-composer-multiline.json", ["screens": ["chat-multiline": frames]])
     }
 
+    func testAccessibilityXXXLHeaderAndHalfSheet() throws {
+        let chat = launchApp(arguments: [
+            "-sidekick.onboarding.completed", "YES",
+            "-dynamicTypeSize", "accessibility5",
+        ])
+        let garage = element(chat, "chat.garage")
+        XCTAssertTrue(garage.waitForExistence(timeout: 8), "chat.garage is missing at Accessibility XXXL")
+        XCTAssertTrue(garage.isHittable, "Garage must stay hittable at Accessibility XXXL")
+        let title = element(chat, "chat.title")
+        if title.waitForExistence(timeout: 1) {
+            XCTAssertFalse(
+                garage.frame.intersects(title.frame),
+                "Garage overlaps Sidekick at Accessibility XXXL: \(garage.frame) vs \(title.frame)"
+            )
+        }
+        try writeShot("taps-chat-axxxl.png")
+        chat.terminate()
+
+        let app = launchApp(arguments: [
+            "-screen", "job-sheet-half",
+            "-demoPhoto", "hilux",
+            "-dynamicTypeSize", "accessibility5",
+        ])
+        let sheet = element(app, "jobSheet.half")
+        XCTAssertTrue(sheet.waitForExistence(timeout: 8), "jobSheet.half is missing at Accessibility XXXL")
+        let step = element(app, "jobSheet.step.2")
+        XCTAssertTrue(step.waitForExistence(timeout: 5), "jobSheet.step.2 is missing at Accessibility XXXL")
+        let outcome = element(app, "jobSheet.outcome")
+        XCTAssertTrue(outcome.waitForExistence(timeout: 3))
+        let body = element(app, "jobSheet.body")
+        for _ in 0..<8 {
+            if stepFullyVisible(step, in: sheet, above: outcome) {
+                break
+            }
+            if body.exists {
+                body.swipeUp()
+            } else {
+                sheet.swipeUp()
+            }
+        }
+        XCTAssertTrue(
+            stepFullyVisible(step, in: sheet, above: outcome),
+            "jobSheet.step.2 is clipped at Accessibility XXXL even after scrolling. "
+                + "step \(step.frame) sheet \(sheet.frame) outcome \(outcome.frame)"
+        )
+        let worked = element(app, "jobSheet.outcome.worked")
+        XCTAssertTrue(worked.waitForExistence(timeout: 3), "Worked is missing at Accessibility XXXL")
+        XCTAssertTrue(worked.isHittable, "Worked must be tappable at Accessibility XXXL")
+        XCTAssertGreaterThan(
+            worked.frame.width,
+            160,
+            "Worked is truncated at Accessibility XXXL (width \(worked.frame.width))"
+        )
+        try writeShot("taps-job-sheet-half-axxxl.png")
+    }
+
+    private func stepFullyVisible(
+        _ step: XCUIElement,
+        in sheet: XCUIElement,
+        above outcome: XCUIElement
+    ) -> Bool {
+        let stepFrame = step.frame
+        let sheetFrame = sheet.frame
+        let limitY = outcome.exists ? outcome.frame.minY : sheetFrame.maxY
+        return stepFrame.minY >= sheetFrame.minY - 4
+            && stepFrame.maxY <= limitY + 4
+            && stepFrame.height >= 48
+    }
+
     func testSelectedOutcomeIsFilledOnFullAndCloseout() throws {
         for screen in ["job-sheet-full", "job-sheet-closeout"] {
             let app = launchApp(arguments: [

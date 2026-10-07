@@ -14,6 +14,7 @@ struct ChatScreen: View {
     @State private var windowHeight: CGFloat = 0
     @State private var topSafeArea: CGFloat = 0
     @State private var bottomSafeArea: CGFloat = 0
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var configuration: ChatClientConfiguration {
         ChatClientConfiguration(baseURL: backendURL)
@@ -181,29 +182,24 @@ struct ChatScreen: View {
 
     /// Paper header, not a toolbar item. iOS 26 draws Liquid Glass behind toolbar buttons.
     private var paperHeader: some View {
-        ZStack {
-            Text("Sidekick")
-                .font(.headline)
-                .foregroundStyle(.primary)
-            HStack {
-                if let onOpenGarage {
-                    Button("Garage", action: onOpenGarage)
-                        .buttonStyle(.plain)
-                        .font(.body)
-                        .foregroundStyle(.primary)
-                        .fixedSize()
-                        .accessibilityIdentifier("chat.garage")
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                HStack(alignment: .firstTextBaseline, spacing: 12) {
+                    garageButton
+                    Spacer(minLength: 0)
+                    demoToggle
                 }
-                Spacer(minLength: 0)
-                if launch.showDemoChrome {
-                    Button(model.isDemoMode ? "Demo on" : "Demo mode") {
-                        model.isDemoMode.toggle()
+            } else {
+                ZStack {
+                    Text("Sidekick")
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+                        .accessibilityIdentifier("chat.title")
+                    HStack {
+                        garageButton
+                        Spacer(minLength: 0)
+                        demoToggle
                     }
-                    .buttonStyle(.plain)
-                    .font(.body)
-                    .foregroundStyle(.primary)
-                    .fixedSize()
-                    .accessibilityIdentifier("demo.toggle")
                 }
             }
         }
@@ -213,6 +209,32 @@ struct ChatScreen: View {
         .frame(minHeight: 44)
         .frame(maxWidth: .infinity)
         .background(JobSheetChrome.screen)
+    }
+
+    @ViewBuilder
+    private var garageButton: some View {
+        if let onOpenGarage {
+            Button("Garage", action: onOpenGarage)
+                .buttonStyle(.plain)
+                .font(.body)
+                .foregroundStyle(.primary)
+                .fixedSize()
+                .accessibilityIdentifier("chat.garage")
+        }
+    }
+
+    @ViewBuilder
+    private var demoToggle: some View {
+        if launch.showDemoChrome {
+            Button(model.isDemoMode ? "Demo on" : "Demo mode") {
+                model.isDemoMode.toggle()
+            }
+            .buttonStyle(.plain)
+            .font(.body)
+            .foregroundStyle(.primary)
+            .fixedSize()
+            .accessibilityIdentifier("demo.toggle")
+        }
     }
 
     private var bottomBar: some View {
@@ -623,6 +645,11 @@ private struct IdleChatClient: ChatClient {
 #Preview("Accessibility XL") {
     ChatScreen(model: ChatScreenPreview.conversation(), onOpenGarage: {})
         .environment(\.dynamicTypeSize, .accessibility3)
+}
+
+#Preview("Accessibility XXXL") {
+    ChatScreen(model: ChatScreenPreview.conversation(), onOpenGarage: {})
+        .environment(\.dynamicTypeSize, .accessibility5)
 }
 
 #Preview("Loading") {

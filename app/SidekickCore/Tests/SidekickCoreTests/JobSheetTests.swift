@@ -281,6 +281,35 @@ final class JobSheetTests: XCTestCase {
         XCTAssertFalse(JobSheetLayout.fillsSelectedOutcome(detent: .half, outcome: nil))
         XCTAssertTrue(JobSheetLayout.fillsSelectedOutcome(detent: .half, outcome: .worked))
         XCTAssertFalse(JobSheetLayout.fillsSelectedOutcome(detent: .collapsed, outcome: .worked))
+        XCTAssertEqual(JobSheetLayout.halfPhotoHeight(isAccessibilitySize: false), 72)
+        XCTAssertEqual(JobSheetLayout.halfPhotoHeight(isAccessibilitySize: true), 0)
+        XCTAssertFalse(JobSheetLayout.stacksOutcome(isAccessibilitySize: false))
+        XCTAssertTrue(JobSheetLayout.stacksOutcome(isAccessibilitySize: true))
+        let halfDefault = JobSheetLayout.height(
+            detent: .half,
+            screenHeight: 874,
+            topSafeArea: 62,
+            isAccessibilitySize: false
+        )
+        let halfAccess = JobSheetLayout.height(
+            detent: .half,
+            screenHeight: 874,
+            topSafeArea: 62,
+            isAccessibilitySize: true
+        )
+        XCTAssertEqual(halfDefault, min(874 * JobSheetLayout.halfHeightFraction, JobSheetLayout.halfMaxHeight))
+        XCTAssertGreaterThan(halfAccess, halfDefault)
+        XCTAssertGreaterThanOrEqual(halfAccess, 800)
+        XCTAssertLessThan(halfAccess, 874)
+        XCTAssertEqual(
+            JobSheetLayout.originY(
+                detent: .half,
+                screenHeight: 874,
+                topSafeArea: 62,
+                isAccessibilitySize: true
+            ) + halfAccess,
+            874
+        )
         XCTAssertEqual(JobSheetLayout.horizontalInset, 0)
         XCTAssertEqual(JobSheetLayout.width(screenWidth: 402), 402)
         XCTAssertEqual(JobSheetLayout.topCornerRadius, 24)
@@ -397,5 +426,29 @@ final class JobSheetTests: XCTestCase {
             environment: ["SIDEKICK_SHOW_DEMO_CHROME": "true"]
         )
         XCTAssertTrue(env.showDemoChrome)
+    }
+
+    func testAccessibilityLaunchArgIsOffByDefault() {
+        let off = DemoLaunchOptions.parse(
+            arguments: ["SidekickMechanic", "-screen", "job-sheet-half"],
+            environment: [:]
+        )
+        XCTAssertFalse(off.prefersAccessibilitySize)
+
+        let on = DemoLaunchOptions.parse(
+            arguments: ["SidekickMechanic", "-dynamicTypeSize", "accessibility5"],
+            environment: [:]
+        )
+        XCTAssertTrue(on.prefersAccessibilitySize)
+
+        let uiKit = DemoLaunchOptions.parse(
+            arguments: [
+                "SidekickMechanic",
+                "-UIPreferredContentSizeCategoryName",
+                "UIContentSizeCategoryAccessibilityXXXL",
+            ],
+            environment: [:]
+        )
+        XCTAssertTrue(uiKit.prefersAccessibilitySize)
     }
 }

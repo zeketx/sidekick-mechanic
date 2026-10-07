@@ -17,6 +17,9 @@ struct JobSheetView: View {
     @State private var showsCredit = false
     @State private var isAddingTag = false
     @State private var newTagText = ""
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    private var isAccessibilitySize: Bool { dynamicTypeSize.isAccessibilitySize }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -81,7 +84,8 @@ struct JobSheetView: View {
             JobSheetLayout.height(
                 detent: model.detent,
                 screenHeight: Double(screen),
-                topSafeArea: Double(topSafeArea)
+                topSafeArea: Double(topSafeArea),
+                isAccessibilitySize: isAccessibilitySize
             )
         )
     }
@@ -154,6 +158,8 @@ struct JobSheetView: View {
             Text(model.job?.headerTitle ?? JobSheetCopy.titlePrefix + JobSheetCopy.title)
                 .font(.headline)
                 .foregroundStyle(.primary)
+                .lineLimit(isAccessibilitySize ? 1 : 3)
+                .minimumScaleFactor(isAccessibilitySize ? 0.6 : 1)
                 .accessibilityIdentifier("jobSheet.title")
             Spacer(minLength: 8)
             Button(model.detent == .collapsed ? JobSheetCopy.open : JobSheetCopy.close) {
@@ -166,6 +172,8 @@ struct JobSheetView: View {
             .buttonStyle(.plain)
             .font(.subheadline)
             .foregroundStyle(.secondary)
+            .fixedSize()
+            .layoutPriority(1)
             .accessibilityIdentifier(model.detent == .collapsed ? "jobSheet.open" : "jobSheet.close")
         }
         .padding(.horizontal, 16)
@@ -199,7 +207,9 @@ struct JobSheetView: View {
         VStack(spacing: 0) {
             ScrollView {
                 VStack(alignment: .leading, spacing: model.detent == .full ? 16 : 8) {
-                    photoStage
+                    if showsHalfPhoto {
+                        photoStage
+                    }
                     Text(model.job?.answerText ?? JobSheetCopy.answer(photoID: catalogPhotoID))
                         .font(.body)
                         .foregroundStyle(.primary)
@@ -238,6 +248,15 @@ struct JobSheetView: View {
 
     private var showsFilledOutcome: Bool {
         JobSheetLayout.fillsSelectedOutcome(detent: model.detent, outcome: model.job?.outcome)
+    }
+
+    private var showsHalfPhoto: Bool {
+        model.detent == .full
+            || JobSheetLayout.halfPhotoHeight(isAccessibilitySize: isAccessibilitySize) > 0
+    }
+
+    private var stacksOutcome: Bool {
+        JobSheetLayout.stacksOutcome(isAccessibilitySize: isAccessibilitySize)
     }
 
     private var photoStage: some View {
@@ -387,6 +406,7 @@ struct JobSheetView: View {
                 .accessibilityIdentifier("jobSheet.step.\(step.id)")
             }
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("jobSheet.steps")
     }
 
@@ -463,32 +483,47 @@ struct JobSheetView: View {
         .accessibilityIdentifier("jobSheet.outcome")
     }
 
+    @ViewBuilder
     private var outcomeSegments: some View {
-        HStack(spacing: 8) {
-            ForEach(JobOutcome.allCases, id: \.self) { outcome in
-                let selected = model.job?.outcome == outcome
-                Button {
-                    model.selectOutcome(outcome)
-                } label: {
-                    Text(outcome.label)
-                        .font(.body.weight(.semibold))
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .foregroundStyle(selected ? JobSheetChrome.paper : Color.primary)
-                        .background(
-                            selected ? Color.primary : Color.clear,
-                            in: RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        )
-                        .overlay {
-                            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .strokeBorder(Color.primary, lineWidth: 1)
-                        }
+        if stacksOutcome {
+            VStack(spacing: 8) {
+                ForEach(JobOutcome.allCases, id: \.self) { outcome in
+                    outcomeSegment(outcome)
                 }
-                .buttonStyle(.plain)
-                .accessibilityIdentifier("jobSheet.outcome.\(outcome.rawValue)")
-                .accessibilityAddTraits(selected ? .isSelected : [])
+            }
+        } else {
+            HStack(spacing: 8) {
+                ForEach(JobOutcome.allCases, id: \.self) { outcome in
+                    outcomeSegment(outcome)
+                }
             }
         }
+    }
+
+    private func outcomeSegment(_ outcome: JobOutcome) -> some View {
+        let selected = model.job?.outcome == outcome
+        return Button {
+            model.selectOutcome(outcome)
+        } label: {
+            Text(outcome.label)
+                .font(.body.weight(.semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+                .foregroundStyle(selected ? JobSheetChrome.paper : Color.primary)
+                .background(
+                    selected ? Color.primary : Color.clear,
+                    in: RoundedRectangle(cornerRadius: 10, style: .continuous)
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(Color.primary, lineWidth: 1)
+                }
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("jobSheet.outcome.\(outcome.rawValue)")
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     private var whatFixedField: some View {
@@ -509,11 +544,12 @@ struct JobSheetView: View {
     private var halfOutcomeRow: some View {
         VStack(spacing: 0) {
             Divider()
-            if showsFilledOutcome {
+            if showsFilledOutcome || stacksOutcome {
                 VStack(alignment: .leading, spacing: 8) {
                     Text(JobSheetCopy.outcomeHeading)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                     outcomeSegments
                 }
                 .padding(.top, 12)
@@ -682,6 +718,11 @@ struct WindowSafeAreaProbe: View {
 #Preview("Large Dynamic Type") {
     JobSheetPreview(detent: .half)
         .environment(\.dynamicTypeSize, .accessibility3)
+}
+
+#Preview("Accessibility XXXL") {
+    JobSheetPreview(detent: .half)
+        .environment(\.dynamicTypeSize, .accessibility5)
 }
 
 private struct JobSheetPreview: View {

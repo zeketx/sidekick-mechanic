@@ -40,6 +40,10 @@ POINTER = Path("/tmp/sidekick-verify-sidekick/evidence-path")
 BUNDLE_ID = "com.zeketx.SidekickMechanic"
 SCHEME = "SidekickMechanic"
 UI_TEST_CLASS = "SidekickMechanicUITests/DriveUITests"
+UI_TEST_RUNNER_IDS = (
+    "com.zeketx.SidekickMechanicUITests.xctrunner",
+    "com.zeketx.SidekickMechanicUITests",
+)
 BACKEND_URL = "http://127.0.0.1:8000"
 PREFERRED_DEVICE = "iPhone 17 Pro"
 PREFERRED_XCODE = "26.0.1"
@@ -729,6 +733,28 @@ def capture_screens(udid: str, names: list[str], evidence: Path) -> None:
         write_json(evidence / "screenshots" / "skipped.json", {"skipped": skipped})
 
 
+def uninstall_ui_test_runner(udid: str) -> None:
+    """Drop a stale XCUITest runner so a new test method is actually installed."""
+    for bundle in UI_TEST_RUNNER_IDS:
+        subprocess.run(
+            ["xcrun", "simctl", "uninstall", udid, bundle],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+
+def taps_harness_ok(
+    returncode: int,
+    passed: list[str],
+    failed: list[str],
+    skipped: list[str],
+) -> bool:
+    if returncode != 0:
+        return False
+    return bool(passed or failed or skipped)
+
+
 def run_ui_tests(udid: str, evidence: Path) -> dict[str, Any]:
     taps = evidence / "taps"
     taps.mkdir(parents=True, exist_ok=True)
@@ -737,6 +763,7 @@ def run_ui_tests(udid: str, evidence: Path) -> dict[str, Any]:
     result_bundle = taps / "DriveUITests.xcresult"
     if result_bundle.exists():
         shutil.rmtree(result_bundle)
+    uninstall_ui_test_runner(udid)
     derived = Path("/tmp/sidekick-verify-sidekick/DerivedData")
     command = [
         "xcodebuild",
@@ -765,10 +792,19 @@ def run_ui_tests(udid: str, evidence: Path) -> dict[str, Any]:
     skipped = sorted(set(re.findall(r"Test Case '-\[\S+ (test\w+)\]' skipped", output)))
     errors = re.findall(r"DriveUITests\.swift:\d+: error: .*", output)
     executed = re.findall(r"Executed \d+ tests?, with .*", output)
+    executed_count = len(passed) + len(failed) + len(skipped)
+    ok = taps_harness_ok(proc.returncode, passed, failed, skipped)
+    summary = executed[-1] if executed else f"xcodebuild test exit {proc.returncode}"
+    if executed_count == 0:
+        summary = (
+            "Executed 0 tests (stale SidekickMechanicUITests.xctrunner?). "
+            "Uninstall the runner and fail the harness."
+        )
+        errors = list(errors) + [summary]
     result = {
-        "ok": proc.returncode == 0,
+        "ok": ok,
         "exit_code": proc.returncode,
-        "summary": executed[-1] if executed else f"xcodebuild test exit {proc.returncode}",
+        "summary": summary,
         "passed": passed,
         "failed": failed,
         "skipped": skipped,
@@ -776,12 +812,19 @@ def run_ui_tests(udid: str, evidence: Path) -> dict[str, Any]:
         "log": "logs/xcodebuild-test.txt",
     }
     write_json(taps / "result.json", result)
-    if proc.returncode != 0:
+    if not ok:
         print(
             "verify-sidekick: xcodebuild test failed (see logs/xcodebuild-test.txt). "
             "Continuing to compare so the evidence is complete.",
             file=sys.stderr,
         )
+        if executed_count == 0:
+            print(
+                "verify-sidekick: 0 tests executed. Uninstalled "
+                "com.zeketx.SidekickMechanicUITests.xctrunner before this run; "
+                "a stale runner still counts as harness FAIL.",
+                file=sys.stderr,
+            )
     return result
 
 
