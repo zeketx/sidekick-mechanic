@@ -1,0 +1,254 @@
+import SidekickCore
+import SwiftUI
+import UIKit
+
+/// Jobs list from the approved Figma frame. Peeks use #112's public outline renderer.
+struct JobHistoryView: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @Bindable var store: DemoImageStore
+    var configuration: ChatClientConfiguration
+    var flags: FeatureFlags = .v1
+    var onOpenJob: (JobHistoryRow) -> Void
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(JobHistoryCopy.subtitle)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("jobHistory.subtitle")
+                ForEach(JobHistoryScript.rows) { row in
+                    Button {
+                        onOpenJob(row)
+                    } label: {
+                        rowCard(row)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("jobHistory.row.\(row.job.title.lowercased().replacingOccurrences(of: " ", with: "-"))")
+                    .accessibilityHint("Opens this job sheet")
+                }
+            }
+            .padding(16)
+        }
+        .background(JobSheetChrome.screen)
+        .toolbar(.hidden, for: .tabBar)
+        .toolbar(.hidden, for: .navigationBar)
+        .navigationBarBackButtonHidden(true)
+        .safeAreaInset(edge: .top, spacing: 0) {
+            LookBackPaperHeader(
+                title: JobHistoryCopy.title,
+                showScanLog: true,
+                onBack: { dismiss() }
+            )
+        }
+        .task {
+            if store.catalog == nil {
+                await store.load(from: configuration)
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("jobHistory.list")
+    }
+
+    private func rowCard(_ row: JobHistoryRow) -> some View {
+        let presentation = HighlightViewerPresentation.resolve(
+            source: HighlightViewerState.fromDemo(
+                display: row.job.highlight?.display,
+                highlight: row.job.highlight
+            ),
+            flags: flags,
+            photoID: row.job.photoID ?? DemoLaunchOptions.defaultPhotoID,
+            partID: row.job.highlight?.partID.rawValue
+        )
+        let geometry = presentation.showsOutline
+            ? (row.job.highlight?.geometry ?? HighlightViewerScript.geometry(
+                photoID: presentation.outlinePhotoID,
+                partID: presentation.partID,
+                showingOutline: true
+            ))
+            : nil
+        return HStack(alignment: .center, spacing: 12) {
+            LookBackThumb(
+                image: store.images[row.job.photoID ?? ""] ?? HighlightPlaceholderImage.make(),
+                geometry: geometry,
+                confirm: presentation.outlineStroke == .dashed,
+                notFound: !presentation.showsOutline,
+                cornerRadius: 8,
+                renderedWidth: 44
+            )
+            .frame(width: 44, height: 44)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(row.job.title)
+                    .font(.headline)
+                    .foregroundStyle(.primary)
+                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
+                    .minimumScaleFactor(0.8)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(row.dateLabel)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+            }
+            Spacer(minLength: 8)
+            outcomeBadge(row.job.outcome)
+        }
+        .padding(12)
+        .background(JobSheetChrome.paper, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(Color.secondary.opacity(0.22))
+        }
+    }
+
+    @ViewBuilder
+    private func outcomeBadge(_ outcome: JobOutcome?) -> some View {
+        if let outcome {
+            let filled = outcome == .worked
+            Text(outcome.label)
+                .font(.caption.weight(filled ? .semibold : .regular))
+                .foregroundStyle(filled ? JobSheetChrome.paper : Color.primary)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(filled ? Color.primary : Color.clear, in: Capsule())
+                .overlay {
+                    if !filled {
+                        Capsule().strokeBorder(Color.secondary.opacity(0.4))
+                    }
+                }
+                .fixedSize()
+                .accessibilityIdentifier("jobHistory.badge.\(outcome.rawValue)")
+        }
+    }
+}
+
+/// Square thumb. Size-aware #112 ink. Aspect-fill + clip keeps a 1:1 tile.
+struct LookBackThumb: View {
+    var image: UIImage
+    var geometry: HighlightGeometry?
+    var confirm: Bool
+    var notFound: Bool
+    var cornerRadius: CGFloat
+    var renderedWidth: CGFloat
+
+    var body: some View {
+        DemoHighlightView(
+            image: image,
+            geometry: geometry,
+            style: .outline,
+            confirm: confirm,
+            dashed: confirm,
+            attribution: "",
+            shareAlike: false,
+            notFound: notFound,
+            cornerRadius: 0,
+            outlineInk: .scaled(renderedWidth: Double(renderedWidth), dashed: confirm),
+            fillsContainer: true
+        )
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .clipped()
+        .accessibilityHidden(true)
+    }
+}
+
+/// Plain Back / Scan log on #F4F4F4 paper. Avoids iOS 26 toolbar glass capsules.
+struct LookBackPaperHeader: View {
+    var title: String
+    var showScanLog: Bool
+    var onBack: () -> Void
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    var body: some View {
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(alignment: .firstTextBaseline, spacing: 12) {
+                        backButton
+                        Spacer(minLength: 0)
+                        scanLogLink
+                    }
+                    Text(title)
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityAddTraits(.isHeader)
+                        .accessibilityIdentifier("lookBack.title")
+                }
+            } else {
+                ZStack {
+                    Text(title)
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+                        .accessibilityAddTraits(.isHeader)
+                        .accessibilityIdentifier("lookBack.title")
+                    HStack {
+                        backButton
+                        Spacer(minLength: 8)
+                        scanLogLink
+                    }
+                }
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 4)
+        .padding(.bottom, 10)
+        .frame(minHeight: 44)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(JobSheetChrome.screen)
+    }
+
+    private var backButton: some View {
+        Button(JobHistoryCopy.back, action: onBack)
+            .buttonStyle(.plain)
+            .font(.body)
+            .foregroundStyle(.primary)
+            .fixedSize()
+            .accessibilityIdentifier("lookBack.back")
+    }
+
+    @ViewBuilder
+    private var scanLogLink: some View {
+        if showScanLog {
+            NavigationLink(ScanLogCopy.title, value: LookBackScreen.scanLog)
+                .buttonStyle(.plain)
+                .font(.body)
+                .foregroundStyle(.primary)
+                .fixedSize()
+                .accessibilityIdentifier("jobHistory.scanLog")
+        }
+    }
+}
+
+#Preview("Jobs") {
+    NavigationStack {
+        JobHistoryView(
+            store: DemoImageStore(),
+            configuration: ChatClientConfiguration(baseURL: URL(string: "http://localhost:8000")!),
+            onOpenJob: { _ in }
+        )
+    }
+}
+
+#Preview("Jobs Dark") {
+    NavigationStack {
+        JobHistoryView(
+            store: DemoImageStore(),
+            configuration: ChatClientConfiguration(baseURL: URL(string: "http://localhost:8000")!),
+            onOpenJob: { _ in }
+        )
+    }
+    .preferredColorScheme(.dark)
+}
+
+#Preview("Jobs Large Dynamic Type") {
+    NavigationStack {
+        JobHistoryView(
+            store: DemoImageStore(),
+            configuration: ChatClientConfiguration(baseURL: URL(string: "http://localhost:8000")!),
+            onOpenJob: { _ in }
+        )
+    }
+    .environment(\.dynamicTypeSize, .accessibility3)
+}

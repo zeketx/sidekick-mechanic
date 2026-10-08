@@ -148,6 +148,15 @@ public struct HighlightOutlineInk: Equatable, Sendable {
             dash: dashed ? [4 + 4 * t, 3 + 3 * t] : []
         )
     }
+
+    /// Scan-log cell (~110pt square). About 2pt stroke, light fill — never a blob.
+    public static func lookBackTile(dashed: Bool = false) -> HighlightOutlineInk {
+        HighlightOutlineInk(
+            strokeWidth: dashed ? 1.5 : 2.0,
+            fillOpacity: 0.08,
+            dash: dashed ? [4, 3] : []
+        )
+    }
 }
 
 /// Closed Catmull-Rom → cubic Béziers. Never a bounding box.

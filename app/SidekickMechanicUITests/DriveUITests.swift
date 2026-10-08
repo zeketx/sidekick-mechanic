@@ -1,10 +1,6 @@
 import XCTest
 
-/// Taps launch arguments cannot reach: Garage sheet, sheet detents, scrim, composer typing.
-///
-/// Jobs (`chat.jobs`, `jobHistory.list`) and Scan log (`scanLog.grid`) are PR #114
-/// and later. Those tests XCTSkip when the identifier is missing, the same way
-/// Garage skipped before #111.
+/// Taps launch arguments cannot reach: Garage sheet, Jobs row, Scan log, sheet detents, scrim.
 ///
 /// The helper writes the evidence directory to
 /// `/tmp/sidekick-verify-sidekick/evidence-path` before `xcodebuild test`.
@@ -21,13 +17,8 @@ final class DriveUITests: XCTestCase {
         let app = launchApp(arguments: [
             "-sidekick.onboarding.completed", "YES",
         ])
-        try skipIfMissing(
-            app,
-            "chat.jobs",
-            feature: "job-history",
-            reason: "chat.jobs is PR #114 (later). This checkout has Garage, not Jobs / Scan log."
-        )
         let jobs = element(app, "chat.jobs")
+        XCTAssertTrue(jobs.waitForExistence(timeout: 8), "chat.jobs is missing")
         jobs.tap()
 
         let list = element(app, "jobHistory.list")
@@ -42,6 +33,10 @@ final class DriveUITests: XCTestCase {
         let half = element(app, "jobSheet.half")
         XCTAssertTrue(half.waitForExistence(timeout: 5), "Cold idle row should open the job sheet at half")
         XCTAssertTrue(element(app, "jobSheet.title").exists)
+        XCTAssertTrue(
+            element(app, "jobSheet.dim").waitForExistence(timeout: 3),
+            "Half sheet from a Jobs row should dim chat"
+        )
         try writeShot("taps-job-row-opened.png")
     }
 
@@ -156,12 +151,8 @@ final class DriveUITests: XCTestCase {
         let app = launchApp(arguments: [
             "-screen", "job-history",
         ])
-        try skipIfMissing(
-            app,
-            "jobHistory.list",
-            feature: "scan-log",
-            reason: "jobHistory.list / scanLog.grid are PR #114 (later). Skip until that screen is in the checkout."
-        )
+        let list = element(app, "jobHistory.list")
+        XCTAssertTrue(list.waitForExistence(timeout: 8), "jobHistory.list is missing")
         let scanLog = element(app, "jobHistory.scanLog")
         XCTAssertTrue(scanLog.waitForExistence(timeout: 5), "jobHistory.scanLog is missing")
         scanLog.tap()
@@ -174,14 +165,14 @@ final class DriveUITests: XCTestCase {
             (
                 "chat",
                 ["-sidekick.onboarding.completed", "YES"],
-                ["chat.composer", "chat.garage", "chat.send"],
+                ["chat.composer", "chat.garage", "chat.jobs", "chat.scanLog", "chat.send"],
                 false
             ),
             (
                 "job-history",
                 ["-screen", "job-history"],
                 ["jobHistory.list", "lookBack.back", "jobHistory.scanLog"],
-                true
+                false
             ),
             (
                 "job-sheet-collapsed",
@@ -232,7 +223,6 @@ final class DriveUITests: XCTestCase {
     }
 
     /// Every identifier SKILL.md documents for this checkout must be reachable.
-    /// Later-only screens (Jobs / Scan log until #114) are recorded as skipped, not missing.
     func testIdentifierAudit() throws {
         let cases: [(String, [String], [String], Bool)] = [
             (
@@ -256,7 +246,7 @@ final class DriveUITests: XCTestCase {
             (
                 "chat",
                 ["-sidekick.onboarding.completed", "YES"],
-                ["chat.garage", "chat.composer", "chat.send", "chat.messageList"],
+                ["chat.garage", "chat.jobs", "chat.scanLog", "chat.composer", "chat.send", "chat.messageList"],
                 false
             ),
             (
@@ -316,14 +306,14 @@ final class DriveUITests: XCTestCase {
             (
                 "job-history",
                 ["-screen", "job-history"],
-                ["jobHistory.list", "lookBack.back", "jobHistory.scanLog", "jobHistory.row.cold-idle"],
-                true
+                ["jobHistory.list", "lookBack.back", "lookBack.title", "jobHistory.scanLog", "jobHistory.row.cold-idle"],
+                false
             ),
             (
                 "scan-log",
                 ["-screen", "scan-log"],
-                ["scanLog.grid", "lookBack.back", "scanLog.cell.scan-log-0"],
-                true
+                ["scanLog.grid", "lookBack.back", "lookBack.title", "scanLog.cell.scan-log-0"],
+                false
             ),
         ]
         var report: [String: Any] = [:]
@@ -397,8 +387,42 @@ final class DriveUITests: XCTestCase {
                 "Garage overlaps Sidekick at Accessibility XXXL: \(garage.frame) vs \(title.frame)"
             )
         }
+        let jobs = element(chat, "chat.jobs")
+        XCTAssertTrue(jobs.waitForExistence(timeout: 3), "chat.jobs is missing at Accessibility XXXL")
+        XCTAssertTrue(jobs.isHittable, "Jobs must stay hittable at Accessibility XXXL")
+        XCTAssertFalse(
+            garage.frame.intersects(jobs.frame),
+            "Garage overlaps Jobs at Accessibility XXXL: \(garage.frame) vs \(jobs.frame)"
+        )
+        let scanLog = element(chat, "chat.scanLog")
+        XCTAssertTrue(scanLog.waitForExistence(timeout: 3), "chat.scanLog is missing at Accessibility XXXL")
+        XCTAssertTrue(scanLog.isHittable, "Scan log must stay hittable at Accessibility XXXL")
         try writeShot("taps-chat-axxxl.png")
         chat.terminate()
+
+        let jobsList = launchApp(arguments: [
+            "-screen", "job-history",
+            "-dynamicTypeSize", "accessibility5",
+        ])
+        XCTAssertTrue(
+            element(jobsList, "jobHistory.list").waitForExistence(timeout: 8),
+            "jobHistory.list is missing at Accessibility XXXL"
+        )
+        assertLookBackHeaderClearsTopSafeArea(jobsList, screen: "job-history axxxl")
+        try writeShot("taps-job-history-axxxl.png")
+        jobsList.terminate()
+
+        let scanGrid = launchApp(arguments: [
+            "-screen", "scan-log",
+            "-dynamicTypeSize", "accessibility5",
+        ])
+        XCTAssertTrue(
+            element(scanGrid, "scanLog.grid").waitForExistence(timeout: 8),
+            "scanLog.grid is missing at Accessibility XXXL"
+        )
+        assertLookBackHeaderClearsTopSafeArea(scanGrid, screen: "scan-log axxxl")
+        try writeShot("taps-scan-log-axxxl.png")
+        scanGrid.terminate()
 
         let app = launchApp(arguments: [
             "-screen", "job-sheet-half",
@@ -544,6 +568,29 @@ final class DriveUITests: XCTestCase {
             }
         }
         return 59
+    }
+
+    private func assertLookBackHeaderClearsTopSafeArea(_ app: XCUIApplication, screen: String) {
+        let inset = topSafeAreaInset(app)
+        let back = element(app, "lookBack.back")
+        XCTAssertTrue(back.waitForExistence(timeout: 5), "\(screen): lookBack.back is missing")
+        XCTAssertGreaterThanOrEqual(
+            back.frame.minY,
+            inset,
+            "\(screen): Back minY \(back.frame.minY) sits under the status bar / island (safe area \(inset))"
+        )
+        XCTAssertTrue(back.isHittable, "\(screen): Back must stay hittable at Accessibility XXXL")
+        let title = element(app, "lookBack.title")
+        XCTAssertTrue(title.waitForExistence(timeout: 3), "\(screen): lookBack.title is missing")
+        XCTAssertGreaterThanOrEqual(
+            title.frame.minY,
+            inset,
+            "\(screen): title minY \(title.frame.minY) sits under the status bar / island (safe area \(inset))"
+        )
+        XCTAssertFalse(
+            back.frame.intersects(title.frame),
+            "\(screen): Back overlaps title at Accessibility XXXL: \(back.frame) vs \(title.frame)"
+        )
     }
 
     private func assertHeaderClearsTopSafeArea(_ app: XCUIApplication, screen: String) {
