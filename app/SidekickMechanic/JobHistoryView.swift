@@ -26,6 +26,9 @@ struct JobHistoryView: View {
                         rowCard(row)
                     }
                     .buttonStyle(.plain)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .clipped()
+                    .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                     .accessibilityIdentifier("jobHistory.row.\(row.job.title.lowercased().replacingOccurrences(of: " ", with: "-"))")
                     .accessibilityHint("Opens this job sheet")
                 }
@@ -81,7 +84,6 @@ struct JobHistoryView: View {
                         cornerRadius: 8,
                         renderedWidth: thumbSize
                     )
-                    .frame(width: thumbSize, height: thumbSize)
                     wrappingText(row.job.title, font: .headline, color: .primary)
                     wrappingText(row.dateLabel, font: .subheadline, color: .secondary)
                     outcomeBadge(row.job.outcome)
@@ -97,7 +99,6 @@ struct JobHistoryView: View {
                         cornerRadius: 8,
                         renderedWidth: thumbSize
                     )
-                    .frame(width: thumbSize, height: thumbSize)
                     VStack(alignment: .leading, spacing: 4) {
                         Text(row.job.title)
                             .font(.headline)
@@ -135,6 +136,7 @@ struct JobHistoryView: View {
             .multilineTextAlignment(.leading)
             .lineLimit(nil)
             .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder
@@ -181,8 +183,10 @@ struct LookBackThumb: View {
             outlineInk: .scaled(renderedWidth: Double(renderedWidth), dashed: confirm),
             fillsContainer: true
         )
+        .frame(width: renderedWidth, height: renderedWidth)
         .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         .clipped()
+        .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
         .accessibilityHidden(true)
     }
 }

@@ -21,21 +21,28 @@ struct DemoHighlightView: View {
     var body: some View {
         Group {
             if fillsContainer {
-                GeometryReader { proxy in
-                    let mapped = Self.imageRect(
-                        imageSize: image.size,
-                        bounds: proxy.size,
-                        fill: true,
-                        focus: HighlightOutlineLayout.focus(of: geometry)
-                    )
-                    Image(uiImage: image)
-                        .resizable()
-                        .interpolation(.medium)
-                        .frame(width: mapped.width, height: mapped.height)
-                        .position(x: mapped.midX, y: mapped.midY)
-                }
-                .overlay { styleOverlay }
-                .clipped()
+                // Overlay keeps the image's ideal size from expanding the parent
+                // (Jobs row accessibility frames were 24pt wider than the card).
+                Color.clear
+                    .overlay {
+                        GeometryReader { proxy in
+                            let mapped = Self.imageRect(
+                                imageSize: image.size,
+                                bounds: proxy.size,
+                                fill: true,
+                                focus: HighlightOutlineLayout.focus(of: geometry)
+                            )
+                            Image(uiImage: image)
+                                .resizable()
+                                .interpolation(.medium)
+                                .frame(width: mapped.width, height: mapped.height)
+                                .position(x: mapped.midX, y: mapped.midY)
+                                .accessibilityHidden(true)
+                        }
+                    }
+                    .overlay { styleOverlay }
+                    .clipped()
+                    .contentShape(Rectangle())
             } else {
                 Color.clear
                     .aspectRatio(image.size, contentMode: .fit)

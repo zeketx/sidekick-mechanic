@@ -11,9 +11,9 @@ struct ScanLogView: View {
     var onOpenCell: (ScanLogEntry) -> Void
 
     private let columns = [
-        GridItem(.flexible(), spacing: 8),
-        GridItem(.flexible(), spacing: 8),
-        GridItem(.flexible(), spacing: 8),
+        GridItem(.flexible(), spacing: 8, alignment: .top),
+        GridItem(.flexible(), spacing: 8, alignment: .top),
+        GridItem(.flexible(), spacing: 8, alignment: .top),
     ]
 
     var body: some View {
@@ -25,7 +25,7 @@ struct ScanLogView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("scanLog.subtitle")
                 chipRow
-                LazyVGrid(columns: columns, spacing: 16) {
+                LazyVGrid(columns: columns, alignment: .leading, spacing: 16) {
                     ForEach(ScanLogScript.entries) { entry in
                         Button {
                             onOpenCell(entry)
@@ -33,6 +33,9 @@ struct ScanLogView: View {
                             cell(entry)
                         }
                         .buttonStyle(.plain)
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                        .clipped()
+                        .contentShape(Rectangle())
                         .accessibilityIdentifier("scanLog.cell.\(entry.id)")
                         .accessibilityHint("Opens the highlight card")
                     }
@@ -120,13 +123,16 @@ struct ScanLogView: View {
                 }
             }
             .aspectRatio(1, contentMode: .fit)
+            .frame(maxWidth: .infinity)
             .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             .clipped()
+            .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             Text(entry.tagLabel)
                 .font(.caption)
                 .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
+                .multilineTextAlignment(.leading)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
