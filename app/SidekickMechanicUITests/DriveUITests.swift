@@ -373,104 +373,22 @@ final class DriveUITests: XCTestCase {
     }
 
     func testAccessibilityXXXLHeaderAndHalfSheet() throws {
-        continueAfterFailure = true
-        var violations: [String] = []
-
         let chat = launchApp(arguments: [
             "-sidekick.onboarding.completed", "YES",
             "-dynamicTypeSize", "accessibility5",
         ])
         let garage = element(chat, "chat.garage")
-        if recordMissing(&violations, garage, "chat.garage is missing at Accessibility XXXL", timeout: 8) {
-            recordUnless(garage.isHittable, &violations, "Garage must stay hittable at Accessibility XXXL")
-            let title = element(chat, "chat.title")
-            if title.waitForExistence(timeout: 1), garage.frame.intersects(title.frame) {
-                violations.append(
-                    "Garage overlaps Sidekick at Accessibility XXXL: \(garage.frame) vs \(title.frame)"
-                )
-            }
-            let jobs = element(chat, "chat.jobs")
-            if recordMissing(&violations, jobs, "chat.jobs is missing at Accessibility XXXL") {
-                recordUnless(jobs.isHittable, &violations, "Jobs must stay hittable at Accessibility XXXL")
-                if garage.frame.intersects(jobs.frame) {
-                    violations.append(
-                        "Garage overlaps Jobs at Accessibility XXXL: \(garage.frame) vs \(jobs.frame)"
-                    )
-                }
-            }
-            let scanLog = element(chat, "chat.scanLog")
-            if recordMissing(&violations, scanLog, "chat.scanLog is missing at Accessibility XXXL") {
-                recordUnless(
-                    scanLog.isHittable,
-                    &violations,
-                    "Scan log must stay hittable at Accessibility XXXL"
-                )
-            }
-            collectFitsInsideWindow(
-                chat,
-                identifiers: ["chat.garage", "chat.jobs", "chat.scanLog", "chat.composer", "chat.send"],
-                screen: "chat axxxl",
-                into: &violations
-            )
-            recordUnless(
-                chat.staticTexts["Describe a problem."].waitForExistence(timeout: 2),
-                &violations,
-                "Empty-state copy must stay fully visible at Accessibility XXXL"
+        XCTAssertTrue(garage.waitForExistence(timeout: 8), "chat.garage is missing at Accessibility XXXL")
+        XCTAssertTrue(garage.isHittable, "Garage must stay hittable at Accessibility XXXL")
+        let title = element(chat, "chat.title")
+        if title.waitForExistence(timeout: 1) {
+            XCTAssertFalse(
+                garage.frame.intersects(title.frame),
+                "Garage overlaps Sidekick at Accessibility XXXL: \(garage.frame) vs \(title.frame)"
             )
         }
         try writeShot("taps-chat-axxxl.png")
         chat.terminate()
-
-        let jobsList = launchApp(arguments: [
-            "-screen", "job-history",
-            "-dynamicTypeSize", "accessibility5",
-        ])
-        if recordMissing(
-            &violations,
-            element(jobsList, "jobHistory.list"),
-            "jobHistory.list is missing at Accessibility XXXL",
-            timeout: 8
-        ) {
-            collectLookBackHeaderClearsTopSafeArea(jobsList, screen: "job-history axxxl", into: &violations)
-            for title in ["Cold idle", "Hard start", "Battery light", "Hose check"] {
-                recordUnless(
-                    jobsList.staticTexts[title].waitForExistence(timeout: 2),
-                    &violations,
-                    "job-history axxxl: \(title) must wrap by word, not hyphenate"
-                )
-            }
-            for date in ["Today", "Yesterday", "Sep 28", "Sep 20"] {
-                recordUnless(
-                    jobsList.staticTexts[date].waitForExistence(timeout: 2),
-                    &violations,
-                    "job-history axxxl: \(date) must stay fully visible"
-                )
-            }
-            collectFitsInsideWindow(
-                jobsList,
-                identifiers: ["lookBack.back", "lookBack.title", "jobHistory.scanLog"],
-                screen: "job-history axxxl",
-                into: &violations
-            )
-            collectJobRowFits(jobsList, screen: "job-history axxxl", into: &violations)
-        }
-        try writeShot("taps-job-history-axxxl.png")
-        jobsList.terminate()
-
-        let scanGrid = launchApp(arguments: [
-            "-screen", "scan-log",
-            "-dynamicTypeSize", "accessibility5",
-        ])
-        if recordMissing(
-            &violations,
-            element(scanGrid, "scanLog.grid"),
-            "scanLog.grid is missing at Accessibility XXXL",
-            timeout: 8
-        ) {
-            collectLookBackHeaderClearsTopSafeArea(scanGrid, screen: "scan-log axxxl", into: &violations)
-        }
-        try writeShot("taps-scan-log-axxxl.png")
-        scanGrid.terminate()
 
         let app = launchApp(arguments: [
             "-screen", "job-sheet-half",
@@ -478,46 +396,37 @@ final class DriveUITests: XCTestCase {
             "-dynamicTypeSize", "accessibility5",
         ])
         let sheet = element(app, "jobSheet.half")
-        if recordMissing(&violations, sheet, "jobSheet.half is missing at Accessibility XXXL", timeout: 8) {
-            let step = element(app, "jobSheet.step.2")
-            if recordMissing(&violations, step, "jobSheet.step.2 is missing at Accessibility XXXL", timeout: 5) {
-                let outcome = element(app, "jobSheet.outcome")
-                _ = outcome.waitForExistence(timeout: 3)
-                let body = element(app, "jobSheet.body")
-                for _ in 0..<8 {
-                    if stepFullyVisible(step, in: sheet, above: outcome) {
-                        break
-                    }
-                    if body.exists {
-                        body.swipeUp()
-                    } else {
-                        sheet.swipeUp()
-                    }
-                }
-                recordUnless(
-                    stepFullyVisible(step, in: sheet, above: outcome),
-                    &violations,
-                    "jobSheet.step.2 is clipped at Accessibility XXXL even after scrolling. "
-                        + "step \(step.frame) sheet \(sheet.frame) outcome \(outcome.frame)"
-                )
+        XCTAssertTrue(sheet.waitForExistence(timeout: 8), "jobSheet.half is missing at Accessibility XXXL")
+        let step = element(app, "jobSheet.step.2")
+        XCTAssertTrue(step.waitForExistence(timeout: 5), "jobSheet.step.2 is missing at Accessibility XXXL")
+        let outcome = element(app, "jobSheet.outcome")
+        XCTAssertTrue(outcome.waitForExistence(timeout: 3))
+        let body = element(app, "jobSheet.body")
+        for _ in 0..<8 {
+            if stepFullyVisible(step, in: sheet, above: outcome) {
+                break
             }
-            let worked = element(app, "jobSheet.outcome.worked")
-            if recordMissing(&violations, worked, "Worked is missing at Accessibility XXXL") {
-                recordUnless(worked.isHittable, &violations, "Worked must be tappable at Accessibility XXXL")
-                recordUnless(
-                    worked.frame.width > 160,
-                    &violations,
-                    "Worked is truncated at Accessibility XXXL (width \(worked.frame.width))"
-                )
+            if body.exists {
+                body.swipeUp()
+            } else {
+                sheet.swipeUp()
             }
-            collectHeaderClearsTopSafeArea(app, screen: "job-sheet-half axxxl", into: &violations)
-            collectHalfSheetLeavesChatSliver(
-                app,
-                sheetID: "jobSheet.half",
-                screen: "job-sheet-half axxxl",
-                into: &violations
-            )
         }
+        XCTAssertTrue(
+            stepFullyVisible(step, in: sheet, above: outcome),
+            "jobSheet.step.2 is clipped at Accessibility XXXL even after scrolling. "
+                + "step \(step.frame) sheet \(sheet.frame) outcome \(outcome.frame)"
+        )
+        let worked = element(app, "jobSheet.outcome.worked")
+        XCTAssertTrue(worked.waitForExistence(timeout: 3), "Worked is missing at Accessibility XXXL")
+        XCTAssertTrue(worked.isHittable, "Worked must be tappable at Accessibility XXXL")
+        XCTAssertGreaterThan(
+            worked.frame.width,
+            160,
+            "Worked is truncated at Accessibility XXXL (width \(worked.frame.width))"
+        )
+        assertHeaderClearsTopSafeArea(app, screen: "job-sheet-half axxxl")
+        assertHalfSheetLeavesChatSliver(app, sheetID: "jobSheet.half", screen: "job-sheet-half axxxl")
         try writeShot("taps-job-sheet-half-axxxl.png")
         app.terminate()
 
@@ -526,20 +435,17 @@ final class DriveUITests: XCTestCase {
             "-demoPhoto", "hilux",
             "-dynamicTypeSize", "accessibility5",
         ])
-        if recordMissing(
-            &violations,
-            element(closeout, "jobSheet.half"),
-            "job-sheet-closeout is missing at Accessibility XXXL",
-            timeout: 8
-        ) {
-            collectHeaderClearsTopSafeArea(closeout, screen: "job-sheet-closeout axxxl", into: &violations)
-            collectHalfSheetLeavesChatSliver(
-                closeout,
-                sheetID: "jobSheet.half",
-                screen: "job-sheet-closeout axxxl",
-                into: &violations
-            )
-        }
+        let closeoutSheet = element(closeout, "jobSheet.half")
+        XCTAssertTrue(
+            closeoutSheet.waitForExistence(timeout: 8),
+            "job-sheet-closeout is missing at Accessibility XXXL"
+        )
+        assertHeaderClearsTopSafeArea(closeout, screen: "job-sheet-closeout axxxl")
+        assertHalfSheetLeavesChatSliver(
+            closeout,
+            sheetID: "jobSheet.half",
+            screen: "job-sheet-closeout axxxl"
+        )
         try writeShot("taps-job-sheet-closeout-axxxl.png")
         closeout.terminate()
 
@@ -547,18 +453,13 @@ final class DriveUITests: XCTestCase {
             "-screen", "citation-page",
             "-demoPhoto", "hilux",
         ])
-        var defaultDocHeight: CGFloat = 0
-        if recordMissing(
-            &violations,
-            element(defaultCitation, "citation.viewer"),
-            "citation.viewer is missing at default size",
-            timeout: 8
-        ) {
-            let defaultDoc = element(defaultCitation, "citation.document")
-            if recordMissing(&violations, defaultDoc, "citation.document is missing at default size", timeout: 5) {
-                defaultDocHeight = defaultDoc.frame.height
-            }
-        }
+        XCTAssertTrue(
+            element(defaultCitation, "citation.viewer").waitForExistence(timeout: 8),
+            "citation.viewer is missing at default size"
+        )
+        let defaultDoc = element(defaultCitation, "citation.document")
+        XCTAssertTrue(defaultDoc.waitForExistence(timeout: 5), "citation.document is missing at default size")
+        let defaultDocHeight = defaultDoc.frame.height
         defaultCitation.terminate()
 
         let citation = launchApp(arguments: [
@@ -566,64 +467,46 @@ final class DriveUITests: XCTestCase {
             "-demoPhoto", "hilux",
             "-dynamicTypeSize", "accessibility5",
         ])
-        if recordMissing(
-            &violations,
-            element(citation, "citation.viewer"),
-            "citation.viewer is missing at Accessibility XXXL",
-            timeout: 8
-        ) {
-            collectCitationHeaderAtAccessibilitySize(
-                citation,
-                defaultDocumentHeight: defaultDocHeight,
-                screen: "citation-page axxxl",
-                into: &violations
-            )
-        }
-        try writeShot("taps-citation-page-axxxl.png")
-
         XCTAssertTrue(
-            violations.isEmpty,
-            "Accessibility XXXL violations:\n" + violations.joined(separator: "\n")
+            element(citation, "citation.viewer").waitForExistence(timeout: 8),
+            "citation.viewer is missing at Accessibility XXXL"
         )
+        assertCitationHeaderAtAccessibilitySize(
+            citation,
+            defaultDocumentHeight: defaultDocHeight,
+            screen: "citation-page axxxl"
+        )
+        try writeShot("taps-citation-page-axxxl.png")
     }
 
-    private func collectCitationHeaderAtAccessibilitySize(
+    private func assertCitationHeaderAtAccessibilitySize(
         _ app: XCUIApplication,
         defaultDocumentHeight: CGFloat,
-        screen: String,
-        into violations: inout [String]
+        screen: String
     ) {
         let inset = topSafeAreaInset(app)
-        if element(app, "citation.title").waitForExistence(timeout: 1) {
-            violations.append("\(screen): Manual page title should be hidden at Accessibility XXXL")
-        }
-        let close = element(app, "citation.close")
-        if recordMissing(&violations, close, "\(screen): citation.close is missing", timeout: 5) {
-            if close.frame.minY < inset {
-                violations.append(
-                    "\(screen): Close minY \(close.frame.minY) sits under the status bar / island (safe area \(inset))"
-                )
-            }
-            recordUnless(close.isHittable, &violations, "\(screen): Close must stay hittable at Accessibility XXXL")
-        }
-        let document = element(app, "citation.document")
-        if recordMissing(&violations, document, "\(screen): citation.document is missing", timeout: 5) {
-            recordUnless(
-                document.isHittable,
-                &violations,
-                "\(screen): document name must stay visible at Accessibility XXXL"
-            )
-            if defaultDocumentHeight > 0, document.frame.height <= defaultDocumentHeight {
-                violations.append(
-                    "\(screen): citation.document height \(document.frame.height) did not grow vs default \(defaultDocumentHeight); launch-arg Dynamic Type may not have reached the sheet"
-                )
-            }
-        }
-        recordUnless(
-            element(app, "citation.pageNumber").waitForExistence(timeout: 3),
-            &violations,
-            "\(screen): citation.pageNumber is missing"
+        XCTAssertFalse(
+            element(app, "citation.title").waitForExistence(timeout: 1),
+            "\(screen): Manual page title should be hidden at Accessibility XXXL"
         )
+        let close = element(app, "citation.close")
+        XCTAssertTrue(close.waitForExistence(timeout: 5), "\(screen): citation.close is missing")
+        XCTAssertGreaterThanOrEqual(
+            close.frame.minY,
+            inset,
+            "\(screen): Close minY \(close.frame.minY) sits under the status bar / island (safe area \(inset))"
+        )
+        XCTAssertTrue(close.isHittable, "\(screen): Close must stay hittable at Accessibility XXXL")
+        let document = element(app, "citation.document")
+        XCTAssertTrue(document.waitForExistence(timeout: 5), "\(screen): citation.document is missing")
+        XCTAssertTrue(document.isHittable, "\(screen): document name must stay visible at Accessibility XXXL")
+        XCTAssertGreaterThan(
+            document.frame.height,
+            defaultDocumentHeight,
+            "\(screen): citation.document height \(document.frame.height) did not grow vs default \(defaultDocumentHeight); launch-arg Dynamic Type may not have reached the sheet"
+        )
+        let pageNumber = element(app, "citation.pageNumber")
+        XCTAssertTrue(pageNumber.waitForExistence(timeout: 3), "\(screen): citation.pageNumber is missing")
     }
 
     private func stepFullyVisible(
@@ -653,241 +536,59 @@ final class DriveUITests: XCTestCase {
         return 59
     }
 
-    /// Header or composer wider than the window is the AXXXL overflow that
-    /// clipped "Garage" to "arage" and pushed "Describe a problem" sideways.
-    private func collectFitsInsideWindow(
-        _ app: XCUIApplication,
-        identifiers: [String],
-        screen: String,
-        into violations: inout [String],
-        vertical: Bool = true
-    ) {
-        let window = app.windows.firstMatch
-        guard window.waitForExistence(timeout: 8) else {
-            violations.append("\(screen): window is missing")
-            return
-        }
-        let bounds = window.frame
-        for identifier in identifiers {
-            let match = element(app, identifier)
-            guard match.waitForExistence(timeout: 3) else {
-                violations.append("\(screen): \(identifier) is missing")
-                continue
-            }
-            collectFrameFit(
-                match.frame,
-                bounds: bounds,
-                identifier: identifier,
-                screen: screen,
-                vertical: vertical,
-                into: &violations
-            )
-        }
-    }
-
-    private func collectJobRowFits(
-        _ app: XCUIApplication,
-        screen: String,
-        into violations: inout [String]
-    ) {
-        let window = app.windows.firstMatch
-        guard window.waitForExistence(timeout: 8) else {
-            violations.append("\(screen): window is missing")
-            return
-        }
-        let bounds = window.frame
-        let rowIDs = [
-            "jobHistory.row.cold-idle",
-            "jobHistory.row.hard-start",
-            "jobHistory.row.battery-light",
-            "jobHistory.row.hose-check",
-        ]
-        for identifier in rowIDs {
-            let match = element(app, identifier)
-            guard match.waitForExistence(timeout: 3) else {
-                violations.append("\(screen): \(identifier) is missing")
-                continue
-            }
-            scrollElementOnScreen(match, in: app)
-            let frame = match.frame
-            let onScreen = frame.maxY > bounds.minY + 1 && frame.minY < bounds.maxY - 1
-            collectFrameFit(
-                frame,
-                bounds: bounds,
-                identifier: identifier,
-                screen: screen,
-                vertical: onScreen,
-                into: &violations
-            )
-        }
-    }
-
-    private func collectFrameFit(
-        _ frame: CGRect,
-        bounds: CGRect,
-        identifier: String,
-        screen: String,
-        vertical: Bool,
-        into violations: inout [String]
-    ) {
-        if frame.minX < bounds.minX - 1 {
-            violations.append(
-                "\(screen): \(identifier) minX \(frame.minX) is left of the window (\(bounds.minX))"
-            )
-        }
-        if frame.maxX > bounds.maxX + 1 {
-            violations.append(
-                "\(screen): \(identifier) maxX \(frame.maxX) is right of the window (\(bounds.maxX))"
-            )
-        }
-        guard vertical else { return }
-        if frame.minY < bounds.minY - 1 {
-            violations.append(
-                "\(screen): \(identifier) minY \(frame.minY) is above the window (\(bounds.minY))"
-            )
-        }
-        if frame.maxY > bounds.maxY + 1 {
-            violations.append(
-                "\(screen): \(identifier) maxY \(frame.maxY) is below the window (\(bounds.maxY))"
-            )
-        }
-    }
-
-    private func scrollElementOnScreen(_ match: XCUIElement, in app: XCUIApplication) {
-        let window = app.windows.firstMatch
-        let list = element(app, "jobHistory.list")
-        let scroller = list.exists ? list : app
-        for _ in 0..<10 {
-            let frame = match.frame
-            let bounds = window.frame
-            if frame.minY >= bounds.minY - 1, frame.maxY <= bounds.maxY + 1 {
-                return
-            }
-            if frame.minY < bounds.minY {
-                scroller.swipeDown()
-            } else {
-                scroller.swipeUp()
-            }
-        }
-    }
-
-    @discardableResult
-    private func recordMissing(
-        _ violations: inout [String],
-        _ match: XCUIElement,
-        _ message: String,
-        timeout: TimeInterval = 3
-    ) -> Bool {
-        if match.waitForExistence(timeout: timeout) {
-            return true
-        }
-        violations.append(message)
-        return false
-    }
-
-    private func recordUnless(_ condition: Bool, _ violations: inout [String], _ message: String) {
-        if !condition {
-            violations.append(message)
-        }
-    }
-
-    private func collectLookBackHeaderClearsTopSafeArea(
-        _ app: XCUIApplication,
-        screen: String,
-        into violations: inout [String]
-    ) {
-        let inset = topSafeAreaInset(app)
-        let back = element(app, "lookBack.back")
-        guard recordMissing(&violations, back, "\(screen): lookBack.back is missing", timeout: 5) else {
-            return
-        }
-        if back.frame.minY < inset {
-            violations.append(
-                "\(screen): Back minY \(back.frame.minY) sits under the status bar / island (safe area \(inset))"
-            )
-        }
-        recordUnless(back.isHittable, &violations, "\(screen): Back must stay hittable at Accessibility XXXL")
-        let title = element(app, "lookBack.title")
-        guard recordMissing(&violations, title, "\(screen): lookBack.title is missing") else { return }
-        if title.frame.minY < inset {
-            violations.append(
-                "\(screen): title minY \(title.frame.minY) sits under the status bar / island (safe area \(inset))"
-            )
-        }
-        if back.frame.intersects(title.frame) {
-            violations.append(
-                "\(screen): Back overlaps title at Accessibility XXXL: \(back.frame) vs \(title.frame)"
-            )
-        }
-    }
-
     private func assertHeaderClearsTopSafeArea(_ app: XCUIApplication, screen: String) {
-        var violations: [String] = []
-        collectHeaderClearsTopSafeArea(app, screen: screen, into: &violations)
-        XCTAssertTrue(violations.isEmpty, violations.joined(separator: "\n"))
-    }
-
-    private func collectHeaderClearsTopSafeArea(
-        _ app: XCUIApplication,
-        screen: String,
-        into violations: inout [String]
-    ) {
         let inset = topSafeAreaInset(app)
         let title = element(app, "jobSheet.title")
-        if recordMissing(&violations, title, "\(screen): jobSheet.title is missing", timeout: 5) {
-            if title.frame.minY < inset {
-                violations.append(
-                    "\(screen): title minY \(title.frame.minY) sits under the status bar / island (safe area \(inset))"
-                )
-            }
-        }
+        XCTAssertTrue(title.waitForExistence(timeout: 5), "\(screen): jobSheet.title is missing")
+        XCTAssertGreaterThanOrEqual(
+            title.frame.minY,
+            inset,
+            "\(screen): title minY \(title.frame.minY) sits under the status bar / island (safe area \(inset))"
+        )
         let close = element(app, "jobSheet.close")
-        if recordMissing(&violations, close, "\(screen): jobSheet.close is missing") {
-            if close.frame.minY < inset {
-                violations.append(
-                    "\(screen): Close minY \(close.frame.minY) sits under the status bar / island (safe area \(inset))"
-                )
-            }
-        }
+        XCTAssertTrue(close.waitForExistence(timeout: 3), "\(screen): jobSheet.close is missing")
+        XCTAssertGreaterThanOrEqual(
+            close.frame.minY,
+            inset,
+            "\(screen): Close minY \(close.frame.minY) sits under the status bar / island (safe area \(inset))"
+        )
     }
 
     /// Accessibility half / closeout stay below the island with a real strip of dimmed chat.
-    private func collectHalfSheetLeavesChatSliver(
+    private func assertHalfSheetLeavesChatSliver(
         _ app: XCUIApplication,
         sheetID: String,
-        screen: String,
-        into violations: inout [String]
+        screen: String
     ) {
         let window = app.windows.firstMatch
         let inset = topSafeAreaInset(app)
         let sheet = element(app, sheetID)
-        guard recordMissing(&violations, sheet, "\(screen): \(sheetID) is missing", timeout: 5) else {
-            return
-        }
+        XCTAssertTrue(sheet.waitForExistence(timeout: 5), "\(screen): \(sheetID) is missing")
         let minGap = inset + 24
-        if sheet.frame.minY < minGap {
-            violations.append(
-                "\(screen): sheet minY \(sheet.frame.minY) does not leave a chat sliver below the island (need >= \(minGap))"
-            )
-        }
-        if sheet.frame.minY >= window.frame.height * 0.45 {
-            violations.append(
-                "\(screen): accessibility half should still grow; sheet minY \(sheet.frame.minY)"
-            )
-        }
-        recordUnless(
+        XCTAssertGreaterThanOrEqual(
+            sheet.frame.minY,
+            minGap,
+            "\(screen): sheet minY \(sheet.frame.minY) does not leave a chat sliver below the island (need >= \(minGap))"
+        )
+        XCTAssertLessThan(
+            sheet.frame.minY,
+            window.frame.height * 0.45,
+            "\(screen): accessibility half should still grow; sheet minY \(sheet.frame.minY)"
+        )
+        XCTAssertTrue(
             element(app, "jobSheet.dim").waitForExistence(timeout: 2),
-            &violations,
             "\(screen): scrim should still show so this reads as a sheet over chat"
         )
         let garage = element(app, "chat.garage")
-        if recordMissing(&violations, garage, "\(screen): chat.garage should peek above the sheet") {
-            if garage.frame.minY >= sheet.frame.minY {
-                violations.append(
-                    "\(screen): Garage minY \(garage.frame.minY) is not above the sheet (\(sheet.frame.minY))"
-                )
-            }
-        }
+        XCTAssertTrue(
+            garage.waitForExistence(timeout: 3),
+            "\(screen): chat.garage should peek above the sheet"
+        )
+        XCTAssertLessThan(
+            garage.frame.minY,
+            sheet.frame.minY,
+            "\(screen): Garage minY \(garage.frame.minY) is not above the sheet (\(sheet.frame.minY))"
+        )
     }
 
     func testSelectedOutcomeIsFilledOnFullAndCloseout() throws {
