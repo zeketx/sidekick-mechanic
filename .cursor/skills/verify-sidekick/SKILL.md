@@ -9,7 +9,7 @@ Prove a UI change by driving the real app: build it, boot the simulator, open th
 
 This skill runs on a **macOS host** with Xcode. This cloud VM is Linux and has no iOS Simulator. A Linux run stops at doctor, writes `artifacts/verify/<run-id>/owner-only.json`, and may stitch a committed screenshot against a Figma ref. That file is an unmet precondition, not a passing UI proof. End-to-end proof is still pending on Zeke's Mac.
 
-The older `.cursor/skills/verify-ios/` skill covers mock-mode chat send. Reach for **this** skill for v1 screens (onboarding, chat, job sheet, highlight viewer). Jobs and scan log are later (#114) and skip when those screens are not in the checkout.
+The older `.cursor/skills/verify-ios/` skill covers mock-mode chat send. Reach for **this** skill for v1 screens (onboarding, chat, job sheet, highlight viewer, Jobs, Scan log).
 
 The iOS Simulator is a shared machine. Do not start a second verify-sidekick run against the same sim. Do not drive a simulator session the owner is using unless doctor says it already has `com.zeketx.SidekickMechanic` from this checkout.
 
@@ -31,7 +31,7 @@ Full run (build, boot, each `-screen`, taps, Figma stitch, measured checklist, c
 .cursor/skills/verify-sidekick/scripts/verify-ios.sh run
 ```
 
-`run` exit codes: `0` harness and taps passed, no measured design FAIL (REVIEW cells still need you); `1` build, launch or a tap test failed (screenshots, side-by-sides and checklist are still written); `2` owner-only; `3` harness and taps passed but the design checklist has measured FAIL rows. It takes about 4–5 minutes on an M-series Mac (build, onboarding + chat + highlight + job sheet + citation page, UI tests). Jobs / scan log are skipped until #114.
+`run` exit codes: `0` harness and taps passed, no measured design FAIL (REVIEW cells still need you); `1` build, launch or a tap test failed (screenshots, side-by-sides and checklist are still written); `2` owner-only; `3` harness and taps passed but the design checklist has measured FAIL rows. It takes about 4–5 minutes on an M-series Mac (build, onboarding + chat + highlight + job sheet + citation page + Jobs + Scan log, UI tests).
 
 The last lines print the taps result, each failed test, and the checklist verdict with its path. Read `artifacts/verify/latest/compare/checklist.md` and open every `compare/<screen>.png` before reporting.
 
@@ -63,8 +63,8 @@ Launch arguments (parsed in `DemoLaunchOptions` / `OnboardingLaunchOptions`). Pa
 | `-screen highlight-confident\|highlight-unsure\|highlight-not-found\|highlight-reference` | Full-bleed highlight card. `-screen highlight-unsure` also turns on the internal unsure flag. |
 | `-screen job-sheet-collapsed\|job-sheet-half\|job-sheet-full\|job-sheet-closeout` | Job sheet detents. Closeout is half height with Outcome = Worked. |
 | `-screen citation-page` | White citation sheet for `FAKE-DOC-2JZ · p. 999` plus Go deeper. Also opens the job sheet at half so Close returns to the job. |
-| `-screen job-history` | Jobs list. **Later (#114).** Helper XCTSkips / records `skipped.json` when `JobHistoryView.swift` is absent. |
-| `-screen scan-log` | Scan log grid. **Later (#114).** Same skip when `ScanLogView.swift` is absent. |
+| `-screen job-history` | Jobs list. Also pass `-sidekick.onboarding.completed YES`. |
+| `-screen scan-log` | Scan log grid. Also pass `-sidekick.onboarding.completed YES`. |
 | `-demoPhoto hilux\|supra\|hrymx\|flickr` | Demo bay photo. Default `hilux` → `commons-hilux-2jz`. |
 | `-showDemoChrome 1` | Demo toggle, demo banner, Chat/Readings tabs. |
 | `-dynamicTypeSize accessibility5` | Accessibility XXXL. UI tests use this for `testAccessibilityXXXLHeaderAndHalfSheet`. |
@@ -112,7 +112,7 @@ xcrun simctl io <udid> screenshot artifacts/verify/<run-id>/screenshots/onboardi
 
 ### Real taps (XCUITest)
 
-Launch args cannot open the Garage sheet, skip onboarding, drag the sheet, tap the scrim, or type in the composer. Those go through `app/SidekickMechanicUITests/DriveUITests.swift` on target `SidekickMechanicUITests`. Before `xcodebuild test`, the helper uninstalls `com.zeketx.SidekickMechanicUITests.xctrunner` (and the UI test bundle) so a newly added method is not skipped by a stale runner. A tap failure does not stop `run`: it records `taps/result.json` (passed / failed / skipped tests and the assertion lines), still stitches and measures, then exits 1. **0 tests executed is also exit 1**, not a pass. Jobs / Scan log tests XCTSkip when their identifiers are missing.
+Launch args cannot open the Garage sheet, skip onboarding, drag the sheet, tap the scrim, or type in the composer. Those go through `app/SidekickMechanicUITests/DriveUITests.swift` on target `SidekickMechanicUITests`. Before `xcodebuild test`, the helper uninstalls `com.zeketx.SidekickMechanicUITests.xctrunner` (and the UI test bundle) so a newly added method is not skipped by a stale runner. A tap failure does not stop `run`: it records `taps/result.json` (passed / failed / skipped tests and the assertion lines), still stitches and measures, then exits 1. **0 tests executed is also exit 1**, not a pass. Jobs / Scan log tests run on this checkout (`testOpenJobsThenColdIdleRow`, `testScanLogFromJobsHeader`).
 
 ```bash
 .cursor/skills/verify-sidekick/scripts/verify-ios.sh taps
@@ -135,15 +135,15 @@ xcodebuild test \
 | --- | --- | --- | --- |
 | `testSkipOnboardingIfPresent` | `-resetOnboarding -screen onboarding-1`, Skip | `onboarding.welcome`, `onboarding.skip` | `chat.composer`. XCTSkip if onboarding is absent. |
 | `testOpenGarageIfPresent` | Chat → Garage | `chat.garage` | `onboarding.garage`, dismiss `garage.done`. XCTSkip if Garage is absent. |
-| `testOpenJobsThenColdIdleRow` | Chat → Jobs → Cold idle | `chat.jobs`, `jobHistory.row.cold-idle` | `jobSheet.half`. **Later (#114).** XCTSkip when `chat.jobs` is missing. |
+| `testOpenJobsThenColdIdleRow` | Chat → Jobs → Cold idle | `chat.jobs`, `jobHistory.row.cold-idle` | `jobSheet.half` plus the dark job-sheet scrim |
 | `testDragSheetCollapsedToHalf` | Drag the sheet handle up | `jobSheet.handle` | `jobSheet.collapsed` → `jobSheet.half` |
 | `testTapScrimCollapsesHalfSheet` | Tap the dimmed chat | `jobSheet.dim` | `jobSheet.half` → `jobSheet.collapsed` |
-| `testScanLogFromJobsHeader` | Jobs → Scan log | `jobHistory.scanLog` | `scanLog.grid`. **Later (#114).** XCTSkip when `jobHistory.list` is missing. |
+| `testScanLogFromJobsHeader` | Jobs → Scan log | `jobHistory.scanLog` | `scanLog.grid` |
 | `testOpenCitationFromJobChip` | Half sheet → tap `jobSheet.chip.0` → Close | `citation.viewer`, `citation.goDeeper`, `citation.close` | Page + Go deeper, then `jobSheet.half` still there. Shots `taps-citation-page.png`, `taps-citation-closed.png`. |
 | `testComposerStaysPillWhenMultiline` | Tap the composer, type a long problem | `chat.composer` | `taps/taps-composer-multiline.png` + `taps/layout-composer-multiline.json` for the pill check |
 | `testRecordLayoutFrames` | Launch chat, collapsed / half / full (Jobs if present) | leaf ids per screen | `taps/layout-frames.json` (points) for the composer and nav-button checks |
 | `testIdentifierAudit` | Launch each screen | every id listed under Identifiers | `taps/identifiers.json` found / missing / skipped; fails if a documented-on-this-checkout id is unreachable |
-| `testAccessibilityXXXLHeaderAndHalfSheet` | `-dynamicTypeSize accessibility5` on chat, then job-sheet-half, then job-sheet-closeout, then citation-page | `chat.garage`, `jobSheet.title`, `jobSheet.close`, `jobSheet.step.2`, `jobSheet.outcome.worked`, `citation.close`, `citation.document` | Garage does not overlap Sidekick; last step fully visible above Outcome; Worked is tappable; job and citation headers sit below the island; citation sheet actually uses XXXL (document height grows; `citation.title` is hidden; Close is an xmark) |
+| `testAccessibilityXXXLHeaderAndHalfSheet` | `-dynamicTypeSize accessibility5` on chat, Jobs, Scan log, job-sheet-half, job-sheet-closeout, citation-page | `chat.garage`, `chat.jobs`, `chat.scanLog`, `lookBack.back`, `lookBack.title`, `jobSheet.title`, `jobSheet.close`, `jobSheet.step.2`, `jobSheet.outcome.worked`, `citation.close`, `citation.document` | Garage / Jobs / Scan log stay hittable; look-back Back and title sit below the island; last step fully visible above Outcome; Worked is tappable; job and citation headers sit below the island |
 
 The drag uses a vector from `jobSheet.handle`, not a raw screen coordinate of the sheet. The drag and scrim tests also save a before shot (`taps-sheet-before-drag.png`, `taps-sheet-before-scrim.png`). Every test launches with `-sidekick.onboarding.completed YES` unless it passes an onboarding flag itself.
 
@@ -153,7 +153,7 @@ If `xcodegen generate` is run from `app/project.yml`, it recreates the UI test t
 
 ### Identifiers (this checkout)
 
-Chat: `chat.garage`, `chat.composer`, `chat.send`, `chat.messageList`, `chat.attach` (only when attach is shown), `demo.toggle` (`-showDemoChrome 1`). Jobs / Scan log ids `chat.jobs`, `chat.scanLog` are later (#114).
+Chat: `chat.garage`, `chat.jobs`, `chat.scanLog`, `chat.composer`, `chat.send`, `chat.messageList`, `chat.attach` (only when attach is shown), `demo.toggle` (`-showDemoChrome 1`). At Accessibility XXXL, Jobs and Scan log are icon-only (`list.bullet.rectangle`, `square.grid.2x2`) with those same ids and labels so the header cannot push chat wider than the window.
 
 Onboarding: `onboarding.welcome`, `onboarding.howItWorks`, `onboarding.garage`, `onboarding.skip`, `onboarding.next`, `onboarding.start`, `garage.done`. Root id `onboarding.onboarding-1` (etc.) uses `.contain` so those leaves stay reachable.
 
@@ -163,7 +163,7 @@ Citation sheet: `citation.viewer`, `citation.close`, `citation.title`, `citation
 
 Highlight: `highlightViewer`, `highlightViewer.close`, `highlightViewer.photo`, `demo.confirm.yes` / `.notThis`.
 
-Jobs / scan log (later, #114): `jobHistory.list`, `jobHistory.row.cold-idle`, `lookBack.back`, `scanLog.grid`, `scanLog.cell.scan-log-0`. Absent on main; screens and tests skip.
+Jobs / scan log: `jobHistory.list`, `jobHistory.row.cold-idle`, `lookBack.back`, `lookBack.title`, `jobHistory.scanLog`, `scanLog.grid`, `scanLog.cell.scan-log-0`.
 
 Recipes for each feature: [features/README.md](features/README.md).
 
@@ -284,4 +284,4 @@ UI tests live at `app/SidekickMechanicUITests/DriveUITests.swift` so Xcode compi
 
 ## Maintenance
 
-After a screen lands (Jobs / Scan log from #114, real Figma export), run `/maintain-verification-skill` on a Mac and correct the map from a live `run`, not from memory. The Mac proof of this skill was `eb2f356` / `16c68be` on the #114 stack; a re-run on main is pending.
+After this PR lands, run `/maintain-verification-skill` on a Mac and correct the map from a live `run`, not from memory. Re-screenshot Jobs and Scan log after the square-tile / 2pt outline fix.

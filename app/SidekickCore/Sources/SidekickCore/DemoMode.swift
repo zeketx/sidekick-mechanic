@@ -136,6 +136,7 @@ extension ChatClientConfiguration {
 /// `-screen highlight-confident|highlight-unsure|highlight-not-found|highlight-reference`
 /// `-screen job-sheet-collapsed|job-sheet-half|job-sheet-full|job-sheet-closeout`
 /// `-screen citation-page`
+/// `-screen job-history|scan-log`
 /// `-showDemoChrome 1` shows the Demo mode toggle, demo banner, and Chat/Readings tabs.
 /// `-flagUnsureHighlight 1` turns on the internal unsure card. Off by default.
 /// Env: `SIDEKICK_DEMO_PHOTO`, `SIDEKICK_DEMO_PART`, `SIDEKICK_DEMO_STATE`, `SIDEKICK_DEMO_STYLE`,
@@ -150,6 +151,7 @@ public struct DemoLaunchOptions: Equatable, Sendable {
     public var screen: HighlightViewerScreen?
     public var jobSheetScreen: JobSheetScreen?
     public var citationPageScreen: CitationPageScreen?
+    public var lookBackScreen: LookBackScreen?
     public var showDemoChrome: Bool
     public var unsureHighlight: Bool
     /// UI tests / verify-sidekick. Not a user setting.
@@ -163,6 +165,7 @@ public struct DemoLaunchOptions: Equatable, Sendable {
             || screen != nil
             || jobSheetScreen != nil
             || citationPageScreen != nil
+            || lookBackScreen != nil
     }
 
     public var featureFlags: FeatureFlags {
@@ -181,11 +184,18 @@ public struct DemoLaunchOptions: Equatable, Sendable {
         citationPageScreen != nil
     }
 
+    public var opensLookBack: Bool {
+        lookBackScreen != nil
+    }
+
     public var resolvedPhotoID: String {
         photoID ?? Self.defaultPhotoID
     }
 
     public var cannedQuestion: String {
+        if lookBackScreen != nil {
+            return ""
+        }
         if jobSheetScreen != nil {
             return JobSheetCopy.question
         }
@@ -212,6 +222,7 @@ public struct DemoLaunchOptions: Equatable, Sendable {
         screen: HighlightViewerScreen? = nil,
         jobSheetScreen: JobSheetScreen? = nil,
         citationPageScreen: CitationPageScreen? = nil,
+        lookBackScreen: LookBackScreen? = nil,
         showDemoChrome: Bool = false,
         unsureHighlight: Bool = false,
         prefersAccessibilitySize: Bool = false
@@ -223,6 +234,7 @@ public struct DemoLaunchOptions: Equatable, Sendable {
         self.screen = screen
         self.jobSheetScreen = jobSheetScreen
         self.citationPageScreen = citationPageScreen
+        self.lookBackScreen = lookBackScreen
         self.showDemoChrome = showDemoChrome
         self.unsureHighlight = unsureHighlight || screen == .unsure
         self.prefersAccessibilitySize = prefersAccessibilitySize
@@ -247,6 +259,7 @@ public struct DemoLaunchOptions: Equatable, Sendable {
             screen: HighlightViewerScreen(rawValue: rawScreen),
             jobSheetScreen: JobSheetScreen(rawValue: rawScreen),
             citationPageScreen: CitationPageScreen(rawValue: rawScreen),
+            lookBackScreen: LookBackScreen(rawValue: rawScreen),
             showDemoChrome: FeatureFlags.isEnabled(
                 LaunchArgument.flag(arguments, "-showDemoChrome")
                     ?? environment["SIDEKICK_SHOW_DEMO_CHROME"]

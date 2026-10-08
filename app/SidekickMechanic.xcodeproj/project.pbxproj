@@ -18,6 +18,8 @@
 		EF2F2ADDFB91BBD9D49CCA4A /* ChatScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2690995B0121B547CC4651A /* ChatScreen.swift */; };
 		F1A8C4D29B3E5F708C1D2E4A /* HighlightViewerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C4E1A90B3D24F6E8A1C2D3E /* HighlightViewerView.swift */; };
 		A91F0C2E7B4D81A35E6C0D11 /* JobSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D2E4B71C0A93F15E6B7D802 /* JobSheetView.swift */; };
+		C4D9F2E15B8A3C02D6E7F918 /* JobHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3C8E1D04A7F2B91C5D6E807 /* JobHistoryView.swift */; };
+		E6F1B4037DAC5E24F8091B3A /* ScanLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5E0A3F26C9B4D13E7F80A29 /* ScanLogView.swift */; };
 		F8C31A07B4D25E91C0A6E2D4 /* OnboardingFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A2E91C4D0B38F15A6C4E9B1 /* OnboardingFlow.swift */; };
 		A11F0C2E7B4D81A35E6C0D21 /* DriveUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11F0C2E7B4D81A35E6C0D20 /* DriveUITests.swift */; };
 /* End PBXBuildFile section */
@@ -46,6 +48,8 @@
 		C2690995B0121B547CC4651A /* ChatScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatScreen.swift; sourceTree = "<group>"; };
 		7C4E1A90B3D24F6E8A1C2D3E /* HighlightViewerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HighlightViewerView.swift; sourceTree = "<group>"; };
 		8D2E4B71C0A93F15E6B7D802 /* JobSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JobSheetView.swift; sourceTree = "<group>"; };
+		B3C8E1D04A7F2B91C5D6E807 /* JobHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JobHistoryView.swift; sourceTree = "<group>"; };
+		D5E0A3F26C9B4D13E7F80A29 /* ScanLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScanLogView.swift; sourceTree = "<group>"; };
 		F32A0E1A3A9E29B5E9E0AF2E /* SidekickMechanic.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = SidekickMechanic.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A11F0C2E7B4D81A35E6C0D20 /* DriveUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DriveUITests.swift; sourceTree = "<group>"; };
 		A11F0C2E7B4D81A35E6C0D23 /* SidekickMechanicUITests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = SidekickMechanicUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -113,7 +117,9 @@
 				9890FA44BA3B2B62C0293DC5 /* CitationPageView.swift */,
 				C8D1A2B03C82E5D7A6F4B0C2 /* CitationSheet.swift */,
 				7C4E1A90B3D24F6E8A1C2D3E /* HighlightViewerView.swift */,
+				B3C8E1D04A7F2B91C5D6E807 /* JobHistoryView.swift */,
 				8D2E4B71C0A93F15E6B7D802 /* JobSheetView.swift */,
+				D5E0A3F26C9B4D13E7F80A29 /* ScanLogView.swift */,
 				BA6E449AB2CCC4A451FC49CA /* DemoHighlightView.swift */,
 				4EB4D68F04A32B2EE2BCE0E3 /* DemoModeChrome.swift */,
 				6E949A9B055A354A7C6DBA2C /* Info.plist */,
@@ -216,7 +222,9 @@
 				41976CE283ADE9BF1B986389 /* CitationPageView.swift in Sources */,
 				B4C8E1D02A91F4C6B7D3E0A1 /* CitationSheet.swift in Sources */,
 				F1A8C4D29B3E5F708C1D2E4A /* HighlightViewerView.swift in Sources */,
+				C4D9F2E15B8A3C02D6E7F918 /* JobHistoryView.swift in Sources */,
 				A91F0C2E7B4D81A35E6C0D11 /* JobSheetView.swift in Sources */,
+				E6F1B4037DAC5E24F8091B3A /* ScanLogView.swift in Sources */,
 				E3B11CEF4C0FAF51B5B38689 /* DemoHighlightView.swift in Sources */,
 				EE5981AB831000F2971BD24E /* DemoModeChrome.swift in Sources */,
 				F8C31A07B4D25E91C0A6E2D4 /* OnboardingFlow.swift in Sources */,

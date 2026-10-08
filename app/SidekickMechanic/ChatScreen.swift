@@ -12,6 +12,7 @@ struct ChatScreen: View {
     @State private var presentedViewer: HighlightViewerSession?
     @State private var presentedCitation: Citation?
     @State private var jobSheet = JobSheetViewModel()
+    @State private var lookBackPath: [LookBackScreen] = []
     @State private var windowHeight: CGFloat = 0
     @State private var topSafeArea: CGFloat = 0
     @State private var bottomSafeArea: CGFloat = 0
@@ -22,7 +23,7 @@ struct ChatScreen: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $lookBackPath) {
             messageList
                 .safeAreaInset(edge: .top, spacing: 0) {
                     VStack(spacing: 0) {
@@ -50,11 +51,16 @@ struct ChatScreen: View {
                 // and opaque UINavigationBarAppearance. Garage is plain text here.
                 .toolbar(.hidden, for: .navigationBar)
                 .background(JobSheetChrome.screen)
+                .navigationDestination(for: LookBackScreen.self) { screen in
+                    lookBackDestination(screen)
+                }
         }
         .overlay {
             ZStack(alignment: .bottom) {
                 jobSheetScrim
-                bottomBar
+                if lookBackPath.isEmpty {
+                    bottomBar
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
             // Container (home indicator / status bar) so the sheet is edge to edge.
@@ -73,7 +79,7 @@ struct ChatScreen: View {
         .persistentSystemOverlays(.visible)
         .citationSheet($presentedCitation)
         .task(id: demoLoadToken) {
-            guard model.isDemoMode || launch.opensJobSheet || launch.showDemoChrome else { return }
+            guard model.isDemoMode || launch.opensJobSheet || launch.opensLookBack || launch.showDemoChrome else { return }
             await demoImages.load(from: configuration)
             if model.isDemoMode, model.selectedDemoPhotoID == nil {
                 model.selectedDemoPhotoID = demoImages.catalog?.defaultPhotoID
@@ -83,12 +89,12 @@ struct ChatScreen: View {
     }
 
     private var demoLoadToken: String {
-        "\(model.isDemoMode)-\(launch.opensJobSheet)-\(launch.showDemoChrome)"
+        "\(model.isDemoMode)-\(launch.opensJobSheet)-\(launch.opensLookBack)-\(launch.showDemoChrome)"
     }
 
     @ViewBuilder
     private var jobSheetScrim: some View {
-        if jobSheet.hasJob, JobSheetLayout.scrimOpacity(detent: jobSheet.detent) > 0 {
+        if jobSheet.hasJob, lookBackPath.isEmpty, JobSheetLayout.scrimOpacity(detent: jobSheet.detent) > 0 {
             Color.black
                 .opacity(JobSheetLayout.scrimOpacity(detent: jobSheet.detent))
                 .ignoresSafeArea()
@@ -139,6 +145,7 @@ struct ChatScreen: View {
                 presentLaunchViewerIfNeeded()
                 presentLaunchJobSheetIfNeeded()
                 presentLaunchCitationIfNeeded()
+                presentLaunchLookBackIfNeeded()
                 jobSheet.sync(from: model.messages, photoID: jobPhotoID)
             }
             .onChange(of: demoImages.images.count) { _, _ in
@@ -184,7 +191,7 @@ struct ChatScreen: View {
     }
 
     private var showPaperHeader: Bool {
-        !(jobSheet.hasJob && jobSheet.detent == .full)
+        lookBackPath.isEmpty && !(jobSheet.hasJob && jobSheet.detent == .full)
     }
 
     /// Paper header, not a toolbar item. iOS 26 draws Liquid Glass behind toolbar buttons.
@@ -194,6 +201,8 @@ struct ChatScreen: View {
                 HStack(alignment: .firstTextBaseline, spacing: 12) {
                     garageButton
                     Spacer(minLength: 0)
+                    jobsButton
+                    scanLogButton
                     demoToggle
                 }
             } else {
@@ -203,9 +212,15 @@ struct ChatScreen: View {
                         .foregroundStyle(.primary)
                         .accessibilityIdentifier("chat.title")
                     HStack {
-                        garageButton
+                        HStack(spacing: 12) {
+                            garageButton
+                            jobsButton
+                        }
                         Spacer(minLength: 0)
-                        demoToggle
+                        HStack(spacing: 12) {
+                            scanLogButton
+                            demoToggle
+                        }
                     }
                 }
             }
@@ -230,6 +245,52 @@ struct ChatScreen: View {
         }
     }
 
+    private var jobsButton: some View {
+        Button {
+            if lookBackPath.last != .jobHistory {
+                lookBackPath.append(.jobHistory)
+            }
+        } label: {
+            lookBackHeaderLabel(title: JobHistoryCopy.title, systemImage: "list.bullet.rectangle")
+        }
+        .buttonStyle(.plain)
+        .font(.body)
+        .foregroundStyle(.primary)
+        .fixedSize()
+        .accessibilityIdentifier("chat.jobs")
+        .accessibilityLabel(JobHistoryCopy.title)
+    }
+
+    private var scanLogButton: some View {
+        Button {
+            if lookBackPath.last != .scanLog {
+                lookBackPath.append(.scanLog)
+            }
+        } label: {
+            lookBackHeaderLabel(title: ScanLogCopy.title, systemImage: "square.grid.2x2")
+        }
+        .buttonStyle(.plain)
+        .font(.body)
+        .foregroundStyle(.primary)
+        .fixedSize()
+        .accessibilityLabel(ScanLogCopy.title)
+        .accessibilityIdentifier("chat.scanLog")
+    }
+
+    @ViewBuilder
+    private func lookBackHeaderLabel(title: String, systemImage: String) -> some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            Image(systemName: systemImage)
+                .font(.body.weight(.medium))
+                .imageScale(.medium)
+                // Keep icons compact so Garage + Jobs + Scan log stay inside the window.
+                .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+                .accessibilityHidden(true)
+        } else {
+            Text(title)
+        }
+    }
+
     @ViewBuilder
     private var demoToggle: some View {
         if launch.showDemoChrome {
@@ -249,7 +310,7 @@ struct ChatScreen: View {
             if !jobSheet.blocksChat {
                 composerChrome
             }
-            if jobSheet.hasJob {
+            if jobSheet.hasJob, lookBackPath.isEmpty {
                 JobSheetView(
                     model: jobSheet,
                     image: jobPhoto,
@@ -472,6 +533,51 @@ struct ChatScreen: View {
     private func presentLaunchCitationIfNeeded() {
         guard launch.opensCitationPage, presentedCitation == nil else { return }
         presentedCitation = HighlightViewerScript.fixtureCitation
+    }
+
+    private func presentLaunchLookBackIfNeeded() {
+        guard lookBackPath.isEmpty, let screen = launch.lookBackScreen else { return }
+        lookBackPath = [screen]
+    }
+
+    @ViewBuilder
+    private func lookBackDestination(_ screen: LookBackScreen) -> some View {
+        switch screen {
+        case .jobHistory:
+            JobHistoryView(
+                store: demoImages,
+                configuration: configuration,
+                flags: launch.featureFlags,
+                onOpenJob: openHistoryJob
+            )
+            .modifier(AccessibilityLaunchModifier(enabled: launch.prefersAccessibilitySize))
+        case .scanLog:
+            ScanLogView(
+                store: demoImages,
+                configuration: configuration,
+                flags: launch.featureFlags,
+                onOpenCell: openScanCell
+            )
+            .modifier(AccessibilityLaunchModifier(enabled: launch.prefersAccessibilitySize))
+        }
+    }
+
+    private func openHistoryJob(_ row: JobHistoryRow) {
+        lookBackPath = []
+        jobSheet.job = row.openedSheet()
+    }
+
+    private func openScanCell(_ entry: ScanLogEntry) {
+        let presentation = entry.presentation(flags: launch.featureFlags)
+        let photoInfo = demoImages.catalog?.photos.first { $0.photoID == entry.photoID }
+        presentedViewer = HighlightViewerSession(
+            presentation: presentation,
+            image: demoImages.images[entry.photoID] ?? HighlightPlaceholderImage.make(),
+            referenceImage: presentation.referencePhotoID.flatMap { demoImages.images[$0] },
+            geometry: entry.geometry(flags: launch.featureFlags),
+            attribution: photoInfo?.attribution ?? "Demo data. Not Zeke's truck.",
+            shareAlike: photoInfo?.shareAlike ?? false
+        )
     }
 
     private func presentJobViewer() {

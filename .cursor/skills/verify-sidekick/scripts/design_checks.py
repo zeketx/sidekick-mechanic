@@ -42,7 +42,7 @@ HIGHLIGHT_SCREENS = (
 )
 NEUTRAL_BG_SCREENS = ("chat", "job-history", "scan-log")
 NAV_IDS = {
-    "chat": ["chat.garage"],
+    "chat": ["chat.garage", "chat.jobs", "chat.scanLog"],
     "onboarding-1": ["onboarding.skip"],
     "onboarding-2": ["onboarding.skip"],
     "onboarding-3": ["onboarding.skip"],

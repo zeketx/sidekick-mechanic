@@ -213,7 +213,7 @@ def add_run_flags(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--run-id")
     parser.add_argument(
         "--screens",
-        help="Comma-separated screen ids. Default: v1 screens (onboarding, chat, highlight, job sheet). Jobs / scan log skip until #114.",
+        help="Comma-separated screen ids. Default: v1 screens including Jobs and Scan log.",
     )
     parser.add_argument("--skip-taps", action="store_true")
     parser.add_argument("--skip-compare", action="store_true")
