@@ -80,4 +80,8 @@ public struct HighlightGeometry: Hashable, Sendable, Codable {
     public init(polygons: [HighlightPolygon]) {
         self.polygons = polygons
     }
+
+    public var focus: HighlightPoint? {
+        HighlightOutlineLayout.focus(of: self)
+    }
 }

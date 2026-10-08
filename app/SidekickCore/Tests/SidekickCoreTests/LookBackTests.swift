@@ -147,6 +147,61 @@ final class LookBackTests: XCTestCase {
         )
     }
 
+    func testScanLogTileCropCentersOnTheOutline() throws {
+        let hilux = try XCTUnwrap(
+            DemoOutlineCatalog.geometry(photoID: "commons-hilux-2jz", partID: "fuse-relay-box")
+        )
+        let box = try XCTUnwrap(HighlightOutlineLayout.normalizedBounds(of: hilux))
+        XCTAssertLessThan(box.midX, 0.25, "Hilux fuse sits on the left of the photo")
+        let centered = HighlightOutlineLayout.aspectFill(
+            imageWidth: 200,
+            imageHeight: 100,
+            boundsWidth: 100,
+            boundsHeight: 100
+        )
+        XCTAssertEqual(centered.x, -50)
+        let focused = HighlightOutlineLayout.aspectFill(
+            imageWidth: 200,
+            imageHeight: 100,
+            boundsWidth: 100,
+            boundsHeight: 100,
+            focus: HighlightPoint(x: box.midX, y: box.midY)
+        )
+        XCTAssertEqual(focused.x, 0)
+        XCTAssertEqual(focused.y, 0)
+        XCTAssertEqual(focused.width, 200)
+        XCTAssertEqual(focused.height, 100)
+        let mapped = HighlightOutlineLayout.map(
+            HighlightPoint(x: box.midX, y: box.midY),
+            in: focused
+        )
+        XCTAssertGreaterThanOrEqual(mapped.x, 0)
+        XCTAssertLessThanOrEqual(mapped.x, 100)
+        let left = HighlightOutlineLayout.map(HighlightPoint(x: box.minX, y: box.midY), in: focused)
+        XCTAssertGreaterThanOrEqual(left.x, -1)
+
+        let supra = try XCTUnwrap(
+            DemoOutlineCatalog.geometry(photoID: "commons-supra-n5abh", partID: "fuse-relay-box")
+        )
+        let rightBox = try XCTUnwrap(HighlightOutlineLayout.normalizedBounds(of: supra))
+        XCTAssertGreaterThan(rightBox.midX, 0.7)
+        let rightFill = HighlightOutlineLayout.aspectFill(
+            imageWidth: 200,
+            imageHeight: 100,
+            boundsWidth: 100,
+            boundsHeight: 100,
+            focus: HighlightPoint(x: rightBox.midX, y: rightBox.midY)
+        )
+        XCTAssertLessThan(rightFill.x, centered.x)
+        XCTAssertGreaterThanOrEqual(rightFill.x, -100)
+        let rightMapped = HighlightOutlineLayout.map(
+            HighlightPoint(x: rightBox.midX, y: rightBox.midY),
+            in: rightFill
+        )
+        XCTAssertGreaterThanOrEqual(rightMapped.x, 0)
+        XCTAssertLessThanOrEqual(rightMapped.x, 100)
+    }
+
     func testScanLogTileInkIsAThinOutline() {
         let solid = HighlightOutlineInk.lookBackTile()
         XCTAssertEqual(solid.strokeWidth, 2.0, accuracy: 0.01)

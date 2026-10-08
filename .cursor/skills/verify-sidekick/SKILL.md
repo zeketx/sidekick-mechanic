@@ -153,7 +153,7 @@ If `xcodegen generate` is run from `app/project.yml`, it recreates the UI test t
 
 ### Identifiers (this checkout)
 
-Chat: `chat.garage`, `chat.jobs`, `chat.scanLog`, `chat.composer`, `chat.send`, `chat.messageList`, `chat.attach` (only when attach is shown), `demo.toggle` (`-showDemoChrome 1`).
+Chat: `chat.garage`, `chat.jobs`, `chat.scanLog`, `chat.composer`, `chat.send`, `chat.messageList`, `chat.attach` (only when attach is shown), `demo.toggle` (`-showDemoChrome 1`). At Accessibility XXXL, Jobs and Scan log are icon-only (`list.bullet.rectangle`, `square.grid.2x2`) with those same ids and labels so the header cannot push chat wider than the window.
 
 Onboarding: `onboarding.welcome`, `onboarding.howItWorks`, `onboarding.garage`, `onboarding.skip`, `onboarding.next`, `onboarding.start`, `garage.done`. Root id `onboarding.onboarding-1` (etc.) uses `.contain` so those leaves stay reachable.
 

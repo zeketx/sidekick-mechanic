@@ -21,15 +21,21 @@ struct DemoHighlightView: View {
     var body: some View {
         Group {
             if fillsContainer {
-                Color.clear
-                    .overlay {
-                        Image(uiImage: image)
-                            .resizable()
-                            .interpolation(.medium)
-                            .scaledToFill()
-                    }
-                    .overlay { styleOverlay }
-                    .clipped()
+                GeometryReader { proxy in
+                    let mapped = Self.imageRect(
+                        imageSize: image.size,
+                        bounds: proxy.size,
+                        fill: true,
+                        focus: HighlightOutlineLayout.focus(of: geometry)
+                    )
+                    Image(uiImage: image)
+                        .resizable()
+                        .interpolation(.medium)
+                        .frame(width: mapped.width, height: mapped.height)
+                        .position(x: mapped.midX, y: mapped.midY)
+                }
+                .overlay { styleOverlay }
+                .clipped()
             } else {
                 Color.clear
                     .aspectRatio(image.size, contentMode: .fit)
@@ -87,7 +93,8 @@ struct DemoHighlightView: View {
                     let mapped = Self.imageRect(
                         imageSize: image.size,
                         bounds: size,
-                        fill: fillsContainer
+                        fill: fillsContainer,
+                        focus: fillsContainer ? HighlightOutlineLayout.focus(of: geometry) : nil
                     )
                     let fill = Self.fillFuchsia.opacity(ink.fillOpacity)
                     for path in Self.smoothPaths(rings, in: mapped) {
@@ -130,7 +137,12 @@ struct DemoHighlightView: View {
 
     private func polygonFill(_ rings: [HighlightPolygon]) -> some View {
         Canvas { context, size in
-            let mapped = Self.imageRect(imageSize: image.size, bounds: size, fill: fillsContainer)
+            let mapped = Self.imageRect(
+                imageSize: image.size,
+                bounds: size,
+                fill: fillsContainer,
+                focus: fillsContainer ? HighlightOutlineLayout.focus(of: geometry) : nil
+            )
             for path in Self.smoothPaths(rings, in: mapped) {
                 context.fill(path, with: .color(.white))
             }
@@ -139,7 +151,12 @@ struct DemoHighlightView: View {
 
     private func inverseFill(_ rings: [HighlightPolygon]) -> some View {
         Canvas { context, size in
-            let mapped = Self.imageRect(imageSize: image.size, bounds: size, fill: fillsContainer)
+            let mapped = Self.imageRect(
+                imageSize: image.size,
+                bounds: size,
+                fill: fillsContainer,
+                focus: fillsContainer ? HighlightOutlineLayout.focus(of: geometry) : nil
+            )
             var path = Path(CGRect(origin: .zero, size: size))
             for ring in Self.smoothPaths(rings, in: mapped) {
                 path.addPath(ring)
@@ -151,13 +168,19 @@ struct DemoHighlightView: View {
     private static let fuchsia = Color(red: 1, green: 0, blue: 1)
     private static let fillFuchsia = Color(red: 1, green: 0.45, blue: 0.95)
 
-    private static func imageRect(imageSize: CGSize, bounds: CGSize, fill: Bool) -> OutlineRect {
+    private static func imageRect(
+        imageSize: CGSize,
+        bounds: CGSize,
+        fill: Bool,
+        focus: HighlightPoint? = nil
+    ) -> OutlineRect {
         if fill {
             return HighlightOutlineLayout.aspectFill(
                 imageWidth: imageSize.width,
                 imageHeight: imageSize.height,
                 boundsWidth: bounds.width,
-                boundsHeight: bounds.height
+                boundsHeight: bounds.height,
+                focus: focus
             )
         }
         return HighlightOutlineLayout.aspectFit(

@@ -40,5 +40,6 @@ Preconditions:
 - Scan-log cell ids are `scan-log-0` … `scan-log-8`, not part names.
 - `jobHistory.list` and `scanLog.grid` sit on the whole screen including the header inset. Without `.accessibilityElement(children: .contain)` they replace `lookBack.back`, `jobHistory.scanLog` and the row / cell ids.
 - The overlay composer is hidden while Jobs or Scan log is on the navigation stack. Hose check must stay fully visible.
-- Scan-log tiles are full squares (`fillsContainer: true`, clip 1:1) with `HighlightOutlineInk.lookBackTile` (~2pt stroke, fill 0.08). A filled blob or landscape aspect-fit gap is a fail.
+- Scan-log tiles are full squares (`fillsContainer: true`, clip 1:1) with `HighlightOutlineInk.lookBackTile` (~2pt stroke, fill 0.08). The crop centers on the outline bounding box, not the photo center, so an edge part stays in the tile. A filled blob or landscape aspect-fit gap is a fail.
+- At Accessibility XXXL, Jobs rows stack thumbnail, wrapping title, date, then badge. Chat Jobs / Scan log become icon-only so Garage stays on screen.
 - Thumbs reuse the highlight renderer. A box highlight is a fail.

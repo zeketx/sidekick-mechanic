@@ -69,31 +69,57 @@ struct JobHistoryView: View {
                 showingOutline: true
             ))
             : nil
-        return HStack(alignment: .center, spacing: 12) {
-            LookBackThumb(
-                image: store.images[row.job.photoID ?? ""] ?? HighlightPlaceholderImage.make(),
-                geometry: geometry,
-                confirm: presentation.outlineStroke == .dashed,
-                notFound: !presentation.showsOutline,
-                cornerRadius: 8,
-                renderedWidth: 44
-            )
-            .frame(width: 44, height: 44)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(row.job.title)
-                    .font(.headline)
-                    .foregroundStyle(.primary)
-                    .lineLimit(dynamicTypeSize.isAccessibilitySize ? 2 : 1)
-                    .minimumScaleFactor(0.8)
-                    .fixedSize(horizontal: false, vertical: true)
-                Text(row.dateLabel)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+        let thumbSize: CGFloat = dynamicTypeSize.isAccessibilitySize ? 72 : 44
+        return Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 8) {
+                    LookBackThumb(
+                        image: store.images[row.job.photoID ?? ""] ?? HighlightPlaceholderImage.make(),
+                        geometry: geometry,
+                        confirm: presentation.outlineStroke == .dashed,
+                        notFound: !presentation.showsOutline,
+                        cornerRadius: 8,
+                        renderedWidth: thumbSize
+                    )
+                    .frame(width: thumbSize, height: thumbSize)
+                    Text(row.job.title)
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(row.dateLabel)
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                    outcomeBadge(row.job.outcome)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                HStack(alignment: .center, spacing: 12) {
+                    LookBackThumb(
+                        image: store.images[row.job.photoID ?? ""] ?? HighlightPlaceholderImage.make(),
+                        geometry: geometry,
+                        confirm: presentation.outlineStroke == .dashed,
+                        notFound: !presentation.showsOutline,
+                        cornerRadius: 8,
+                        renderedWidth: thumbSize
+                    )
+                    .frame(width: thumbSize, height: thumbSize)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(row.job.title)
+                            .font(.headline)
+                            .foregroundStyle(.primary)
+                            .lineLimit(1)
+                        Text(row.dateLabel)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 8)
+                    outcomeBadge(row.job.outcome)
+                }
             }
-            Spacer(minLength: 8)
-            outcomeBadge(row.job.outcome)
         }
         .padding(12)
         .background(JobSheetChrome.paper, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -211,12 +237,21 @@ struct LookBackPaperHeader: View {
     @ViewBuilder
     private var scanLogLink: some View {
         if showScanLog {
-            NavigationLink(ScanLogCopy.title, value: LookBackScreen.scanLog)
-                .buttonStyle(.plain)
-                .font(.body)
-                .foregroundStyle(.primary)
-                .fixedSize()
-                .accessibilityIdentifier("jobHistory.scanLog")
+            NavigationLink(value: LookBackScreen.scanLog) {
+                if dynamicTypeSize.isAccessibilitySize {
+                    Image(systemName: "square.grid.2x2")
+                        .font(.body.weight(.medium))
+                        .accessibilityHidden(true)
+                } else {
+                    Text(ScanLogCopy.title)
+                }
+            }
+            .buttonStyle(.plain)
+            .font(.body)
+            .foregroundStyle(.primary)
+            .fixedSize()
+            .accessibilityLabel(ScanLogCopy.title)
+            .accessibilityIdentifier("jobHistory.scanLog")
         }
     }
 }

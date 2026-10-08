@@ -93,11 +93,13 @@ public enum HighlightOutlineLayout {
     }
 
     /// Cropped rect of `image` covering `bounds`. Used when the photo fills a taller card.
+    /// `focus` is a normalized 0-1 point; the crop centers on it and stays inside the image.
     public static func aspectFill(
         imageWidth: Double,
         imageHeight: Double,
         boundsWidth: Double,
-        boundsHeight: Double
+        boundsHeight: Double,
+        focus: HighlightPoint? = nil
     ) -> OutlineRect {
         guard imageWidth > 0, imageHeight > 0, boundsWidth > 0, boundsHeight > 0 else {
             return OutlineRect(x: 0, y: 0, width: 0, height: 0)
@@ -105,12 +107,32 @@ public enum HighlightOutlineLayout {
         let scale = max(boundsWidth / imageWidth, boundsHeight / imageHeight)
         let width = imageWidth * scale
         let height = imageHeight * scale
-        return OutlineRect(
-            x: (boundsWidth - width) / 2,
-            y: (boundsHeight - height) / 2,
-            width: width,
-            height: height
-        )
+        var x = (boundsWidth - width) / 2
+        var y = (boundsHeight - height) / 2
+        if let focus {
+            x = boundsWidth / 2 - focus.x * width
+            y = boundsHeight / 2 - focus.y * height
+            x = min(0, max(boundsWidth - width, x))
+            y = min(0, max(boundsHeight - height, y))
+        }
+        return OutlineRect(x: x, y: y, width: width, height: height)
+    }
+
+    /// Axis-aligned box of every ring, in normalized 0-1 photo space.
+    public static func normalizedBounds(of geometry: HighlightGeometry) -> OutlineRect? {
+        let points = geometry.polygons.flatMap(\.points)
+        guard let minX = points.map(\.x).min(),
+              let maxX = points.map(\.x).max(),
+              let minY = points.map(\.y).min(),
+              let maxY = points.map(\.y).max()
+        else { return nil }
+        return OutlineRect(x: minX, y: minY, width: maxX - minX, height: maxY - minY)
+    }
+
+    /// Center of the outline box. Scan-log tiles crop around this instead of the photo center.
+    public static func focus(of geometry: HighlightGeometry?) -> HighlightPoint? {
+        guard let geometry, let box = normalizedBounds(of: geometry) else { return nil }
+        return HighlightPoint(x: box.midX, y: box.midY)
     }
 }
 

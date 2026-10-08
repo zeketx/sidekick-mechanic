@@ -397,6 +397,11 @@ final class DriveUITests: XCTestCase {
         let scanLog = element(chat, "chat.scanLog")
         XCTAssertTrue(scanLog.waitForExistence(timeout: 3), "chat.scanLog is missing at Accessibility XXXL")
         XCTAssertTrue(scanLog.isHittable, "Scan log must stay hittable at Accessibility XXXL")
+        assertFitsInsideWindow(
+            chat,
+            identifiers: ["chat.garage", "chat.jobs", "chat.scanLog", "chat.composer", "chat.send"],
+            screen: "chat axxxl"
+        )
         try writeShot("taps-chat-axxxl.png")
         chat.terminate()
 
@@ -409,6 +414,26 @@ final class DriveUITests: XCTestCase {
             "jobHistory.list is missing at Accessibility XXXL"
         )
         assertLookBackHeaderClearsTopSafeArea(jobsList, screen: "job-history axxxl")
+        for title in ["Cold idle", "Hard start", "Battery light", "Hose check"] {
+            XCTAssertTrue(
+                jobsList.staticTexts[title].waitForExistence(timeout: 2),
+                "job-history axxxl: \(title) must wrap by word, not hyphenate"
+            )
+        }
+        for date in ["Today", "Yesterday", "Sep 28", "Sep 20"] {
+            XCTAssertTrue(
+                jobsList.staticTexts[date].waitForExistence(timeout: 2),
+                "job-history axxxl: \(date) must stay fully visible"
+            )
+        }
+        assertFitsInsideWindow(
+            jobsList,
+            identifiers: [
+                "lookBack.back", "lookBack.title", "jobHistory.scanLog",
+                "jobHistory.row.cold-idle", "jobHistory.row.hose-check",
+            ],
+            screen: "job-history axxxl"
+        )
         try writeShot("taps-job-history-axxxl.png")
         jobsList.terminate()
 
@@ -568,6 +593,33 @@ final class DriveUITests: XCTestCase {
             }
         }
         return 59
+    }
+
+    /// Header or composer wider than the window is the AXXXL overflow that
+    /// clipped "Garage" to "arage" and pushed "Describe a problem" sideways.
+    private func assertFitsInsideWindow(
+        _ app: XCUIApplication,
+        identifiers: [String],
+        screen: String
+    ) {
+        let window = app.windows.firstMatch
+        XCTAssertTrue(window.waitForExistence(timeout: 8), "\(screen): window is missing")
+        let bounds = window.frame
+        for identifier in identifiers {
+            let match = element(app, identifier)
+            XCTAssertTrue(match.waitForExistence(timeout: 3), "\(screen): \(identifier) is missing")
+            let frame = match.frame
+            XCTAssertGreaterThanOrEqual(
+                frame.minX,
+                bounds.minX - 1,
+                "\(screen): \(identifier) minX \(frame.minX) is left of the window (\(bounds.minX))"
+            )
+            XCTAssertLessThanOrEqual(
+                frame.maxX,
+                bounds.maxX + 1,
+                "\(screen): \(identifier) maxX \(frame.maxX) is right of the window (\(bounds.maxX))"
+            )
+        }
     }
 
     private func assertLookBackHeaderClearsTopSafeArea(_ app: XCUIApplication, screen: String) {

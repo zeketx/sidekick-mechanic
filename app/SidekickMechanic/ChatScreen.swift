@@ -200,8 +200,8 @@ struct ChatScreen: View {
             if dynamicTypeSize.isAccessibilitySize {
                 HStack(alignment: .firstTextBaseline, spacing: 12) {
                     garageButton
-                    jobsButton
                     Spacer(minLength: 0)
+                    jobsButton
                     scanLogButton
                     demoToggle
                 }
@@ -246,29 +246,46 @@ struct ChatScreen: View {
     }
 
     private var jobsButton: some View {
-        Button(JobHistoryCopy.title) {
+        Button {
             if lookBackPath.last != .jobHistory {
                 lookBackPath.append(.jobHistory)
             }
+        } label: {
+            lookBackHeaderLabel(title: JobHistoryCopy.title, systemImage: "list.bullet.rectangle")
         }
         .buttonStyle(.plain)
         .font(.body)
         .foregroundStyle(.primary)
         .fixedSize()
         .accessibilityIdentifier("chat.jobs")
+        .accessibilityLabel(JobHistoryCopy.title)
     }
 
     private var scanLogButton: some View {
-        Button(ScanLogCopy.title) {
+        Button {
             if lookBackPath.last != .scanLog {
                 lookBackPath.append(.scanLog)
             }
+        } label: {
+            lookBackHeaderLabel(title: ScanLogCopy.title, systemImage: "square.grid.2x2")
         }
         .buttonStyle(.plain)
         .font(.body)
         .foregroundStyle(.primary)
         .fixedSize()
+        .accessibilityLabel(ScanLogCopy.title)
         .accessibilityIdentifier("chat.scanLog")
+    }
+
+    @ViewBuilder
+    private func lookBackHeaderLabel(title: String, systemImage: String) -> some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            Image(systemName: systemImage)
+                .font(.body.weight(.medium))
+                .accessibilityHidden(true)
+        } else {
+            Text(title)
+        }
     }
 
     @ViewBuilder
