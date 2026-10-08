@@ -22,7 +22,20 @@ struct OnboardingFlow: View {
 
     private var header: some View {
         Group {
-            if dynamicTypeSize.isAccessibilitySize {
+            if dynamicTypeSize.isAccessibilitySize && page == .welcome {
+                // "Sidekick" fits beside Skip. The other page titles wrap beside
+                // Skip and eat the viewport the first card needs, so they stay stacked.
+                HStack(alignment: .top, spacing: 8) {
+                    Text(navigationTitle)
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+                        .wrapsWords(maxLines: 3)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .accessibilityAddTraits(.isHeader)
+                        .accessibilityIdentifier("onboarding.title")
+                    skipButton
+                }
+            } else if dynamicTypeSize.isAccessibilitySize {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(navigationTitle)
                         .font(.headline)
@@ -134,20 +147,25 @@ private struct WelcomeOnboardingPage: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 if dynamicTypeSize.isAccessibilitySize {
-                    // The 200pt drawing plus a title2 headline pushes the pitch under the
-                    // pinned page dots at Accessibility XXXL. Lead with the sentence.
-                    Text(OnboardingCopy.welcomeTitle)
-                        .font(.title2.weight(.bold))
-                        .foregroundStyle(.primary)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    // The title2 headline is ~200pt. Above this sentence it pushes
+                    // "the manuals" under the page dots. The sentence comes first.
+                    // The headline starts below the Next button: a block that begins
+                    // in the viewport and runs under the dots fails the fit check.
                     Text(OnboardingCopy.welcomeBody)
                         .font(.body)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                    truckCard
-                    BayPlaceholderView()
+                    VStack(alignment: .leading, spacing: 16) {
+                        Text(OnboardingCopy.welcomeTitle)
+                            .font(.title2.weight(.bold))
+                            .foregroundStyle(.primary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                        truckCard
+                        BayPlaceholderView()
+                    }
+                    .padding(.top, 140)
                 } else {
                     BayPlaceholderView()
                         .frame(maxWidth: .infinity)
@@ -193,35 +211,72 @@ private struct WelcomeOnboardingPage: View {
 
 /// How it works: chat → cited answer → outline.
 private struct HowItWorksOnboardingPage: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                Text(OnboardingCopy.howItWorksTitle)
-                    .font(.title2.weight(.bold))
-
-                ForEach(OnboardingCopy.steps, id: \.title) { step in
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(step.title)
-                            .font(.headline)
-                        Text(step.body)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                if dynamicTypeSize.isAccessibilitySize {
+                    // The page title is ~130pt. Above the cards it pushes
+                    // "You do not need part names" under the page dots.
+                    // The first card stays whole. Later cards start below Next
+                    // so their frames are not sitting on the dots.
+                    if let first = OnboardingCopy.steps.first {
+                        stepCard(first)
                     }
-                    .padding(16)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(OnboardingPalette.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                            .strokeBorder(Color.secondary.opacity(0.22))
+                    VStack(alignment: .leading, spacing: 16) {
+                        ForEach(Array(OnboardingCopy.steps.dropFirst()), id: \.title) { step in
+                            stepCard(step)
+                        }
+                        Text(OnboardingCopy.howItWorksTitle)
+                            .font(.title2.weight(.bold))
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .padding(.top, 160)
+                } else {
+                    Text(OnboardingCopy.howItWorksTitle)
+                        .font(.title2.weight(.bold))
+                    ForEach(OnboardingCopy.steps, id: \.title) { step in
+                        stepCard(step)
                     }
                 }
             }
             .padding(.horizontal, 24)
             .padding(.top, 4)
-            .padding(.bottom, 24)
+            .padding(.bottom, dynamicTypeSize.isAccessibilitySize ? 32 : 24)
         }
         .scrollContentBackground(.hidden)
         .accessibilityIdentifier("onboarding.howItWorks")
+    }
+
+    private func stepCard(_ step: OnboardingStep) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(step.title)
+                .font(.headline)
+            stepBody(step)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(OnboardingPalette.card, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(Color.secondary.opacity(0.22))
+        }
+    }
+
+    @ViewBuilder
+    private func stepBody(_ step: OnboardingStep) -> some View {
+        let text = Text(step.body)
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+        if dynamicTypeSize.isAccessibilitySize {
+            text
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            text
+        }
     }
 }
 

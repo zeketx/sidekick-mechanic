@@ -880,6 +880,7 @@ final class DriveUITests: XCTestCase {
             }
         }
         reasons += headerOverlapReasons(measured, inset: inset)
+        reasons += textOverControlReasons(measured, controls: controls, window: window)
         var payload: [String: Any] = [
             "window": rect(window),
             "safeAreaTop": Double(inset),
@@ -927,20 +928,37 @@ final class DriveUITests: XCTestCase {
         var found: [FittedControl] = []
         for (query, type) in queries {
             for item in query.allElementsBoundByIndex where item.exists {
-                let frame = item.frame
-                guard frame.width > 1, frame.height > 1, frame.intersects(window) else { continue }
-                let inBar = !statusBar.isNull && statusBar.insetBy(dx: -1, dy: -1).contains(CGPoint(x: frame.midX, y: frame.midY))
-                found.append(FittedControl(
-                    id: item.identifier,
-                    label: item.label,
-                    type: type,
-                    frame: frame,
-                    inStatusBar: inBar,
-                    hittable: item.isHittable
-                ))
+                if let control = fittedControl(item, type: type, window: window, statusBar: statusBar) {
+                    found.append(control)
+                }
+            }
+        }
+        // Page dots are an accessibility element, not a button. Overlap checks need their frame.
+        for item in app.otherElements.allElementsBoundByIndex where item.exists && item.identifier.contains("pageDots") {
+            if let control = fittedControl(item, type: "other", window: window, statusBar: statusBar) {
+                found.append(control)
             }
         }
         return found
+    }
+
+    private func fittedControl(
+        _ item: XCUIElement,
+        type: String,
+        window: CGRect,
+        statusBar: CGRect
+    ) -> FittedControl? {
+        let frame = item.frame
+        guard frame.width > 1, frame.height > 1, frame.intersects(window) else { return nil }
+        let inBar = !statusBar.isNull && statusBar.insetBy(dx: -1, dy: -1).contains(CGPoint(x: frame.midX, y: frame.midY))
+        return FittedControl(
+            id: item.identifier,
+            label: item.label,
+            type: type,
+            frame: frame,
+            inStatusBar: inBar,
+            hittable: item.isHittable
+        )
     }
 
     private struct VisibilityDecision {
@@ -950,7 +968,8 @@ final class DriveUITests: XCTestCase {
     }
 
     /// Same rules as `design_checks._axxxl_keep`. Non-hittable and fully scrolled-away
-    /// elements are dropped. Text cut off by the bottom of the window is kept and failed.
+    /// elements are dropped. Text inside a scroll view may continue below the fold.
+    /// Text cut off by a fixed card, or by the window when it is not in a scroll view, fails.
     private func visibility(
         _ item: FittedControl,
         dimmed: Bool,
@@ -972,7 +991,7 @@ final class DriveUITests: XCTestCase {
             return VisibilityDecision(keep: false, reasons: [], islandExempt: false)
         }
         var reasons: [String] = []
-        if let clip = windowClipReason(item.frame, window: window) {
+        if enclosingScroll(item.frame, scrolls: scrolls) == nil, let clip = windowClipReason(item.frame, window: window) {
             reasons.append(clip)
         }
         if let fixed = fixedClipReason(item, clips: clips) {
@@ -1021,8 +1040,26 @@ final class DriveUITests: XCTestCase {
         return !item.hittable || windowHeight <= 2
     }
 
-    /// Text that starts in the top 80% of the window and still runs off the bottom.
-    /// A peek of the next scrolled row (minY in the bottom 20%) is not a clip.
+    /// Smallest `.scrollView` whose viewport contains the text's first line.
+    /// `scrollViews` in layout-axxxl.json are user-scrollable. See docs/DYNAMIC_TYPE.md.
+    private func enclosingScroll(_ frame: CGRect, scrolls: [Viewport]) -> Viewport? {
+        var best: Viewport?
+        var bestArea = CGFloat.greatestFiniteMagnitude
+        for scroll in scrolls {
+            let outer = scroll.frame
+            guard outer.minX <= frame.midX, frame.midX <= outer.maxX else { continue }
+            guard frame.minY >= outer.minY - 2, frame.minY < outer.maxY else { continue }
+            let area = outer.width * outer.height
+            if area < bestArea {
+                best = scroll
+                bestArea = area
+            }
+        }
+        return best
+    }
+
+    /// Text with no scroll view, starting in the top 80% of the window, that still runs off the bottom.
+    /// A peek of the next row (minY in the bottom 20%) is not a clip.
     private func windowClipReason(_ frame: CGRect, window: CGRect) -> String? {
         let visible = frame.intersection(window)
         guard !visible.isNull, !visible.isInfinite, visible.height > 48 else { return nil }
@@ -1042,16 +1079,56 @@ final class DriveUITests: XCTestCase {
             let outer = clip.frame
             guard outer.contains(CGPoint(x: item.frame.midX, y: item.frame.midY)) else { continue }
             let frame = item.frame
+            let name = clip.id.isEmpty ? "clip" : clip.id
+            let pastBottom = frame.maxY - outer.maxY
+            if pastBottom > 4 {
+                return String(
+                    format: "clipped by its container \(name) (%.0fpt past the bottom)",
+                    pastBottom
+                )
+            }
             if frame.minX < outer.minX - 4
                 || frame.minY < outer.minY - 4
                 || frame.maxX > outer.maxX + 4
-                || frame.maxY > outer.maxY + 4
             {
-                let name = clip.id.isEmpty ? "clip" : clip.id
                 return "extends outside fixed container \(name)"
             }
         }
         return nil
+    }
+
+    /// Hittable buttons and the page dots. Full-screen scrims are not controls.
+    private func isOverlapControl(_ item: FittedControl, window: CGRect) -> Bool {
+        if item.id.contains("pageDots") { return true }
+        if item.id == "jobSheet.dim" { return false }
+        if item.type != "button" || !item.hittable { return false }
+        return item.frame.height < window.height * 0.45
+    }
+
+    /// Text that starts above a button or the page dots and runs into it.
+    /// A row that starts at or below the control (scrolled up under Close) does not count.
+    private func textOverControlReasons(
+        _ texts: [FittedControl],
+        controls all: [FittedControl],
+        window: CGRect
+    ) -> [String] {
+        let controls = all.filter { isOverlapControl($0, window: window) }
+        var reasons: [String] = []
+        for text in texts where text.type == "staticText" || text.type == "textView" || text.type == "textField" {
+            for control in controls {
+                if text.id == control.id && text.frame == control.frame { continue }
+                // A button that contains its own label is not an overlap.
+                // Text that covers the page dots does contain that control, and that fails.
+                if frameContains(control.frame, text.frame) {
+                    continue
+                }
+                guard text.frame.minY < control.frame.minY - 4 else { continue }
+                let overlap = text.frame.intersection(control.frame)
+                guard !overlap.isNull, !overlap.isInfinite, overlap.width > 4, overlap.height > 4 else { continue }
+                reasons.append("\(text.describe) overlaps \(control.describe)")
+            }
+        }
+        return reasons
     }
 
     private func sheetPort(_ app: XCUIApplication) -> CGRect? {

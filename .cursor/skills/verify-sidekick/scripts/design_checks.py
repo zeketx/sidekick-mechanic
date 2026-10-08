@@ -621,13 +621,16 @@ def _contains_frame(outer: list[float], inner: list[float]) -> bool:
     )
 
 
-# Text that starts in the top 80% of the window and still runs more than 80pt
-# (and more than 35% of its own height) past the bottom edge is clipped by a
-# fixed container. A bottom-edge peek of the next scrolled row is not.
+# Fallback when text is not inside a user-scrollable viewport: it starts in the
+# top 80% of the window and still runs more than 80pt (and more than 35% of its
+# height) past the window. A bottom-edge peek of the next row is not a clip.
+# Scroll views and fixed cards are judged separately. See docs/DYNAMIC_TYPE.md.
 AXXXL_CLIP_MIN_INTERSECTION = 48.0
 AXXXL_CLIP_PAST = 80.0
 AXXXL_CLIP_PAST_FRACTION = 0.35
 AXXXL_CLIP_MAX_MIN_Y_FRACTION = 0.80
+AXXXL_CONTROL_OVERLAP = 4.0
+AXXXL_SCRIM_FRACTION = 0.45
 
 
 def _rect_intersection(a: list[float], b: list[float]) -> list[float] | None:
@@ -730,7 +733,7 @@ def _scrolled_away(
 
 
 def _window_clip(frame: list[float], window: list[float]) -> str | None:
-    """Match DriveUITests.windowClipReason. See docs/DYNAMIC_TYPE.md."""
+    """Match DriveUITests.windowClipReason. Only when no scroll view holds the first line."""
     inter = _rect_intersection(frame, window)
     if inter is None or inter[3] <= AXXXL_CLIP_MIN_INTERSECTION:
         return None
@@ -745,21 +748,83 @@ def _window_clip(frame: list[float], window: list[float]) -> str | None:
     )
 
 
+def _tightest_scroll(frame: list[float], scrolls: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """Smallest user-scrollable viewport that contains this text's first line.
+
+    `scrollViews` are XCUIElement type `.scrollView`. Extending below one is not a failure.
+    """
+    cx = frame[0] + frame[2] / 2
+    best: dict[str, Any] | None = None
+    best_area: float | None = None
+    for scroll in scrolls:
+        outer = scroll["frame"]
+        if not (outer[0] <= cx <= outer[0] + outer[2]):
+            continue
+        if frame[1] < outer[1] - 2 or frame[1] >= outer[1] + outer[3]:
+            continue
+        area = outer[2] * outer[3]
+        if best is None or best_area is None or area < best_area:
+            best = scroll
+            best_area = area
+    return best
+
+
 def _fixed_clip(item: dict[str, Any], clips: list[dict[str, Any]]) -> str | None:
+    """A `clips` entry is not user-scrollable. Past its bottom is a cut-off card."""
     frame = item["frame"]
     for clip in clips:
         outer = clip["frame"]
         if not _center_in(frame, outer):
             continue
+        name = clip.get("id") or "clip"
+        past_bottom = (frame[1] + frame[3]) - (outer[1] + outer[3])
+        if past_bottom > 4:
+            return f"clipped by its container {name} ({past_bottom:.0f}pt past the bottom)"
         if (
             frame[0] < outer[0] - 4
             or frame[1] < outer[1] - 4
             or frame[0] + frame[2] > outer[0] + outer[2] + 4
-            or frame[1] + frame[3] > outer[1] + outer[3] + 4
         ):
-            name = clip.get("id") or "clip"
             return f"extends outside fixed container {name}"
     return None
+
+
+def _is_overlap_control(item: dict[str, Any], window: list[float]) -> bool:
+    ident = str(item.get("id") or "")
+    if "pageDots" in ident:
+        return True
+    if ident == "jobSheet.dim":
+        return False
+    if item.get("type") != "button" or item.get("hittable") is False:
+        return False
+    return item["frame"][3] < window[3] * AXXXL_SCRIM_FRACTION
+
+
+def _text_over_controls(
+    texts: list[dict[str, Any]],
+    elements: list[dict[str, Any]],
+    window: list[float],
+) -> list[str]:
+    """Text that starts above a button or the page dots and runs into it."""
+    controls = [item for item in elements if _is_overlap_control(item, window)]
+    reasons: list[str] = []
+    for text in texts:
+        if text.get("type") not in ("staticText", "textView", "textField"):
+            continue
+        for control in controls:
+            if text["id"] == control["id"] and text["frame"] == control["frame"]:
+                continue
+            # A button that contains its own label is not an overlap. Text that
+            # covers the page dots does contain that control, and that is a failure.
+            if _contains_frame(control["frame"], text["frame"]):
+                continue
+            if text["frame"][1] >= control["frame"][1] - AXXXL_CONTROL_OVERLAP:
+                continue
+            inter = _rect_intersection(text["frame"], control["frame"])
+            if inter is None or inter[2] <= AXXXL_CONTROL_OVERLAP or inter[3] <= AXXXL_CONTROL_OVERLAP:
+                continue
+            reasons.append(f"{_axxxl_name(text)} overlaps {_axxxl_name(control)}")
+    return reasons
 
 
 def _axxxl_keep(
@@ -779,9 +844,11 @@ def _axxxl_keep(
     if _scrolled_away(item, _scroll_frames(payload), window):
         return False, []
     reasons: list[str] = []
-    clipped = _window_clip(item["frame"], window)
-    if clipped:
-        reasons.append(clipped)
+    # A scroll view may continue below the fold. Only the first line has to be on screen.
+    if _tightest_scroll(item["frame"], _payload_frames(payload, "scrollViews")) is None:
+        clipped = _window_clip(item["frame"], window)
+        if clipped:
+            reasons.append(clipped)
     fixed = _fixed_clip(item, _payload_frames(payload, "clips"))
     if fixed:
         reasons.append(fixed)
@@ -883,6 +950,7 @@ def measure_axxxl(payload: dict[str, Any] | None, screen: str) -> dict[str, Any]
         if truncated:
             reasons.append(f"{_axxxl_name(item)} {truncated}")
     reasons.extend(_axxxl_overlaps(parsed, inset))
+    reasons.extend(_text_over_controls(parsed, staged, window))
     if reasons:
         return {"verdict": "FAIL", "evidence": evidence, "reasons": reasons, "safeAreaTop": inset}
     return {
@@ -1349,6 +1417,101 @@ def self_test() -> int:
         },
         "onboarding-1",
     )
+    # Round-2 citation page: the explanation continues below the fold inside a ScrollView.
+    scrollable_continuation = measure_axxxl(
+        {
+            "window": window,
+            "safeAreaTop": 59,
+            "scrollViews": [
+                {"id": "jobSheet.body", "frame": [0, 250.33333333333334, 402, 310.33333333333326]},
+                {"id": "", "frame": [0, 62, 402, 811.9999999999999]},
+                {"id": "chat.messageList", "frame": [0, 0, 402, 874]},
+                {"id": "answerCard.chips", "frame": [30, 555.6666666666666, 310, 70.66666666666663]},
+            ],
+            "elements": [
+                {
+                    "id": "",
+                    "label": (
+                        "The fuse/relay box is the plastic box that holds the fuses "
+                        "and relays for this engine bay."
+                    ),
+                    "type": "staticText",
+                    "hittable": True,
+                    "frame": [16, 668.3749999999999, 351.3333333333333, 373.33333333333314],
+                },
+                {
+                    "id": "citation.close",
+                    "label": "Close",
+                    "type": "button",
+                    "hittable": True,
+                    "frame": [16, 72, 55.66666666666666, 52.33333333333333],
+                },
+                {
+                    "id": "jobSheet.dim",
+                    "label": "Close job sheet",
+                    "type": "button",
+                    "hittable": True,
+                    "frame": [0, 0, 402, 874],
+                },
+            ],
+        },
+        "citation-page",
+    )
+    # Round-2 how-it-works body, judged against the card rather than a scroll view.
+    card_clip = measure_axxxl(
+        {
+            "window": window,
+            "safeAreaTop": 59,
+            "clips": [{"id": "onboarding.step.1", "frame": [24, 353.6666666666667, 354, 348]}],
+            "elements": [
+                {
+                    "id": "",
+                    "label": "Describe the problem in your own words. You do not need part names.",
+                    "type": "staticText",
+                    "hittable": True,
+                    "frame": [40, 441, 322, 290.66666666666663],
+                }
+            ],
+        },
+        "onboarding-2",
+    )
+    # Round-2 welcome body. The scroll view is user-scrollable; the dots and Next are not.
+    dots_overlap = measure_axxxl(
+        {
+            "window": window,
+            "safeAreaTop": 59,
+            "scrollViews": [
+                {"id": "onboarding.welcome", "frame": [0, 200.66666666666666, 402, 501]}
+            ],
+            "elements": [
+                {
+                    "id": "",
+                    "label": (
+                        "Ask about a problem in chat. Sidekick answers from the manuals, "
+                        "with the page, and shows the part on a photo."
+                    ),
+                    "type": "staticText",
+                    "hittable": True,
+                    "frame": [24, 419.6666666666667, 348.6666666666667, 497.3333333333332],
+                },
+                {
+                    "id": "onboarding.pageDots",
+                    "label": "Screen 1 of 3",
+                    "type": "other",
+                    "hittable": True,
+                    "frame": [182.5, 713.6666666666666, 37, 7],
+                },
+                {
+                    "id": "onboarding.next",
+                    "label": "Next",
+                    "type": "button",
+                    "hittable": True,
+                    "frame": [24, 736.6666666666666, 354, 87.33333333333337],
+                },
+            ],
+        },
+        "onboarding-1",
+    )
     bay_spill = measure_axxxl(
         {
             "window": window,
@@ -1443,8 +1606,20 @@ def self_test() -> int:
         errors.append(f"missing scan-log frames should FAIL, got {missing}")
     if clipped_away["verdict"] != "REVIEW":
         errors.append(f"scrolled-off sheet content and the Garage sliver should be REVIEW, got {clipped_away}")
-    if body_clip["verdict"] != "FAIL" or not any("clipped by its container" in reason for reason in body_clip["reasons"]):
-        errors.append(f"welcome body cut off above the dots should FAIL, got {body_clip}")
+    if body_clip["verdict"] != "FAIL" or not any("overlaps" in reason for reason in body_clip["reasons"]):
+        errors.append(f"welcome body over Next should FAIL, got {body_clip}")
+    if scrollable_continuation["verdict"] != "REVIEW":
+        errors.append(
+            f"citation explanation below the fold should be REVIEW, got {scrollable_continuation}"
+        )
+    if card_clip["verdict"] != "FAIL" or not any(
+        "clipped by its container" in reason for reason in card_clip["reasons"]
+    ):
+        errors.append(f"text clipped by a non-scrollable card should FAIL, got {card_clip}")
+    if dots_overlap["verdict"] != "FAIL" or not any(
+        "pageDots" in reason for reason in dots_overlap["reasons"]
+    ):
+        errors.append(f"welcome body overlapping the page dots should FAIL, got {dots_overlap}")
     if bay_spill["verdict"] != "FAIL" or not any("fixed container" in reason for reason in bay_spill["reasons"]):
         errors.append(f"illustration label outside its box should FAIL, got {bay_spill}")
     if flag_errors:
