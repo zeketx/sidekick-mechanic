@@ -122,10 +122,14 @@ struct JobHistoryView: View {
     }
 
     /// Full words at accessibility sizes. Hyphenation is what produced "Col / d i…".
+    /// `AttributedString.hyphenationFactor` is not settable; UIKit's paragraph style is.
     private func wrappingText(_ string: String, font: Font, color: Color) -> some View {
-        var attributed = AttributedString(string)
-        attributed.hyphenationFactor = 0
-        return Text(attributed)
+        let style = NSMutableParagraphStyle()
+        style.hyphenationFactor = 0
+        style.lineBreakMode = .byWordWrapping
+        var container = AttributeContainer()
+        container.uiKit.paragraphStyle = style
+        return Text(AttributedString(string, attributes: container))
             .font(font)
             .foregroundStyle(color)
             .multilineTextAlignment(.leading)
