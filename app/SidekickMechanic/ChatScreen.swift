@@ -233,14 +233,28 @@ struct ChatScreen: View {
     @ViewBuilder
     private var demoToggle: some View {
         if launch.showDemoChrome {
-            Button(model.isDemoMode ? "Demo on" : "Demo mode") {
-                model.isDemoMode.toggle()
+            if dynamicTypeSize.isAccessibilitySize {
+                Button {
+                    model.isDemoMode.toggle()
+                } label: {
+                    Image(systemName: model.isDemoMode ? "checkmark.circle.fill" : "circle")
+                        .font(.body)
+                        .frame(minWidth: 44, minHeight: 44)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.primary)
+                .accessibilityLabel(model.isDemoMode ? "Demo on" : "Demo mode")
+                .accessibilityIdentifier("demo.toggle")
+            } else {
+                Button(model.isDemoMode ? "Demo on" : "Demo mode") {
+                    model.isDemoMode.toggle()
+                }
+                .buttonStyle(.plain)
+                .font(.body)
+                .foregroundStyle(.primary)
+                .fixedSize()
+                .accessibilityIdentifier("demo.toggle")
             }
-            .buttonStyle(.plain)
-            .font(.body)
-            .foregroundStyle(.primary)
-            .fixedSize()
-            .accessibilityIdentifier("demo.toggle")
         }
     }
 

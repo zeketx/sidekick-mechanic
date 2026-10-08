@@ -139,6 +139,53 @@ SCREENS: dict[str, ScreenSpec] = {
     ),
 }
 
+# Accessibility XXXL captures. The flag has to be on the process: sheets re-read it
+# via AccessibilityLaunchModifier and do not inherit the root environment.
+AXXXL_FLAG = ("-dynamicTypeSize", "accessibility5")
+AXXXL_SCREENS = (
+    "chat",
+    "onboarding-1",
+    "onboarding-2",
+    "onboarding-3",
+    "job-sheet-half",
+    "job-sheet-full",
+    "job-sheet-closeout",
+    "citation-page",
+    "job-history",
+    "scan-log",
+)
+
+
+def screen_launch_args(spec: ScreenSpec, *, accessibility: bool) -> list[str]:
+    args = list(spec.args)
+    if not spec.requires_onboarding and "-sidekick.onboarding.completed" not in args:
+        args += ["-sidekick.onboarding.completed", "YES"]
+    if accessibility and "-dynamicTypeSize" not in args:
+        args.extend(AXXXL_FLAG)
+    return args
+
+
+def axxxl_flag_errors() -> list[str]:
+    """Launch args for every main screen must carry accessibility5, including sheets."""
+    errors: list[str] = []
+    for name in AXXXL_SCREENS:
+        spec = SCREENS.get(name)
+        if spec is None:
+            errors.append(f"{name} missing from SCREENS")
+            continue
+        axxxl = screen_launch_args(spec, accessibility=True)
+        if axxxl.count("-dynamicTypeSize") != 1 or "accessibility5" not in axxxl:
+            errors.append(f"{name} axxxl args: {axxxl}")
+        default = screen_launch_args(spec, accessibility=False)
+        if "-dynamicTypeSize" in default:
+            errors.append(f"{name} default args force dynamic type: {default}")
+        if name == "citation-page" and "-sidekick.onboarding.completed" not in axxxl:
+            errors.append("citation-page launch dropped onboarding completed")
+        if name.startswith("onboarding") and "-sidekick.onboarding.completed" in axxxl:
+            errors.append(f"{name} axxxl launch would skip onboarding")
+    return errors
+
+
 DEFAULT_SCREENS = (
     "onboarding-1",
     "onboarding-2",
@@ -674,6 +721,45 @@ def override_status_bar(udid: str) -> None:
     save_state_payload(state)
 
 
+def launch_and_screenshot(
+    udid: str,
+    name: str,
+    spec: ScreenSpec,
+    dest: Path,
+    *,
+    accessibility: bool,
+) -> None:
+    subprocess.run(
+        ["xcrun", "simctl", "terminate", udid, BUNDLE_ID],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    time.sleep(0.8)
+    args = screen_launch_args(spec, accessibility=accessibility)
+    launched = subprocess.run(
+        ["xcrun", "simctl", "launch", udid, BUNDLE_ID, *args],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if launched.returncode != 0:
+        label = f"{name} accessibility5" if accessibility else name
+        raise VerificationError(
+            f"simctl launch {label} failed: {launched.stderr or launched.stdout}"
+        )
+    time.sleep(spec.wait_s)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    io = subprocess.run(
+        ["xcrun", "simctl", "io", udid, "screenshot", str(dest)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if io.returncode != 0 or not dest.is_file():
+        raise VerificationError(f"screenshot failed for {dest.name}: {io.stderr or io.stdout}")
+
+
 def capture_screens(udid: str, names: list[str], evidence: Path) -> None:
     shots = evidence / "screenshots"
     shots.mkdir(parents=True, exist_ok=True)
@@ -702,33 +788,16 @@ def capture_screens(udid: str, names: list[str], evidence: Path) -> None:
                     }
                 )
                 continue
-        subprocess.run(
-            ["xcrun", "simctl", "terminate", udid, BUNDLE_ID],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        time.sleep(0.8)
-        args = list(spec.args)
-        if not spec.requires_onboarding and "-sidekick.onboarding.completed" not in args:
-            # #111 adds first-run onboarding; without this every -screen opens onboarding instead.
-            args += ["-sidekick.onboarding.completed", "YES"]
-        launch = ["xcrun", "simctl", "launch", udid, BUNDLE_ID, *args]
-        launched = subprocess.run(launch, capture_output=True, text=True, check=False)
-        if launched.returncode != 0:
-            raise VerificationError(
-                f"simctl launch {name} failed: {launched.stderr or launched.stdout}"
+        launch_and_screenshot(udid, name, spec, shots / f"{name}.png", accessibility=False)
+        if name in AXXXL_SCREENS:
+            # Second launch, same screen, with the flag. Sheets read it themselves.
+            launch_and_screenshot(
+                udid,
+                name,
+                spec,
+                shots / "axxxl" / f"{name}.png",
+                accessibility=True,
             )
-        time.sleep(spec.wait_s)
-        dest = shots / f"{name}.png"
-        io = subprocess.run(
-            ["xcrun", "simctl", "io", udid, "screenshot", str(dest)],
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if io.returncode != 0 or not dest.is_file():
-            raise VerificationError(f"screenshot failed for {name}: {io.stderr or io.stdout}")
     subprocess.run(
         ["xcrun", "simctl", "terminate", udid, BUNDLE_ID],
         capture_output=True,

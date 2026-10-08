@@ -6,6 +6,7 @@ import UIKit
 struct OnboardingFlow: View {
     @Binding var page: OnboardingPage
     var onFinished: () -> Void
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
         VStack(spacing: 0) {
@@ -20,20 +21,43 @@ struct OnboardingFlow: View {
     }
 
     private var header: some View {
-        ZStack {
-            Text(navigationTitle)
-                .font(.headline)
-            HStack {
-                Spacer()
-                Button("Skip", action: onFinished)
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
-                    .accessibilityIdentifier("onboarding.skip")
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(navigationTitle)
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+                        .wrapsWords(maxLines: 2)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .accessibilityAddTraits(.isHeader)
+                        .accessibilityIdentifier("onboarding.title")
+                    HStack {
+                        Spacer(minLength: 0)
+                        skipButton
+                    }
+                }
+            } else {
+                ZStack {
+                    Text(navigationTitle)
+                        .font(.headline)
+                        .accessibilityIdentifier("onboarding.title")
+                    HStack {
+                        Spacer()
+                        skipButton
+                    }
+                }
             }
         }
         .padding(.horizontal, 16)
         .padding(.top, 6)
         .padding(.bottom, 2)
+    }
+
+    private var skipButton: some View {
+        Button("Skip", action: onFinished)
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .accessibilityIdentifier("onboarding.skip")
     }
 
     @ViewBuilder
@@ -227,18 +251,10 @@ struct GarageListView: View {
 
 private struct GarageRowView: View {
     let fact: GarageFact
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
-            Text(fact.label)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
-            Spacer(minLength: 8)
-            Text(fact.value)
-                .font(.subheadline.weight(fact.isConfirmed ? .semibold : .bold))
-                .foregroundStyle(fact.isConfirmed ? .primary : .secondary)
-                .multilineTextAlignment(.trailing)
-        }
+        row
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
         .background(
@@ -254,6 +270,36 @@ private struct GarageRowView: View {
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("garage.row.\(fact.id)")
         .accessibilityLabel("\(fact.label), \(fact.value)")
+    }
+
+    @ViewBuilder
+    private var row: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            VStack(alignment: .leading, spacing: 4) {
+                labelText
+                valueText
+                    .wrapsWords(maxLines: 3)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        } else {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                labelText
+                Spacer(minLength: 8)
+                valueText.multilineTextAlignment(.trailing)
+            }
+        }
+    }
+
+    private var labelText: some View {
+        Text(fact.label)
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+    }
+
+    private var valueText: some View {
+        Text(fact.value)
+            .font(.subheadline.weight(fact.isConfirmed ? .semibold : .bold))
+            .foregroundStyle(fact.isConfirmed ? .primary : .secondary)
     }
 }
 

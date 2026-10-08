@@ -238,19 +238,19 @@ final class DriveUITests: XCTestCase {
             (
                 "onboarding-1",
                 ["-resetOnboarding", "-screen", "onboarding-1"],
-                ["onboarding.welcome", "onboarding.skip", "onboarding.next"],
+                ["onboarding.welcome", "onboarding.title", "onboarding.skip", "onboarding.next"],
                 false
             ),
             (
                 "onboarding-2",
                 ["-resetOnboarding", "-screen", "onboarding-2"],
-                ["onboarding.howItWorks", "onboarding.skip", "onboarding.next"],
+                ["onboarding.howItWorks", "onboarding.title", "onboarding.skip", "onboarding.next"],
                 false
             ),
             (
                 "onboarding-3",
                 ["-resetOnboarding", "-screen", "onboarding-3"],
-                ["onboarding.garage", "onboarding.skip", "onboarding.start"],
+                ["onboarding.garage", "onboarding.title", "onboarding.skip", "onboarding.start"],
                 false
             ),
             (
@@ -382,10 +382,14 @@ final class DriveUITests: XCTestCase {
         try writeJSON("layout-composer-multiline.json", ["screens": ["chat-multiline": frames]])
     }
 
+    /// Accessibility XXXL on every main screen. `assertFitsOnScreen` fails horizontal
+    /// overflow, island overlap, header-control overlap, and the truncation proxy.
+    /// Frames land in `layout-axxxl.json` before the assert so a failure is still measurable.
     func testAccessibilityXXXLHeaderAndHalfSheet() throws {
-        let chat = launchApp(arguments: [
+        var screens: [String: Any] = [:]
+
+        let chat = launchAXXXL([
             "-sidekick.onboarding.completed", "YES",
-            "-dynamicTypeSize", "accessibility5",
         ])
         let garage = element(chat, "chat.garage")
         XCTAssertTrue(garage.waitForExistence(timeout: 8), "chat.garage is missing at Accessibility XXXL")
@@ -397,13 +401,26 @@ final class DriveUITests: XCTestCase {
                 "Garage overlaps Sidekick at Accessibility XXXL: \(garage.frame) vs \(title.frame)"
             )
         }
-        try writeShot("taps-chat-axxxl.png")
+        try keepAXXXL("chat", chat, into: &screens)
         chat.terminate()
 
-        let app = launchApp(arguments: [
+        let onboarding: [(String, String, String)] = [
+            ("onboarding-1", "onboarding.welcome", "onboarding.next"),
+            ("onboarding-2", "onboarding.howItWorks", "onboarding.next"),
+            ("onboarding-3", "onboarding.garage", "onboarding.start"),
+        ]
+        for (name, root, nextID) in onboarding {
+            let app = launchAXXXL(["-resetOnboarding", "-screen", name])
+            XCTAssertTrue(element(app, root).waitForExistence(timeout: 8), "\(root) missing at Accessibility XXXL")
+            assertControlInsideWindow(app, "onboarding.skip", screen: name)
+            assertControlInsideWindow(app, nextID, screen: name)
+            try keepAXXXL(name, app, into: &screens)
+            app.terminate()
+        }
+
+        let app = launchAXXXL([
             "-screen", "job-sheet-half",
             "-demoPhoto", "hilux",
-            "-dynamicTypeSize", "accessibility5",
         ])
         let sheet = element(app, "jobSheet.half")
         XCTAssertTrue(sheet.waitForExistence(timeout: 8), "jobSheet.half is missing at Accessibility XXXL")
@@ -437,13 +454,27 @@ final class DriveUITests: XCTestCase {
         )
         assertHeaderClearsTopSafeArea(app, screen: "job-sheet-half axxxl")
         assertHalfSheetLeavesChatSliver(app, sheetID: "jobSheet.half", screen: "job-sheet-half axxxl")
-        try writeShot("taps-job-sheet-half-axxxl.png")
+        assertControlInsideWindow(app, "jobSheet.close", screen: "job-sheet-half")
+        assertControlInsideWindow(app, "jobSheet.outcome.worked", screen: "job-sheet-half")
+        try keepAXXXL("job-sheet-half", app, into: &screens)
         app.terminate()
 
-        let closeout = launchApp(arguments: [
+        let full = launchAXXXL([
+            "-screen", "job-sheet-full",
+            "-demoPhoto", "hilux",
+        ])
+        XCTAssertTrue(element(full, "jobSheet.full").waitForExistence(timeout: 8), "jobSheet.full is missing at Accessibility XXXL")
+        assertHeaderClearsTopSafeArea(full, screen: "job-sheet-full axxxl")
+        scrollUntilOnScreen(full, id: "jobSheet.outcome.worked", containerID: "jobSheet.body")
+        XCTAssertTrue(element(full, "jobSheet.outcome.worked").isHittable, "Worked must be tappable on the full sheet at Accessibility XXXL")
+        assertControlInsideWindow(full, "jobSheet.close", screen: "job-sheet-full")
+        assertControlInsideWindow(full, "jobSheet.outcome.worked", screen: "job-sheet-full")
+        try keepAXXXL("job-sheet-full", full, into: &screens)
+        full.terminate()
+
+        let closeout = launchAXXXL([
             "-screen", "job-sheet-closeout",
             "-demoPhoto", "hilux",
-            "-dynamicTypeSize", "accessibility5",
         ])
         let closeoutSheet = element(closeout, "jobSheet.half")
         XCTAssertTrue(
@@ -456,7 +487,8 @@ final class DriveUITests: XCTestCase {
             sheetID: "jobSheet.half",
             screen: "job-sheet-closeout axxxl"
         )
-        try writeShot("taps-job-sheet-closeout-axxxl.png")
+        assertControlInsideWindow(closeout, "jobSheet.outcome.worked", screen: "job-sheet-closeout")
+        try keepAXXXL("job-sheet-closeout", closeout, into: &screens)
         closeout.terminate()
 
         let defaultCitation = launchApp(arguments: [
@@ -472,10 +504,9 @@ final class DriveUITests: XCTestCase {
         let defaultDocHeight = defaultDoc.frame.height
         defaultCitation.terminate()
 
-        let citation = launchApp(arguments: [
+        let citation = launchAXXXL([
             "-screen", "citation-page",
             "-demoPhoto", "hilux",
-            "-dynamicTypeSize", "accessibility5",
         ])
         XCTAssertTrue(
             element(citation, "citation.viewer").waitForExistence(timeout: 8),
@@ -486,7 +517,32 @@ final class DriveUITests: XCTestCase {
             defaultDocumentHeight: defaultDocHeight,
             screen: "citation-page axxxl"
         )
-        try writeShot("taps-citation-page-axxxl.png")
+        scrollUntilOnScreen(citation, id: "citation.goDeeper", containerID: "citation.viewer")
+        let deeper = element(citation, "citation.goDeeper")
+        XCTAssertTrue(deeper.waitForExistence(timeout: 3), "citation.goDeeper is missing at Accessibility XXXL")
+        XCTAssertLessThan(
+            deeper.frame.minY,
+            citation.windows.firstMatch.frame.maxY - 20,
+            "Go deeper is below the citation sheet at Accessibility XXXL"
+        )
+        assertControlInsideWindow(citation, "citation.close", screen: "citation-page")
+        try keepAXXXL("citation-page", citation, into: &screens)
+        citation.terminate()
+
+        try recordAXXXLIfPresent(
+            "job-history",
+            arguments: ["-screen", "job-history"],
+            required: "jobHistory.list",
+            controls: ["lookBack.back", "jobHistory.scanLog"],
+            into: &screens
+        )
+        try recordAXXXLIfPresent(
+            "scan-log",
+            arguments: ["-screen", "scan-log"],
+            required: "scanLog.grid",
+            controls: ["lookBack.back"],
+            into: &screens
+        )
     }
 
     private func assertCitationHeaderAtAccessibilitySize(
@@ -634,6 +690,294 @@ final class DriveUITests: XCTestCase {
             try writeShot("taps-\(screen)-outcome.png")
             app.terminate()
         }
+    }
+
+    /// New screen tests call this at Accessibility XXXL. Thresholds match
+    /// `measure_axxxl` in `design_checks.py` (see docs/DYNAMIC_TYPE.md).
+    @discardableResult
+    func assertFitsOnScreen(
+        _ app: XCUIApplication,
+        screen: String = "screen",
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) -> [String: Any] {
+        let fit = measureScreenFit(app, screen: screen)
+        assertScreenFit(fit, screen: screen, file: file, line: line)
+        return fit.payload
+    }
+
+    private func launchAXXXL(_ arguments: [String]) -> XCUIApplication {
+        var args = arguments
+        if !args.contains("-dynamicTypeSize") {
+            args += ["-dynamicTypeSize", "accessibility5"]
+        }
+        return launchApp(arguments: args)
+    }
+
+    private func keepAXXXL(
+        _ name: String,
+        _ app: XCUIApplication,
+        into screens: inout [String: Any],
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws {
+        let fit = measureScreenFit(app, screen: name)
+        screens[name] = fit.payload
+        try writeJSON("layout-axxxl.json", ["screens": screens])
+        assertScreenFit(fit, screen: name, file: file, line: line)
+        try writeShot("taps-\(name)-axxxl.png")
+    }
+
+    private func recordAXXXLIfPresent(
+        _ name: String,
+        arguments: [String],
+        required: String,
+        controls: [String],
+        into screens: inout [String: Any]
+    ) throws {
+        let app = launchAXXXL(arguments)
+        if !element(app, required).waitForExistence(timeout: 3) {
+            screens[name] = [
+                "skipped": true,
+                "reason": "\(required) is not on this checkout (PR #114, later).",
+            ]
+            try writeJSON("layout-axxxl.json", ["screens": screens])
+            app.terminate()
+            return
+        }
+        for control in controls {
+            assertControlInsideWindow(app, control, screen: name)
+        }
+        try keepAXXXL(name, app, into: &screens)
+        app.terminate()
+    }
+
+    private func scrollUntilOnScreen(_ app: XCUIApplication, id: String, containerID: String) {
+        let target = element(app, id)
+        let container = element(app, containerID)
+        let window = app.windows.firstMatch.frame
+        for _ in 0..<10 {
+            if target.exists, target.frame.minY < window.maxY - 20, target.frame.maxY > window.minY + 20 {
+                return
+            }
+            if container.exists {
+                container.swipeUp()
+            } else {
+                app.swipeUp()
+            }
+        }
+    }
+
+    private func assertControlInsideWindow(
+        _ app: XCUIApplication,
+        _ identifier: String,
+        screen: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        let window = app.windows.firstMatch.frame
+        let control = element(app, identifier)
+        XCTAssertTrue(control.waitForExistence(timeout: 5), "\(screen): \(identifier) missing", file: file, line: line)
+        let frame = control.frame
+        let inset = topSafeAreaInset(app)
+        XCTAssertGreaterThanOrEqual(
+            frame.minX, window.minX - 2,
+            "\(screen): \(identifier) minX \(frame.minX) is off the left edge",
+            file: file, line: line
+        )
+        XCTAssertLessThanOrEqual(
+            frame.maxX, window.maxX + 2,
+            "\(screen): \(identifier) maxX \(frame.maxX) is off the right edge",
+            file: file, line: line
+        )
+        XCTAssertGreaterThanOrEqual(
+            frame.minY, inset - 2,
+            "\(screen): \(identifier) minY \(frame.minY) is under the status bar / island (\(inset))",
+            file: file, line: line
+        )
+        XCTAssertLessThanOrEqual(
+            frame.maxY, window.maxY + 2,
+            "\(screen): \(identifier) maxY \(frame.maxY) is below the screen",
+            file: file, line: line
+        )
+    }
+
+    private struct ScreenFit {
+        var payload: [String: Any]
+        var reasons: [String]
+    }
+
+    private struct FittedControl {
+        var id: String
+        var label: String
+        var type: String
+        var frame: CGRect
+        var inStatusBar: Bool
+
+        var describe: String {
+            let name = id.isEmpty ? label : id
+            return "\(type) \(name) \(frame)"
+        }
+    }
+
+    /// Geometry shared with `design_checks.measure_axxxl`. A label of "Today" that
+    /// draws as "Tod…" still fails only when the accessibility label contains an
+    /// ellipsis or the frame is a narrow column. Screenshot review covers the rest.
+    private func measureScreenFit(_ app: XCUIApplication, screen: String) -> ScreenFit {
+        let windowElement = app.windows.firstMatch
+        guard windowElement.waitForExistence(timeout: 8) else {
+            return ScreenFit(payload: ["screen": screen, "error": "window missing"], reasons: ["\(screen): window missing"])
+        }
+        let window = windowElement.frame
+        let inset = topSafeAreaInset(app)
+        let status = app.statusBars.firstMatch
+        let statusFrame = status.exists ? status.frame : CGRect.null
+        let controls = fittedControls(app, window: window, statusBar: statusFrame)
+        var reasons: [String] = []
+        for item in controls {
+            if let reason = horizontalOverflow(item.frame, window: window) {
+                reasons.append("\(item.describe) \(reason)")
+            }
+            if let reason = islandOverlap(item, inset: inset, window: window) {
+                reasons.append("\(item.describe) \(reason)")
+            }
+            if let reason = truncationProxy(item) {
+                reasons.append("\(item.describe) \(reason)")
+            }
+        }
+        reasons += headerOverlapReasons(controls, inset: inset)
+        let payload: [String: Any] = [
+            "window": rect(window),
+            "safeAreaTop": Double(inset),
+            "elements": controls.map { item in
+                [
+                    "id": item.id,
+                    "label": item.label,
+                    "type": item.type,
+                    "inStatusBar": item.inStatusBar,
+                    "frame": rect(item.frame),
+                ] as [String: Any]
+            },
+        ]
+        return ScreenFit(payload: payload, reasons: reasons)
+    }
+
+    private func assertScreenFit(
+        _ fit: ScreenFit,
+        screen: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        XCTAssertTrue(
+            fit.reasons.isEmpty,
+            "\(screen) Accessibility XXXL: \(fit.reasons.joined(separator: "; "))",
+            file: file,
+            line: line
+        )
+    }
+
+    private func fittedControls(_ app: XCUIApplication, window: CGRect, statusBar: CGRect) -> [FittedControl] {
+        let queries: [(XCUIElementQuery, String)] = [
+            (app.buttons, "button"),
+            (app.staticTexts, "staticText"),
+            (app.textFields, "textField"),
+            (app.textViews, "textView"),
+        ]
+        var found: [FittedControl] = []
+        for (query, type) in queries {
+            for item in query.allElementsBoundByIndex where item.exists {
+                let frame = item.frame
+                guard frame.width > 1, frame.height > 1, frame.intersects(window) else { continue }
+                let inBar = !statusBar.isNull && statusBar.insetBy(dx: -1, dy: -1).contains(CGPoint(x: frame.midX, y: frame.midY))
+                found.append(FittedControl(
+                    id: item.identifier,
+                    label: item.label,
+                    type: type,
+                    frame: frame,
+                    inStatusBar: inBar
+                ))
+            }
+        }
+        return found
+    }
+
+    private func horizontalOverflow(_ frame: CGRect, window: CGRect) -> String? {
+        let visible = frame.intersection(window)
+        guard visible.width > 2, visible.height > 2 else { return nil }
+        let pastLeft = window.minX - frame.minX
+        let pastRight = frame.maxX - window.maxX
+        guard pastLeft > 2 || pastRight > 2 else { return nil }
+        return String(
+            format: "extends past the window (minX %.0f, maxX %.0f, window %.0f…%.0f)",
+            frame.minX, frame.maxX, window.minX, window.maxX
+        )
+    }
+
+    /// Status-bar chrome (clock, signal) sits in the island on purpose. App headers do not.
+    /// Body copy such as `jobSheet.answer` is not a header, so scrolling it does not fail this check.
+    private func islandOverlap(_ item: FittedControl, inset: CGFloat, window: CGRect) -> String? {
+        if item.id == "jobSheet.dim" || item.frame.height >= window.height * 0.45 { return nil }
+        if item.id.isEmpty && item.frame.maxY <= inset + 2 { return nil }
+        guard item.frame.minY < inset - 2, item.frame.maxY > window.minY else { return nil }
+        let ident = item.id.lowercased()
+        let headerWord = ["title", "close", "open", "skip", "garage", "back", "header"]
+            .contains { ident.contains($0) }
+        let header = headerWord
+            || (item.type == "button" && !item.inStatusBar)
+            || (item.type == "staticText" && item.id.isEmpty && !item.inStatusBar)
+        guard header else { return nil }
+        return String(
+            format: "minY %.0f is under the status bar / island (safe area %.0f)",
+            item.frame.minY, inset
+        )
+    }
+
+    private func truncationProxy(_ item: FittedControl) -> String? {
+        if item.inStatusBar { return nil }
+        let label = item.label
+        if label.contains("…") || label.contains("...") {
+            return "label looks truncated: \(label)"
+        }
+        let tokens = label.split { $0.isWhitespace || $0 == "·" }
+        let longest = tokens.map(\.count).max() ?? 0
+        let width = item.frame.width
+        let height = item.frame.height
+        if longest >= 6, width < 72, height > width * 1.35, width > 1 {
+            return "label \(label) is squeezed into a \(Int(width))×\(Int(height))pt column (mid-word wrap proxy)"
+        }
+        return nil
+    }
+
+    private func headerOverlapReasons(_ items: [FittedControl], inset: CGFloat) -> [String] {
+        let band = items.filter { item in
+            !item.inStatusBar
+                && item.id != "jobSheet.dim"
+                && item.frame.minY < inset + 96
+                && item.frame.height < 160
+                && item.frame.height > 1
+        }
+        var reasons: [String] = []
+        for index in band.indices {
+            for other in band.indices where other > index {
+                let first = band[index]
+                let second = band[other]
+                if frameContains(first.frame, second.frame) || frameContains(second.frame, first.frame) {
+                    continue
+                }
+                let overlap = first.frame.intersection(second.frame)
+                if overlap.width > 4, overlap.height > 4 {
+                    reasons.append("\(first.describe) overlaps \(second.describe)")
+                }
+            }
+        }
+        return reasons
+    }
+
+    private func frameContains(_ outer: CGRect, _ inner: CGRect) -> Bool {
+        outer.minX <= inner.minX + 2
+            && outer.minY <= inner.minY + 2
+            && outer.maxX >= inner.maxX - 2
+            && outer.maxY >= inner.maxY - 2
     }
 
     /// First element with this identifier, any type. An identifier on a SwiftUI container without

@@ -24,6 +24,8 @@ Required when UI, layout, or rendered states change. Include light, dark, and la
 | Dark | |
 | Large Dynamic Type | |
 
+Large text follows [docs/DYNAMIC_TYPE.md](docs/DYNAMIC_TYPE.md): default size and Accessibility XXXL, no mid-word breaks, headers and sheets still fit. `assertFitsOnScreen` covers the geometry; the AXXXL screenshots still need a look for "Tod…" and hyphenated titles.
+
 If you cannot run the app on Linux, attach SwiftUI preview code and ask the owner to capture screenshots in Xcode.
 
 ## Sources (vehicle facts)

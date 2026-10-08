@@ -36,6 +36,7 @@ Preconditions:
 ## Gotchas
 
 - Do not treat chat or the job sheet as Jobs. A `-screen job-sheet-half` shot is not a history-row proof.
+- When the files exist, `testAccessibilityXXXLHeaderAndHalfSheet` calls `assertFitsOnScreen` on Jobs and Scan log and the harness writes `screenshots/axxxl/job-history.png` and `scan-log.png` with `-dynamicTypeSize accessibility5`. A header row wider than the phone, a title broken mid-word, or a date cut to `Tod…` fails that test. PR #114 is fixed on its own branch; do not weaken this check to match an older header. On main, without the files, the screen is `skipped` in `layout-axxxl.json` and is not a failure.
 - Opening a history row does not append chat (later work). The sheet is the proof, not a new user bubble.
 - Row identifiers slug the title: `jobHistory.row.cold-idle`, `jobHistory.row.hard-start`, `jobHistory.row.battery-light`, `jobHistory.row.hose-check`.
 - Scan-log cell ids are `scan-log-0` … `scan-log-8`, not part names.

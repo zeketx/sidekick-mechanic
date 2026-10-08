@@ -1,0 +1,6 @@
+---
+description: Dynamic Type layout rules for Sidekick Mechanic screens
+alwaysApply: true
+---
+
+Before building or changing SwiftUI, read docs/DYNAMIC_TYPE.md. Every screen is designed for the default text size and for Accessibility XXXL (`-dynamicTypeSize accessibility5`). Headers with two or more text buttons collapse to icon buttons or a menu at accessibility sizes. List rows stack vertically. Do not wrap or truncate mid-word. New screen UI tests call `assertFitsOnScreen(app, screen:)`.

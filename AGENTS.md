@@ -95,6 +95,7 @@ This app gives advice about real machinery. A wrong number can break parts or hu
 - **One issue per PR.** Link it with `Closes #N` in the description.
 - **Keep PRs small.** Aim for under about 300 changed lines. Split larger work into stacked PRs.
 - **UI PRs include screenshots** (or a short screen recording) of each changed state: light, dark, and large Dynamic Type where relevant. If you cannot run the app, attach SwiftUI preview code and ask the owner to capture screenshots in Xcode. Say so plainly.
+- **Large text.** Read [docs/DYNAMIC_TYPE.md](docs/DYNAMIC_TYPE.md) before building or changing SwiftUI. Every screen is designed and checked at the default size and at Accessibility XXXL. New screen tests call `assertFitsOnScreen`. The verify-sidekick large-text section is mandatory on UI PRs.
 - **Vehicle-fact PRs list their sources** in a "Sources" section.
 - **Metric changes** (RAG, highlight, latency) include before and after numbers from the eval harness.
 - Branch names: `<issue-number>-short-slug`. Commit messages in the imperative ("Add citation chip").

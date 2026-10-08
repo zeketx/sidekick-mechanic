@@ -192,6 +192,7 @@ STANDING_RULES = [
     ("composer", "Composer is a fully rounded pill (\"Describe the problem\") with no boxy corners, on one consistent background color above and below."),
     ("nav", "Nav / header buttons are plain text (Close, Jobs, Scan log, Back). Never truncated glass capsules."),
     ("chrome", "Status bar and titles stay visible (no black-on-black). Nothing clipped or overlapping. Neutral #F4F4F4 background."),
+    ("large_text", "Large text (Accessibility XXXL) is mandatory. Headers clear the status bar / Dynamic Island. No visible element extends past the window. Words are not broken mid-word and dates are not cut (Tod…). Bottom sheets still show Close, Outcome, and Go deeper. Open screenshots/axxxl/ and taps/taps-*-axxxl.png. Geometry FAILs are measured. Mid-word hyphenation that VoiceOver still reads in full stays REVIEW until you mark PASS or FAIL."),
     ("figma", "Matches the Figma frame for this screen. Every visible difference is listed."),
 ]
 

@@ -67,7 +67,7 @@ Launch arguments (parsed in `DemoLaunchOptions` / `OnboardingLaunchOptions`). Pa
 | `-screen scan-log` | Scan log grid. **Later (#114).** Same skip when `ScanLogView.swift` is absent. |
 | `-demoPhoto hilux\|supra\|hrymx\|flickr` | Demo bay photo. Default `hilux` → `commons-hilux-2jz`. |
 | `-showDemoChrome 1` | Demo toggle, demo banner, Chat/Readings tabs. |
-| `-dynamicTypeSize accessibility5` | Accessibility XXXL. UI tests use this for `testAccessibilityXXXLHeaderAndHalfSheet`. |
+| `-dynamicTypeSize accessibility5` | Accessibility XXXL. `screens` writes `screenshots/axxxl/<screen>.png` with this flag on every main screen, including sheets. UI tests use `launchAXXXL` / `assertFitsOnScreen`. |
 | `-flagUnsureHighlight 1` | Internal unsure card. Off in v1 unless the screen is `highlight-unsure`. |
 
 The helper terminates the app between `-screen` launches and waits (2.5–4 s) so the next shot is that screen, not a leftover cover. Every non-onboarding screen also gets `-sidekick.onboarding.completed YES`.
@@ -143,11 +143,24 @@ xcodebuild test \
 | `testComposerStaysPillWhenMultiline` | Tap the composer, type a long problem | `chat.composer` | `taps/taps-composer-multiline.png` + `taps/layout-composer-multiline.json` for the pill check |
 | `testRecordLayoutFrames` | Launch chat, collapsed / half / full (Jobs if present) | leaf ids per screen | `taps/layout-frames.json` (points) for the composer and nav-button checks |
 | `testIdentifierAudit` | Launch each screen | every id listed under Identifiers | `taps/identifiers.json` found / missing / skipped; fails if a documented-on-this-checkout id is unreachable |
-| `testAccessibilityXXXLHeaderAndHalfSheet` | `-dynamicTypeSize accessibility5` on chat, then job-sheet-half, then job-sheet-closeout, then citation-page | `chat.garage`, `jobSheet.title`, `jobSheet.close`, `jobSheet.step.2`, `jobSheet.outcome.worked`, `citation.close`, `citation.document` | Garage does not overlap Sidekick; last step fully visible above Outcome; Worked is tappable; job and citation headers sit below the island; citation sheet actually uses XXXL (document height grows; `citation.title` is hidden; Close is an xmark) |
+| `testAccessibilityXXXLHeaderAndHalfSheet` | `launchAXXXL` (`-dynamicTypeSize accessibility5`) on chat, onboarding 1–3, job-sheet half / full / closeout, citation-page, and Jobs / Scan log when those files exist | `assertFitsOnScreen` plus `chat.garage`, `onboarding.skip`, `onboarding.next` / `onboarding.start`, `jobSheet.title`, `jobSheet.close`, `jobSheet.step.2`, `jobSheet.outcome.worked`, `citation.close`, `citation.goDeeper`, `citation.document` | No visible frame extends past the window; no header control sits under the island or overlaps another header control; labels are not `Tod…` and not squeezed into a narrow column; last step fully visible above Outcome; Worked is tappable; citation sheet actually uses XXXL (document height grows; `citation.title` is hidden; Close is an xmark; Go deeper is on screen). Writes `taps/layout-axxxl.json` before asserting. Jobs / Scan log are skipped, not passed, while #114 is absent. |
 
 The drag uses a vector from `jobSheet.handle`, not a raw screen coordinate of the sheet. The drag and scrim tests also save a before shot (`taps-sheet-before-drag.png`, `taps-sheet-before-scrim.png`). Every test launches with `-sidekick.onboarding.completed YES` unless it passes an onboarding flag itself.
 
 SwiftUI trap that broke three of these tests on the first Mac run (on the #114 stack): `.accessibilityIdentifier` on a container **overwrites every child identifier** unless the container has `.accessibilityElement(children: .contain)` first. `chat.messageList` swallowed header buttons, `jobSheet.outcome` swallowed the Worked / Partly / Didn't ids, `highlightViewer` swallowed its close button, `onboarding.onboarding-1` would swallow Skip / Next. A plain `VStack` with `.contain` can also drop out of the tree entirely, which is why `chat.header` and `jobSheet` were never added on this branch. Put new ids on leaves, add `.contain` to any container id, and let `testIdentifierAudit` catch regressions.
+
+## Large text (mandatory on any UI change)
+
+Read [docs/DYNAMIC_TYPE.md](../../../docs/DYNAMIC_TYPE.md) before changing a screen. Default size and Accessibility XXXL are both required. A test that only checks one button is hittable is not a large-text proof. That is how #120, #121, and #114 passed `testAccessibilityXXXLHeaderAndHalfSheet` while headers were wider than the phone, titles broke mid-word, dates showed `Tod…`, and headers sat under the island.
+
+Do all of these:
+
+1. `screens` captures `screenshots/axxxl/<screen>.png` with `-dynamicTypeSize accessibility5` on the process. Sheets and covers apply `AccessibilityLaunchModifier` because they do not inherit the root environment. A shot of the screen behind a system-size sheet is a fail.
+2. New screen tests call `assertFitsOnScreen(app, screen:)` from `DriveUITests` at AXXXL. The helper fails horizontal overflow, island overlap, overlapping header controls, an ellipsis in the accessibility label, and a long word squeezed into a column under 72pt wide.
+3. Open every `screenshots/axxxl/*.png` and `taps/taps-*-axxxl.png`. Mark the large-text checklist row **PASS** or **FAIL**. Geometry failures are already **FAIL** (exit 3 if taps passed, exit 1 if the XCUITest failed). Mid-word hyphenation is **REVIEW** until you look: VoiceOver often still speaks the full word (`Battery`) while the screen shows `Bat- / tery`. The proxy does not see that. Do not leave the row blank.
+4. Jobs and Scan log stay skipped on main (no `JobHistoryView.swift`). When #114's files are in the checkout they are checked the same way. PR #114 (`cursor/job-history-scan-log-a9cc`) is being fixed on its own branch. These checks are expected to fail there until that header and those rows follow the doc. Do not weaken them.
+
+Exit codes are unchanged: `0` harness ok and no measured FAIL (REVIEW cells still need you), `1` harness or tap failure, `2` owner-only, `3` harness and taps passed but the checklist has a measured FAIL.
 
 If `xcodegen generate` is run from `app/project.yml`, it recreates the UI test target. The committed `app/SidekickMechanic.xcodeproj` already includes it so a Mac without XcodeGen can still `xcodebuild test`.
 
@@ -155,7 +168,7 @@ If `xcodegen generate` is run from `app/project.yml`, it recreates the UI test t
 
 Chat: `chat.garage`, `chat.composer`, `chat.send`, `chat.messageList`, `chat.attach` (only when attach is shown), `demo.toggle` (`-showDemoChrome 1`). Jobs / Scan log ids `chat.jobs`, `chat.scanLog` are later (#114).
 
-Onboarding: `onboarding.welcome`, `onboarding.howItWorks`, `onboarding.garage`, `onboarding.skip`, `onboarding.next`, `onboarding.start`, `garage.done`. Root id `onboarding.onboarding-1` (etc.) uses `.contain` so those leaves stay reachable.
+Onboarding: `onboarding.welcome`, `onboarding.howItWorks`, `onboarding.garage`, `onboarding.title`, `onboarding.skip`, `onboarding.next`, `onboarding.start`, `garage.done`. Root id `onboarding.onboarding-1` (etc.) uses `.contain` so those leaves stay reachable.
 
 Job sheet: `jobSheet.collapsed` / `.half` / `.full` (the sheet frame itself; `horizontalInset` is 0 on main), `jobSheet.handle`, `jobSheet.title`, `jobSheet.peek`, `jobSheet.open` / `.close`, `jobSheet.dim`, `jobSheet.body`, `jobSheet.answer`, `jobSheet.photo`, `jobSheet.chips`, `jobSheet.chip.0`, `jobSheet.steps`, `jobSheet.outcome`, `jobSheet.outcome.worked` / `.partly` / `.didnt`. Full also has `jobSheet.notes`, `jobSheet.tags`, `jobSheet.tags.add`, `jobSheet.whatFixed`.
 
@@ -184,7 +197,9 @@ Proof goes to `artifacts/verify/<run-id>/` (gitignored). `latest` is a symlink t
 | `taps/taps-sheet-before-scrim.png`, `taps-sheet-after-scrim.png` | Half, then collapsed after tapping `jobSheet.dim` |
 | `taps/taps-scan-log.png` | Scan log after Jobs → Scan log |
 | `taps/taps-composer-multiline.png` | Composer after typing a long problem |
-| `taps/taps-chat-axxxl.png`, `taps-job-sheet-half-axxxl.png`, `taps-job-sheet-closeout-axxxl.png`, `taps-citation-page-axxxl.png` | Accessibility XXXL: Garage vs title, half/closeout below the island with a chat sliver, citation Close / Manual page below the island |
+| `screenshots/axxxl/<screen>.png` | That `-screen` launched again with `-dynamicTypeSize accessibility5`, including the sheet |
+| `taps/layout-axxxl.json` | Element frames (points), labels, and the top safe-area inset at AXXXL. `design_checks.py` FAILs overflow and island overlap from this file |
+| `taps/taps-*-axxxl.png` | Accessibility XXXL after the taps (chat, onboarding, job sheet half/full/closeout, citation, Jobs / Scan log when present) |
 | `taps/taps-citation-page.png`, `taps-citation-closed.png` | Chip → page + Go deeper, then Close back on the job |
 | `taps/layout-frames.json`, `layout-composer-multiline.json` | XCUITest element frames (points) the checklist measures against |
 | `taps/identifiers.json` | Documented ids found / missing per screen |
@@ -212,7 +227,8 @@ Every UI change must copy this table into the PR (and into `compare/checklist.md
 - **Composer** (chat + the multiline tap shot): finds the outline around the `chat.composer` frame, fits the corner radius and compares it with half the height (pill needs fitted radius / half height ≥ 0.75 on one line **and** after typing a long problem; the circular fit reads `.continuous` corners ~15–20% small, hence 0.75), and samples the background above, below and left of it.
 - **Nav buttons** (chat, onboarding, half, full; Jobs when present): measures pixels around each `chat.garage` / `onboarding.skip` / `jobSheet.close` frame (and `chat.jobs` / `lookBack.back` / `jobHistory.scanLog` on #114). Samples the bar ~28–56pt beside the glyph, then a halo around the label. A brighter glass fill, a drop shadow, or a capsule edge is FAIL. Do not trust a SwiftUI style flag: iOS 26 Liquid Glass sits outside `.buttonStyle(.plain)` and outside a 4pt ring (that ring is still inside the pill). Truncation is still yours to check.
 - **Selected outcome filled** (job-sheet-full, job-sheet-closeout): `jobSheet.outcome.worked` must be a filled segment (dark fill in light mode), not paper plus underline.
-- **Status bar / #F4F4F4**: status bar time contrast on every screen, `#F4F4F4` on chat / Jobs / Scan log. Can only FAIL; clipping and overlap stay REVIEW.
+- **Status bar / #F4F4F4**: status bar time contrast on every screen, `#F4F4F4` on chat / Jobs / Scan log. Contrast can FAIL. Horizontal overflow and island overlap are the large-text row, not a chrome REVIEW.
+- **Large text (AXXXL)**: `taps/layout-axxxl.json` for chat, onboarding, job sheet half/full/closeout, citation, and Jobs / Scan log when present. FAIL if a visible frame extends past the window, a header control intersects the status-bar / island inset, two header controls overlap, a label contains `…`, or a long word is squeezed into a column under 72pt. A missing `layout-axxxl.json` is FAIL, not a skip. When geometry passes, the cell stays REVIEW until you look at `screenshots/axxxl/` for mid-word breaks (`Ma / nu…`, `Bat- / tery`) and cut dates (`Tod…`). XCUITest cannot see those when the accessibility label is still the full string. Jobs / Scan log JSON marked `skipped` is N/A.
 - **Highlight outline** and **Matches Figma** are always REVIEW: open the side-by-side and list every difference.
 
 The overall verdict is never PASS from the script; the best it says is NEEDS REVIEW.
@@ -224,6 +240,7 @@ The overall verdict is never PASS from the script; the best it says is NEEDS REV
 | The chat composer ("Describe the problem") is a fully rounded **pill** with no boxy corners, sitting on one consistent background color (no different colors above and below it). |  |  |
 | Nav and header buttons are plain text ("Close", "Jobs", "Scan log", "Back"), never truncated glass capsules. |  |  |
 | Status bar and titles stay visible (no black-on-black). Nothing clipped or overlapping. Neutral `#F4F4F4` background. |  |  |
+| Large text (Accessibility XXXL) on every changed screen: nothing extends past the window, headers clear the island, no mid-word breaks, sheet controls still on screen. Open `screenshots/axxxl/` and `taps/taps-*-axxxl.png`. |  |  |
 | Match the Figma frame for the screen: list **every** visible difference, not just the ones asked about. |  |  |
 
 Current layout notes (code on main vs the Mac proof):

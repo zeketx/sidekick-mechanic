@@ -16,9 +16,14 @@ Automated rows (PASS or FAIL with numbers):
                 glass, shadow, or capsule behind the label (real pixels vs the bar,
                 not a style flag). XCUITest frames are the glyph; a 4pt ring is
                 still inside iOS 26 Liquid Glass.
-  chrome        status bar contrast and the neutral #F4F4F4 background (FAIL only; clipping stays REVIEW)
-Rows pixels cannot decide (highlight outline shape, every Figma difference) are REVIEW: the agent
-must open compare/<screen>.png and fill them. Nothing here ever reports an overall PASS.
+  chrome        status bar contrast and the neutral #F4F4F4 background (FAIL only)
+  large_text    Accessibility XXXL frames from taps/layout-axxxl.json: horizontal overflow,
+                status-bar / island overlap, header-control overlap, ellipsis, narrow-column
+                wrap. Those are FAIL. Mid-word hyphenation VoiceOver still reads in full stays
+                REVIEW (open screenshots/axxxl/). See docs/DYNAMIC_TYPE.md.
+Rows pixels cannot decide (highlight outline shape, every Figma difference, mid-word hyphenation)
+are REVIEW: the agent must open compare/<screen>.png and the AXXXL shots and fill them.
+Nothing here ever reports an overall PASS.
 """
 
 from __future__ import annotations
@@ -59,8 +64,29 @@ RULES = [
     ("composer", "Composer pill / one background"),
     ("nav", "Plain-text nav buttons"),
     ("chrome", "Status bar, titles, #F4F4F4"),
+    ("large_text", "Large text (AXXXL)"),
     ("figma", "Matches Figma (every difference listed)"),
 ]
+# Same set as verify_sidekick.AXXXL_SCREENS. Self-test checks they match.
+AXXXL_SCREENS = (
+    "chat",
+    "onboarding-1",
+    "onboarding-2",
+    "onboarding-3",
+    "job-sheet-half",
+    "job-sheet-full",
+    "job-sheet-closeout",
+    "citation-page",
+    "job-history",
+    "scan-log",
+)
+AXXXL_EYE = (
+    "Geometry fits (no horizontal overflow, header controls clear the island). "
+    "Open the AXXXL screenshot and FAIL this row if a word breaks mid-word "
+    "(Ma/nu…, Col/d i…, Bat-/tery) or a date is cut (Tod…). "
+    "XCUITest reads the full accessibility label, so hyphenation and tail truncation "
+    "often do not appear in the label."
+)
 
 
 def lum(p) -> float:
@@ -86,6 +112,18 @@ def median_color(px, x0: int, y0: int, x1: int, y1: int, w: int, h: int):
     if not pts:
         return (0, 0, 0)
     return tuple(int(statistics.median(p[i] for p in pts)) for i in range(3))
+
+
+def load_axxxl(run_dir: Path) -> dict[str, Any] | None:
+    path = run_dir / "taps" / "layout-axxxl.json"
+    if not path.is_file():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return None
+    screens = payload.get("screens")
+    return screens if isinstance(screens, dict) else None
 
 
 def load_frames(run_dir: Path) -> dict[str, Any]:
@@ -496,6 +534,184 @@ def measure_chrome(img, screen: str) -> dict[str, Any]:
     return result
 
 
+# ---------------------------------------------------------------- accessibility XXXL
+# Thresholds match DriveUITests.measureScreenFit. See docs/DYNAMIC_TYPE.md.
+
+
+def _axxxl_frame(value: Any) -> list[float] | None:
+    if not isinstance(value, (list, tuple)) or len(value) != 4:
+        return None
+    try:
+        return [float(part) for part in value]
+    except (TypeError, ValueError):
+        return None
+
+
+def _axxxl_name(item: dict[str, Any]) -> str:
+    ident = str(item.get("id") or "")
+    label = str(item.get("label") or "")
+    return f"{item.get('type') or 'element'} {ident or label}"
+
+
+def _axxxl_overflow(frame: list[float], window: list[float]) -> str | None:
+    x, y, w, h = frame
+    wx, wy, ww, wh = window
+    visible_w = max(0.0, min(x + w, wx + ww) - max(x, wx))
+    visible_h = max(0.0, min(y + h, wy + wh) - max(y, wy))
+    if visible_w <= 2 or visible_h <= 2:
+        return None
+    past_left = wx - x
+    past_right = (x + w) - (wx + ww)
+    if past_left <= 2 and past_right <= 2:
+        return None
+    return (
+        f"extends past the window (minX {x:.0f}, maxX {x + w:.0f}, "
+        f"window {wx:.0f}…{wx + ww:.0f})"
+    )
+
+
+def _axxxl_island(item: dict[str, Any], inset: float, window: list[float]) -> str | None:
+    """Match DriveUITests.islandOverlap. Status-bar chrome is ignored. Body copy is not a header."""
+    if item.get("id") == "jobSheet.dim":
+        return None
+    _, y, _, h = item["frame"]
+    if h >= window[3] * 0.45:
+        return None
+    ident = str(item.get("id") or "")
+    if not ident and y + h <= inset + 2:
+        return None
+    if y >= inset - 2:
+        return None
+    lower = ident.lower()
+    header_word = any(part in lower for part in ("title", "close", "open", "skip", "garage", "back", "header"))
+    header = (
+        header_word
+        or (item.get("type") == "button" and not item.get("inStatusBar"))
+        or (item.get("type") == "staticText" and not ident and not item.get("inStatusBar"))
+    )
+    if not header:
+        return None
+    return f"minY {y:.0f} is under the status bar / island (safe area {inset:.0f})"
+
+
+def _axxxl_truncation(item: dict[str, Any]) -> str | None:
+    if item.get("inStatusBar"):
+        return None
+    label = str(item.get("label") or "")
+    if "…" in label or "..." in label:
+        return f"label looks truncated: {label}"
+    tokens = [token for token in label.replace("·", " ").split() if token]
+    longest = max((len(token) for token in tokens), default=0)
+    width = item["frame"][2]
+    height = item["frame"][3]
+    if longest >= 6 and width < 72 and height > width * 1.35 and width > 1:
+        return (
+            f"label {label} is squeezed into a {width:.0f}×{height:.0f}pt column "
+            "(mid-word wrap proxy)"
+        )
+    return None
+
+
+def _contains_frame(outer: list[float], inner: list[float]) -> bool:
+    return (
+        outer[0] <= inner[0] + 2
+        and outer[1] <= inner[1] + 2
+        and outer[0] + outer[2] >= inner[0] + inner[2] - 2
+        and outer[1] + outer[3] >= inner[1] + inner[3] - 2
+    )
+
+
+def _axxxl_overlaps(items: list[dict[str, Any]], inset: float) -> list[str]:
+    band = []
+    for item in items:
+        frame = item["frame"]
+        if item.get("inStatusBar") or item.get("id") == "jobSheet.dim":
+            continue
+        if frame[1] < inset + 96 and frame[3] < 160 and frame[3] > 1:
+            band.append(item)
+    reasons: list[str] = []
+    for index, first in enumerate(band):
+        for second in band[index + 1 :]:
+            if _contains_frame(first["frame"], second["frame"]) or _contains_frame(
+                second["frame"], first["frame"]
+            ):
+                continue
+            ax, ay, aw, ah = first["frame"]
+            bx, by, bw, bh = second["frame"]
+            overlap_w = min(ax + aw, bx + bw) - max(ax, bx)
+            overlap_h = min(ay + ah, by + bh) - max(ay, by)
+            if overlap_w > 4 and overlap_h > 4:
+                reasons.append(f"{_axxxl_name(first)} overlaps {_axxxl_name(second)}")
+    return reasons
+
+
+def measure_axxxl(payload: dict[str, Any] | None, screen: str) -> dict[str, Any]:
+    evidence = f"screenshots/axxxl/{screen}.png"
+    if payload is None:
+        return {
+            "verdict": "FAIL",
+            "evidence": evidence,
+            "reasons": [
+                "taps/layout-axxxl.json has no frames for this screen. "
+                "Accessibility XXXL was not measured."
+            ],
+        }
+    if payload.get("skipped"):
+        return {
+            "verdict": "N/A",
+            "evidence": evidence,
+            "reasons": [str(payload.get("reason") or "skipped")],
+        }
+    window = _axxxl_frame(payload.get("window"))
+    if window is None:
+        return {
+            "verdict": "FAIL",
+            "evidence": evidence,
+            "reasons": ["AXXXL window frame missing"],
+        }
+    try:
+        inset = float(payload.get("safeAreaTop") or 0)
+    except (TypeError, ValueError):
+        inset = 0.0
+    reasons: list[str] = []
+    parsed: list[dict[str, Any]] = []
+    raw_elements = payload.get("elements") or []
+    if not isinstance(raw_elements, list):
+        raw_elements = []
+    for raw in raw_elements:
+        if not isinstance(raw, dict):
+            continue
+        frame = _axxxl_frame(raw.get("frame"))
+        if frame is None:
+            continue
+        item = {
+            "id": str(raw.get("id") or ""),
+            "label": str(raw.get("label") or ""),
+            "type": str(raw.get("type") or ""),
+            "inStatusBar": bool(raw.get("inStatusBar")),
+            "frame": frame,
+        }
+        parsed.append(item)
+        overflow = _axxxl_overflow(frame, window)
+        if overflow:
+            reasons.append(f"{_axxxl_name(item)} {overflow}")
+        island = _axxxl_island(item, inset, window)
+        if island:
+            reasons.append(f"{_axxxl_name(item)} {island}")
+        truncated = _axxxl_truncation(item)
+        if truncated:
+            reasons.append(f"{_axxxl_name(item)} {truncated}")
+    reasons.extend(_axxxl_overlaps(parsed, inset))
+    if reasons:
+        return {"verdict": "FAIL", "evidence": evidence, "reasons": reasons, "safeAreaTop": inset}
+    return {
+        "verdict": "REVIEW",
+        "evidence": evidence,
+        "reasons": [AXXXL_EYE],
+        "safeAreaTop": inset,
+    }
+
+
 # ---------------------------------------------------------------- report
 
 
@@ -504,7 +720,8 @@ def evaluate(run_dir: Path, compare_dir: Path) -> dict[str, Any]:
 
     shots = run_dir / "screenshots"
     frames = load_frames(run_dir)
-    report: dict[str, Any] = {"screens": {}, "frames_source": bool(frames)}
+    axxxl = load_axxxl(run_dir)
+    report: dict[str, Any] = {"screens": {}, "frames_source": bool(frames), "axxxl_source": axxxl is not None}
     for shot in sorted(p for p in shots.glob("*.png") if not p.name.startswith("._")):
         screen = shot.stem
         img = Image.open(shot).convert("RGB")
@@ -575,8 +792,23 @@ def evaluate(run_dir: Path, compare_dir: Path) -> dict[str, Any]:
         chrome = measure_chrome(img, screen)
         chrome["evidence"] = rel
         if chrome["verdict"] == "REVIEW":
-            chrome["reasons"] = ["auto parts pass; check clipping/overlap by eye"]
+            chrome["reasons"] = [
+                "status bar contrast passes; horizontal overflow and the island are on the large-text row"
+            ]
         cells["chrome"] = chrome
+        if screen in AXXXL_SCREENS:
+            if axxxl is None:
+                cells["large_text"] = {
+                    "verdict": "FAIL",
+                    "evidence": f"screenshots/axxxl/{screen}.png",
+                    "reasons": [
+                        "taps/layout-axxxl.json missing; Accessibility XXXL frames were not recorded"
+                    ],
+                }
+            else:
+                cells["large_text"] = measure_axxxl(axxxl.get(screen), screen)
+        else:
+            cells["large_text"] = {"verdict": "N/A"}
         cells["figma"] = (
             {"verdict": "REVIEW", "evidence": f"compare/{shot.name}", "reasons": ["list every difference"]}
             if side.is_file()
@@ -626,6 +858,12 @@ def checklist_lines(report: dict[str, Any]) -> list[str]:
                 continue
             detail = "; ".join(cell.get("reasons", [])) or summary(key, cell)
             lines.append(f"- **{screen} / {label}: {cell['verdict']}** - {detail} (`{cell.get('evidence', '')}`)")
+        large = cells.get("large_text")
+        if large and large.get("verdict") == "REVIEW":
+            detail = "; ".join(large.get("reasons", []))
+            lines.append(
+                f"- **{screen} / Large text (AXXXL): REVIEW** - {detail} (`{large.get('evidence', '')}`)"
+            )
         extra = cells.get("outcome_fill")
         if extra and extra.get("verdict") in ("FAIL", "PASS"):
             detail = "; ".join(extra.get("reasons", [])) or (
@@ -650,6 +888,8 @@ def summary(key: str, cell: dict[str, Any]) -> str:
         return f"radius {s.get('corner_radius_pt')}pt on {s.get('height_pt')}pt"
     if key == "nav":
         return "plain text on the bar; check truncation by eye"
+    if key == "large_text":
+        return "AXXXL geometry"
     return ""
 
 
@@ -720,6 +960,160 @@ def self_test() -> int:
     udraw.line([(wx0 + 24, wy1 - int(6 * scale)), (wx1 - 24, wy1 - int(6 * scale))], fill=(20, 20, 20), width=max(2, int(scale)))
     underline_result = measure_outcome_fill(underline, worked_frame, window)
 
+    window = [0.0, 0.0, 402.0, 874.0]
+    clean = measure_axxxl(
+        {
+            "window": window,
+            "safeAreaTop": 59,
+            "elements": [
+                {"id": "chat.garage", "label": "Garage", "type": "button", "frame": [16, 80, 120, 44]},
+                {
+                    "id": "",
+                    "label": "9:41",
+                    "type": "staticText",
+                    "inStatusBar": True,
+                    "frame": [24, 14, 48, 18],
+                },
+                {
+                    "id": "jobSheet.dim",
+                    "label": "Close job sheet",
+                    "type": "button",
+                    "frame": [0, 0, 402, 180],
+                },
+                {
+                    "id": "wifi",
+                    "label": "3 of 3 Wi-Fi bars",
+                    "type": "button",
+                    "inStatusBar": True,
+                    "frame": [300, 12, 20, 16],
+                },
+            ],
+        },
+        "chat",
+    )
+    overflow = measure_axxxl(
+        {
+            "window": window,
+            "safeAreaTop": 59,
+            "elements": [
+                {"id": "chat.jobs", "label": "Jobs", "type": "button", "frame": [360, 80, 80, 44]},
+            ],
+        },
+        "chat",
+    )
+    both_edges = measure_axxxl(
+        {
+            "window": window,
+            "safeAreaTop": 59,
+            "elements": [
+                {"id": "lookBack.title", "label": "Jobs", "type": "staticText", "frame": [-30, 70, 480, 40]},
+            ],
+        },
+        "job-history",
+    )
+    island = measure_axxxl(
+        {
+            "window": window,
+            "safeAreaTop": 59,
+            "elements": [
+                {"id": "jobSheet.title", "label": "Job · Cold idle", "type": "staticText", "frame": [16, 12, 220, 36]},
+            ],
+        },
+        "job-sheet-half",
+    )
+    truncated = measure_axxxl(
+        {
+            "window": window,
+            "safeAreaTop": 59,
+            "elements": [
+                {"id": "jobHistory.date", "label": "Tod…", "type": "staticText", "frame": [16, 120, 70, 28]},
+            ],
+        },
+        "job-history",
+    )
+    squeezed = measure_axxxl(
+        {
+            "window": window,
+            "safeAreaTop": 59,
+            "elements": [
+                {"id": "jobHistory.row", "label": "Battery", "type": "staticText", "frame": [16, 140, 36, 110]},
+            ],
+        },
+        "job-history",
+    )
+    overlap = measure_axxxl(
+        {
+            "window": window,
+            "safeAreaTop": 59,
+            "elements": [
+                {"id": "chat.garage", "label": "Garage", "type": "button", "frame": [16, 70, 140, 40]},
+                {"id": "chat.title", "label": "Sidekick", "type": "staticText", "frame": [90, 72, 160, 36]},
+            ],
+        },
+        "chat",
+    )
+    contained = measure_axxxl(
+        {
+            "window": window,
+            "safeAreaTop": 59,
+            "elements": [
+                {"id": "chat.garage", "label": "Garage", "type": "button", "frame": [16, 70, 160, 44]},
+                {"id": "", "label": "Garage", "type": "staticText", "frame": [24, 78, 90, 28]},
+            ],
+        },
+        "chat",
+    )
+    skipped = measure_axxxl(
+        {"skipped": True, "reason": "jobHistory.list is not on this checkout (PR #114, later)."},
+        "job-history",
+    )
+    missing = measure_axxxl(None, "scan-log")
+
+    import tempfile
+
+    import verify_sidekick
+
+    flag_errors = verify_sidekick.axxxl_flag_errors()
+    if set(verify_sidekick.AXXXL_SCREENS) != set(AXXXL_SCREENS):
+        flag_errors.append(
+            f"screen lists differ: {verify_sidekick.AXXXL_SCREENS} vs {AXXXL_SCREENS}"
+        )
+
+    with tempfile.TemporaryDirectory() as tmp_name:
+        tmp = Path(tmp_name)
+        shot_dir = tmp / "screenshots"
+        shot_dir.mkdir()
+        Image.new("RGB", (402, 300), BG_F4).save(shot_dir / "chat.png")
+        taps = tmp / "taps"
+        taps.mkdir()
+        (taps / "layout-axxxl.json").write_text(
+            json.dumps(
+                {
+                    "screens": {
+                        "chat": {
+                            "window": window,
+                            "safeAreaTop": 59,
+                            "elements": [
+                                {
+                                    "id": "chat.jobs",
+                                    "label": "Jobs",
+                                    "type": "button",
+                                    "frame": [360, 80, 80, 44],
+                                }
+                            ],
+                        }
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        wired = evaluate(tmp, tmp / "compare")
+        wired_cell = wired["screens"]["chat"]["large_text"]
+        missing_dir = Path(tmp_name) / "no-axxxl"
+        (missing_dir / "screenshots").mkdir(parents=True)
+        Image.new("RGB", (402, 300), BG_F4).save(missing_dir / "screenshots" / "chat.png")
+        unwired = evaluate(missing_dir, missing_dir / "compare")
+
     errors: list[str] = []
     if plain_result["verdict"] != "PASS":
         errors.append(f"plain Garage should PASS, got {plain_result}")
@@ -729,6 +1123,36 @@ def self_test() -> int:
         errors.append(f"filled Worked should PASS, got {filled_result}")
     if underline_result["verdict"] != "FAIL":
         errors.append(f"underlined Worked should FAIL, got {underline_result}")
+    if clean["verdict"] != "REVIEW":
+        errors.append(f"fitting Garage should be REVIEW, got {clean}")
+    if overflow["verdict"] != "FAIL" or not any("extends past" in reason for reason in overflow["reasons"]):
+        errors.append(f"Jobs past the right edge should FAIL, got {overflow}")
+    if both_edges["verdict"] != "FAIL" or not any("extends past" in reason for reason in both_edges["reasons"]):
+        errors.append(f"title clipped on both edges should FAIL, got {both_edges}")
+    if island["verdict"] != "FAIL" or not any("island" in reason for reason in island["reasons"]):
+        errors.append(f"title under the island should FAIL, got {island}")
+    if truncated["verdict"] != "FAIL" or not any("truncated" in reason for reason in truncated["reasons"]):
+        errors.append(f"Tod… should FAIL, got {truncated}")
+    if squeezed["verdict"] != "FAIL" or not any("squeezed" in reason for reason in squeezed["reasons"]):
+        errors.append(f"narrow Battery column should FAIL, got {squeezed}")
+    if overlap["verdict"] != "FAIL" or not any("overlaps" in reason for reason in overlap["reasons"]):
+        errors.append(f"Garage overlapping the title should FAIL, got {overlap}")
+    if contained["verdict"] != "REVIEW":
+        errors.append(f"a button containing its label should be REVIEW, got {contained}")
+    if skipped["verdict"] != "N/A":
+        errors.append(f"skipped Jobs screen should be N/A, got {skipped}")
+    if missing["verdict"] != "FAIL":
+        errors.append(f"missing scan-log frames should FAIL, got {missing}")
+    if flag_errors:
+        errors.extend(flag_errors)
+    if wired_cell["verdict"] != "FAIL":
+        errors.append(f"evaluate() should FAIL chat large_text, got {wired_cell}")
+    if wired["fail_count"] < 1:
+        errors.append(f"evaluate() fail_count should include large_text, got {wired['fail_count']}")
+    if unwired["screens"]["chat"]["large_text"]["verdict"] != "FAIL":
+        errors.append(f"missing layout-axxxl.json should FAIL, got {unwired['screens']['chat']['large_text']}")
+    if "Large text (AXXXL)" not in "\n".join(checklist_lines(wired)):
+        errors.append("checklist omitted the large-text row")
     if errors:
         print("self-test FAIL")
         for err in errors:

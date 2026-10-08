@@ -118,10 +118,13 @@ struct CitationPageView: View {
             Text(model.headerDocument)
                 .font(.title2)
                 .foregroundStyle(.primary)
+                .wrapsWords(maxLines: 3)
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .accessibilityIdentifier("citation.document")
             Text(model.headerPage)
                 .font(.headline)
                 .foregroundStyle(.secondary)
+                .wrapsWords(maxLines: 2)
                 .accessibilityIdentifier("citation.pageNumber")
         }
         .accessibilityElement(children: .contain)

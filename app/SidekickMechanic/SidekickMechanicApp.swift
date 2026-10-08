@@ -137,7 +137,8 @@ struct AppRootView: View {
 
 /// UI tests pass `-dynamicTypeSize accessibility5`. Real launches leave system Dynamic Type.
 /// Presented sheets / covers do not always inherit the root environment, so apply this
-/// on those roots as well as on `AppRootView`.
+/// on those roots as well as on `AppRootView`. Omitting it leaves the sheet at the
+/// system size while the screen behind it grows.
 struct AccessibilityLaunchModifier: ViewModifier {
     var enabled: Bool
 
@@ -149,6 +150,16 @@ struct AccessibilityLaunchModifier: ViewModifier {
                 content
             }
         }
+    }
+}
+
+extension View {
+    /// Wrap on word boundaries. Accessibility layouts use this instead of
+    /// `lineLimit(1)` plus `minimumScaleFactor`, which clips mid-word.
+    func wrapsWords(maxLines: Int = 3) -> some View {
+        lineLimit(maxLines)
+            .fixedSize(horizontal: false, vertical: true)
+            .minimumScaleFactor(1)
     }
 }
 

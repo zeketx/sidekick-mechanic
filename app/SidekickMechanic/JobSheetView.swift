@@ -154,31 +154,64 @@ struct JobSheetView: View {
             .accessibilityLabel("Job sheet handle")
     }
 
+    private var headerTitle: String {
+        model.job?.headerTitle ?? JobSheetCopy.titlePrefix + JobSheetCopy.title
+    }
+
     private var header: some View {
-        HStack(alignment: .firstTextBaseline) {
-            Text(model.job?.headerTitle ?? JobSheetCopy.titlePrefix + JobSheetCopy.title)
-                .font(.headline)
-                .foregroundStyle(.primary)
-                .lineLimit(isAccessibilitySize ? 1 : 3)
-                .minimumScaleFactor(isAccessibilitySize ? 0.6 : 1)
-                .accessibilityIdentifier("jobSheet.title")
-            Spacer(minLength: 8)
-            Button(model.detent == .collapsed ? JobSheetCopy.open : JobSheetCopy.close) {
-                if model.detent == .collapsed {
-                    model.open()
-                } else {
-                    model.close()
+        Group {
+            if isAccessibilitySize {
+                HStack(alignment: .top, spacing: 8) {
+                    Text(headerTitle)
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+                        .wrapsWords(maxLines: 3)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .accessibilityIdentifier("jobSheet.title")
+                        .accessibilityAddTraits(.isHeader)
+                    detentButton(iconOnly: true)
+                }
+            } else {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(headerTitle)
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+                        .lineLimit(3)
+                        .accessibilityIdentifier("jobSheet.title")
+                    Spacer(minLength: 8)
+                    detentButton(iconOnly: false)
                 }
             }
-            .buttonStyle(.plain)
-            .font(.subheadline)
-            .foregroundStyle(.secondary)
-            .fixedSize()
-            .layoutPriority(1)
-            .accessibilityIdentifier(model.detent == .collapsed ? "jobSheet.open" : "jobSheet.close")
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 8)
+    }
+
+    private func detentButton(iconOnly: Bool) -> some View {
+        let isCollapsed = model.detent == .collapsed
+        let label = isCollapsed ? JobSheetCopy.open : JobSheetCopy.close
+        return Button {
+            if isCollapsed {
+                model.open()
+            } else {
+                model.close()
+            }
+        } label: {
+            if iconOnly {
+                Image(systemName: isCollapsed ? "chevron.up" : "xmark")
+                    .font(.body.weight(.semibold))
+                    .frame(minWidth: 44, minHeight: 44)
+            } else {
+                Text(label)
+                    .font(.subheadline)
+            }
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(iconOnly ? Color.primary : Color.secondary)
+        .fixedSize()
+        .layoutPriority(1)
+        .accessibilityLabel(label)
+        .accessibilityIdentifier(isCollapsed ? "jobSheet.open" : "jobSheet.close")
     }
 
     private var collapsedPeek: some View {
@@ -282,7 +315,8 @@ struct JobSheetView: View {
                 Text(creditText)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                    .lineLimit(isAccessibilitySize ? 4 : 1)
+                    .fixedSize(horizontal: false, vertical: isAccessibilitySize)
                     .accessibilityIdentifier("jobSheet.credit")
                     .accessibilityHidden(true)
             }
@@ -357,25 +391,40 @@ struct JobSheetView: View {
     }
 
     private var chipRow: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(Array((model.job?.citations ?? []).enumerated()), id: \.offset) { index, citation in
-                    Button {
-                        onOpenCitation(citation)
-                    } label: {
-                        JobSheetChipLabel(text: index == 0 ? JobSheetCopy.chip : citation.chipLabel)
-                    }
-                    .buttonStyle(.plain)
-                    .tint(JobSheetChrome.chipInk)
-                    .foregroundStyle(JobSheetChrome.chipInk)
-                    .accessibilityIdentifier("jobSheet.chip.\(index)")
-                    .accessibilityHint("Opens the cited page")
+        Group {
+            if isAccessibilitySize {
+                VStack(alignment: .leading, spacing: 8) {
+                    citationChips
                 }
-                partChip
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("jobSheet.chips")
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        citationChips
+                    }
+                }
+                .accessibilityIdentifier("jobSheet.chips")
             }
         }
         .fixedSize(horizontal: false, vertical: true)
-        .accessibilityIdentifier("jobSheet.chips")
+    }
+
+    @ViewBuilder
+    private var citationChips: some View {
+        ForEach(Array((model.job?.citations ?? []).enumerated()), id: \.offset) { index, citation in
+            Button {
+                onOpenCitation(citation)
+            } label: {
+                JobSheetChipLabel(text: index == 0 ? JobSheetCopy.chip : citation.chipLabel)
+            }
+            .buttonStyle(.plain)
+            .tint(JobSheetChrome.chipInk)
+            .foregroundStyle(JobSheetChrome.chipInk)
+            .accessibilityIdentifier("jobSheet.chip.\(index)")
+            .accessibilityHint("Opens the cited page")
+        }
+        partChip
     }
 
     private var partChip: some View {
@@ -450,26 +499,39 @@ struct JobSheetView: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .accessibilityIdentifier("jobSheet.tagsHeading")
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(Array((model.job?.tags ?? []).enumerated()), id: \.offset) { index, tag in
-                        JobSheetChipLabel(text: tag)
-                            .accessibilityIdentifier("jobSheet.tag.\(index)")
+            Group {
+                if isAccessibilitySize {
+                    VStack(alignment: .leading, spacing: 8) {
+                        tagChips
                     }
-                    Button(JobSheetCopy.addTag) {
-                        newTagText = ""
-                        isAddingTag = true
+                } else {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            tagChips
+                        }
                     }
-                    .buttonStyle(.plain)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .accessibilityIdentifier("jobSheet.tags.add")
                 }
             }
             .fixedSize(horizontal: false, vertical: true)
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("jobSheet.tags")
+    }
+
+    @ViewBuilder
+    private var tagChips: some View {
+        ForEach(Array((model.job?.tags ?? []).enumerated()), id: \.offset) { index, tag in
+            JobSheetChipLabel(text: tag)
+                .accessibilityIdentifier("jobSheet.tag.\(index)")
+        }
+        Button(JobSheetCopy.addTag) {
+            newTagText = ""
+            isAddingTag = true
+        }
+        .buttonStyle(.plain)
+        .font(.subheadline)
+        .foregroundStyle(.secondary)
+        .accessibilityIdentifier("jobSheet.tags.add")
     }
 
     private var howDidItGo: some View {
@@ -580,17 +642,32 @@ struct JobSheetView: View {
 
 private struct JobSheetChipLabel: View {
     var text: String
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
-        Text(text)
-            .font(.subheadline)
-            .foregroundStyle(JobSheetChrome.chipInk)
+        label
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
             .background(JobSheetChrome.paper, in: Capsule())
             .overlay {
                 Capsule().strokeBorder(JobSheetChrome.chipInk.opacity(0.4), lineWidth: 1)
             }
+    }
+
+    @ViewBuilder
+    private var label: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            Text(text)
+                .font(.subheadline)
+                .foregroundStyle(JobSheetChrome.chipInk)
+                .multilineTextAlignment(.leading)
+                .wrapsWords(maxLines: 3)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            Text(text)
+                .font(.subheadline)
+                .foregroundStyle(JobSheetChrome.chipInk)
+        }
     }
 }
 
