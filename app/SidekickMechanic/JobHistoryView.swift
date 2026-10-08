@@ -82,16 +82,8 @@ struct JobHistoryView: View {
                         renderedWidth: thumbSize
                     )
                     .frame(width: thumbSize, height: thumbSize)
-                    Text(row.job.title)
-                        .font(.headline)
-                        .foregroundStyle(.primary)
-                        .multilineTextAlignment(.leading)
-                        .fixedSize(horizontal: false, vertical: true)
-                    Text(row.dateLabel)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .multilineTextAlignment(.leading)
-                        .fixedSize(horizontal: false, vertical: true)
+                    wrappingText(row.job.title, font: .headline, color: .primary)
+                    wrappingText(row.dateLabel, font: .subheadline, color: .secondary)
                     outcomeBadge(row.job.outcome)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -127,6 +119,18 @@ struct JobHistoryView: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .strokeBorder(Color.secondary.opacity(0.22))
         }
+    }
+
+    /// Full words at accessibility sizes. Hyphenation is what produced "Col / d i…".
+    private func wrappingText(_ string: String, font: Font, color: Color) -> some View {
+        var attributed = AttributedString(string)
+        attributed.hyphenationFactor = 0
+        return Text(attributed)
+            .font(font)
+            .foregroundStyle(color)
+            .multilineTextAlignment(.leading)
+            .lineLimit(nil)
+            .fixedSize(horizontal: false, vertical: true)
     }
 
     @ViewBuilder
@@ -241,6 +245,8 @@ struct LookBackPaperHeader: View {
                 if dynamicTypeSize.isAccessibilitySize {
                     Image(systemName: "square.grid.2x2")
                         .font(.body.weight(.medium))
+                        .imageScale(.medium)
+                        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                         .accessibilityHidden(true)
                 } else {
                     Text(ScanLogCopy.title)

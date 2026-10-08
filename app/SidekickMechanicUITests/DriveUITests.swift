@@ -402,6 +402,10 @@ final class DriveUITests: XCTestCase {
             identifiers: ["chat.garage", "chat.jobs", "chat.scanLog", "chat.composer", "chat.send"],
             screen: "chat axxxl"
         )
+        XCTAssertTrue(
+            chat.staticTexts["Describe a problem."].waitForExistence(timeout: 2),
+            "Empty-state copy must stay fully visible at Accessibility XXXL"
+        )
         try writeShot("taps-chat-axxxl.png")
         chat.terminate()
 
@@ -618,6 +622,16 @@ final class DriveUITests: XCTestCase {
                 frame.maxX,
                 bounds.maxX + 1,
                 "\(screen): \(identifier) maxX \(frame.maxX) is right of the window (\(bounds.maxX))"
+            )
+            XCTAssertGreaterThanOrEqual(
+                frame.minY,
+                bounds.minY - 1,
+                "\(screen): \(identifier) minY \(frame.minY) is above the window (\(bounds.minY))"
+            )
+            XCTAssertLessThanOrEqual(
+                frame.maxY,
+                bounds.maxY + 1,
+                "\(screen): \(identifier) maxY \(frame.maxY) is below the window (\(bounds.maxY))"
             )
         }
     }

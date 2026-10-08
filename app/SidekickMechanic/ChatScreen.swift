@@ -282,6 +282,9 @@ struct ChatScreen: View {
         if dynamicTypeSize.isAccessibilitySize {
             Image(systemName: systemImage)
                 .font(.body.weight(.medium))
+                .imageScale(.medium)
+                // Keep icons compact so Garage + Jobs + Scan log stay inside the window.
+                .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
                 .accessibilityHidden(true)
         } else {
             Text(title)
