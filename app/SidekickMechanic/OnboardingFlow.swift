@@ -128,35 +128,41 @@ struct OnboardingFlow: View {
 
 /// Welcome: one-line pitch, truck identity, abstract bay with a magenta outline.
 private struct WelcomeOnboardingPage: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                BayPlaceholderView()
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 200)
-                    .accessibilityLabel("Placeholder engine bay. Air box outlined.")
-
-                Text(OnboardingCopy.welcomeTitle)
-                    .font(.title2.weight(.bold))
-                    .foregroundStyle(.primary)
-
-                Text(OnboardingCopy.welcomeBody)
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(OnboardingCopy.truckName)
-                        .font(.subheadline.weight(.semibold))
-                    Text(OnboardingCopy.truckMeta)
-                        .font(.footnote)
+                if dynamicTypeSize.isAccessibilitySize {
+                    // The 200pt drawing plus a title2 headline pushes the pitch under the
+                    // pinned page dots at Accessibility XXXL. Lead with the sentence.
+                    Text(OnboardingCopy.welcomeTitle)
+                        .font(.title2.weight(.bold))
+                        .foregroundStyle(.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Text(OnboardingCopy.welcomeBody)
+                        .font(.body)
                         .foregroundStyle(.secondary)
-                }
-                .padding(14)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(OnboardingPalette.card, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .strokeBorder(Color.secondary.opacity(0.22))
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    truckCard
+                    BayPlaceholderView()
+                } else {
+                    BayPlaceholderView()
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 200)
+                        .accessibilityLabel("Placeholder engine bay. Air box outlined.")
+
+                    Text(OnboardingCopy.welcomeTitle)
+                        .font(.title2.weight(.bold))
+                        .foregroundStyle(.primary)
+
+                    Text(OnboardingCopy.welcomeBody)
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+
+                    truckCard
                 }
             }
             .padding(.horizontal, 24)
@@ -165,6 +171,23 @@ private struct WelcomeOnboardingPage: View {
         }
         .scrollContentBackground(.hidden)
         .accessibilityIdentifier("onboarding.welcome")
+    }
+
+    private var truckCard: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(OnboardingCopy.truckName)
+                .font(.subheadline.weight(.semibold))
+            Text(OnboardingCopy.truckMeta)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(OnboardingPalette.card, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(Color.secondary.opacity(0.22))
+        }
     }
 }
 
@@ -326,7 +349,42 @@ private enum OnboardingPalette {
 
 /// Abstract NA 2JZ bay. Not the truck. Organic magenta outline on the air box.
 private struct BayPlaceholderView: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
     var body: some View {
+        if dynamicTypeSize.isAccessibilitySize {
+            // caption2 inside a 12% slice of a fixed drawing draws outside the box
+            // once Dynamic Type is an accessibility size. The names sit under the drawing.
+            VStack(alignment: .leading, spacing: 8) {
+                diagram(showsCaptions: false)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 120)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Placeholder engine bay. Air box outlined.")
+                    .accessibilityIdentifier("onboarding.bay")
+                bayLegend("radiator area", id: "onboarding.bay.radiator")
+                bayLegend("air box", id: "onboarding.bay.airbox")
+                Text(OnboardingCopy.bayCaption)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .wrapsWords(maxLines: 2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        } else {
+            diagram(showsCaptions: true)
+        }
+    }
+
+    private func bayLegend(_ title: String, id: String) -> some View {
+        Text(title)
+            .font(.subheadline)
+            .foregroundStyle(.secondary)
+            .wrapsWords(maxLines: 2)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityIdentifier(id)
+    }
+
+    private func diagram(showsCaptions: Bool) -> some View {
         GeometryReader { proxy in
             let w = proxy.size.width
             let h = proxy.size.height
@@ -342,9 +400,11 @@ private struct BayPlaceholderView: View {
                                 .fill(OnboardingPalette.card.opacity(0.7))
                         }
                         .overlay {
-                            Text("radiator area")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
+                            if showsCaptions {
+                                Text("radiator area")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                         .frame(width: w * 0.84, height: h * 0.12)
                         .padding(.top, h * 0.07)
@@ -356,9 +416,11 @@ private struct BayPlaceholderView: View {
                             .fill(OnboardingPalette.fuchsiaFill)
                         OrganicPartOutline()
                             .stroke(OnboardingPalette.fuchsia, lineWidth: 2.2)
-                        Text("air box")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
+                        if showsCaptions {
+                            Text("air box")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                     .frame(width: w * 0.50, height: h * 0.22)
 
@@ -375,11 +437,13 @@ private struct BayPlaceholderView: View {
                     }
                     .padding(.horizontal, w * 0.08)
 
-                    Text(OnboardingCopy.bayCaption)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .padding(.top, 6)
-                        .padding(.bottom, h * 0.05)
+                    if showsCaptions {
+                        Text(OnboardingCopy.bayCaption)
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .padding(.top, 6)
+                            .padding(.bottom, h * 0.05)
+                    }
                 }
             }
         }

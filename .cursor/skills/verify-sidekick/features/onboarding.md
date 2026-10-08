@@ -29,7 +29,7 @@ Preconditions:
 - **Skip.** `DriveUITests.testSkipOnboardingIfPresent` launches `-resetOnboarding -screen onboarding-1`, taps `onboarding.skip`, expects `chat.composer`. Shots `taps/taps-onboarding-1.png` then `taps/taps-onboarding-skip.png`.
 - **Garage sheet.** After onboarding is completed, tap `chat.garage`. Sheet identifier `onboarding.garage`. Dismiss with `garage.done`. `DriveUITests.testOpenGarageIfPresent` does this and XCTSkips when `chat.garage` is absent.
 - **Proof.** Side-by-side `compare/onboarding-1.png` (and 2, 3) against `features/figma/onboarding-1.png`. Fill the design checklist. Header button is plain text Skip, not a glass capsule.
-- **Accessibility XXXL.** `screenshots/axxxl/onboarding-1.png` (and 2, 3) use `-dynamicTypeSize accessibility5`. The title stacks above Skip so "How it works" does not sit on top of Skip or under the island. Garage rows stack label over value. `assertFitsOnScreen` in `testAccessibilityXXXLHeaderAndHalfSheet` fails if Skip, Next, or Start chatting extends past the window.
+- **Accessibility XXXL.** `screenshots/axxxl/onboarding-1.png` (and 2, 3) use `-dynamicTypeSize accessibility5`. The title stacks above Skip so "How it works" does not sit on top of Skip or under the island. Garage rows stack label over value. Welcome leads with the pitch; "radiator area" and "air box" sit under the drawing instead of inside the fixed boxes. `assertFitsOnScreen` in `testAccessibilityXXXLHeaderAndHalfSheet` fails if Skip, Next, or Start chatting extends past the window, or if the welcome sentence is cut off above the page dots.
 
 ## Gotchas
 

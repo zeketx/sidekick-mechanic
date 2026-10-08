@@ -382,11 +382,12 @@ final class DriveUITests: XCTestCase {
         try writeJSON("layout-composer-multiline.json", ["screens": ["chat-multiline": frames]])
     }
 
-    /// Accessibility XXXL on every main screen. `assertFitsOnScreen` fails horizontal
-    /// overflow, island overlap, header-control overlap, and the truncation proxy.
-    /// Frames land in `layout-axxxl.json` before the assert so a failure is still measurable.
+    /// Accessibility XXXL on every main screen. Fit violations are collected for every
+    /// screen, then asserted once, so `layout-axxxl.json` still has full, closeout, and citation.
     func testAccessibilityXXXLHeaderAndHalfSheet() throws {
+        continueAfterFailure = true
         var screens: [String: Any] = [:]
+        var fitFailures: [String] = []
 
         let chat = launchAXXXL([
             "-sidekick.onboarding.completed", "YES",
@@ -401,7 +402,7 @@ final class DriveUITests: XCTestCase {
                 "Garage overlaps Sidekick at Accessibility XXXL: \(garage.frame) vs \(title.frame)"
             )
         }
-        try keepAXXXL("chat", chat, into: &screens)
+        try keepAXXXL("chat", chat, into: &screens, failures: &fitFailures)
         chat.terminate()
 
         let onboarding: [(String, String, String)] = [
@@ -414,7 +415,7 @@ final class DriveUITests: XCTestCase {
             XCTAssertTrue(element(app, root).waitForExistence(timeout: 8), "\(root) missing at Accessibility XXXL")
             assertControlInsideWindow(app, "onboarding.skip", screen: name)
             assertControlInsideWindow(app, nextID, screen: name)
-            try keepAXXXL(name, app, into: &screens)
+            try keepAXXXL(name, app, into: &screens, failures: &fitFailures)
             app.terminate()
         }
 
@@ -456,7 +457,7 @@ final class DriveUITests: XCTestCase {
         assertHalfSheetLeavesChatSliver(app, sheetID: "jobSheet.half", screen: "job-sheet-half axxxl")
         assertControlInsideWindow(app, "jobSheet.close", screen: "job-sheet-half")
         assertControlInsideWindow(app, "jobSheet.outcome.worked", screen: "job-sheet-half")
-        try keepAXXXL("job-sheet-half", app, into: &screens)
+        try keepAXXXL("job-sheet-half", app, into: &screens, failures: &fitFailures)
         app.terminate()
 
         let full = launchAXXXL([
@@ -469,7 +470,7 @@ final class DriveUITests: XCTestCase {
         XCTAssertTrue(element(full, "jobSheet.outcome.worked").isHittable, "Worked must be tappable on the full sheet at Accessibility XXXL")
         assertControlInsideWindow(full, "jobSheet.close", screen: "job-sheet-full")
         assertControlInsideWindow(full, "jobSheet.outcome.worked", screen: "job-sheet-full")
-        try keepAXXXL("job-sheet-full", full, into: &screens)
+        try keepAXXXL("job-sheet-full", full, into: &screens, failures: &fitFailures)
         full.terminate()
 
         let closeout = launchAXXXL([
@@ -488,7 +489,7 @@ final class DriveUITests: XCTestCase {
             screen: "job-sheet-closeout axxxl"
         )
         assertControlInsideWindow(closeout, "jobSheet.outcome.worked", screen: "job-sheet-closeout")
-        try keepAXXXL("job-sheet-closeout", closeout, into: &screens)
+        try keepAXXXL("job-sheet-closeout", closeout, into: &screens, failures: &fitFailures)
         closeout.terminate()
 
         let defaultCitation = launchApp(arguments: [
@@ -526,7 +527,7 @@ final class DriveUITests: XCTestCase {
             "Go deeper is below the citation sheet at Accessibility XXXL"
         )
         assertControlInsideWindow(citation, "citation.close", screen: "citation-page")
-        try keepAXXXL("citation-page", citation, into: &screens)
+        try keepAXXXL("citation-page", citation, into: &screens, failures: &fitFailures)
         citation.terminate()
 
         try recordAXXXLIfPresent(
@@ -534,14 +535,21 @@ final class DriveUITests: XCTestCase {
             arguments: ["-screen", "job-history"],
             required: "jobHistory.list",
             controls: ["lookBack.back", "jobHistory.scanLog"],
-            into: &screens
+            into: &screens,
+            failures: &fitFailures
         )
         try recordAXXXLIfPresent(
             "scan-log",
             arguments: ["-screen", "scan-log"],
             required: "scanLog.grid",
             controls: ["lookBack.back"],
-            into: &screens
+            into: &screens,
+            failures: &fitFailures
+        )
+
+        XCTAssertTrue(
+            fitFailures.isEmpty,
+            "Accessibility XXXL fit:\n\(fitFailures.joined(separator: "\n"))"
         )
     }
 
@@ -718,14 +726,13 @@ final class DriveUITests: XCTestCase {
         _ name: String,
         _ app: XCUIApplication,
         into screens: inout [String: Any],
-        file: StaticString = #filePath,
-        line: UInt = #line
+        failures: inout [String]
     ) throws {
         let fit = measureScreenFit(app, screen: name)
         screens[name] = fit.payload
         try writeJSON("layout-axxxl.json", ["screens": screens])
-        assertScreenFit(fit, screen: name, file: file, line: line)
         try writeShot("taps-\(name)-axxxl.png")
+        failures.append(contentsOf: fit.reasons.map { "\(name): \($0)" })
     }
 
     private func recordAXXXLIfPresent(
@@ -733,7 +740,8 @@ final class DriveUITests: XCTestCase {
         arguments: [String],
         required: String,
         controls: [String],
-        into screens: inout [String: Any]
+        into screens: inout [String: Any],
+        failures: inout [String]
     ) throws {
         let app = launchAXXXL(arguments)
         if !element(app, required).waitForExistence(timeout: 3) {
@@ -748,7 +756,7 @@ final class DriveUITests: XCTestCase {
         for control in controls {
             assertControlInsideWindow(app, control, screen: name)
         }
-        try keepAXXXL(name, app, into: &screens)
+        try keepAXXXL(name, app, into: &screens, failures: &failures)
         app.terminate()
     }
 
@@ -807,12 +815,19 @@ final class DriveUITests: XCTestCase {
         var reasons: [String]
     }
 
+    private struct Viewport {
+        var id: String
+        var frame: CGRect
+    }
+
     private struct FittedControl {
         var id: String
         var label: String
         var type: String
         var frame: CGRect
         var inStatusBar: Bool
+        var hittable: Bool
+        var islandExempt = false
 
         var describe: String {
             let name = id.isEmpty ? label : id
@@ -820,9 +835,10 @@ final class DriveUITests: XCTestCase {
         }
     }
 
-    /// Geometry shared with `design_checks.measure_axxxl`. A label of "Today" that
-    /// draws as "Tod…" still fails only when the accessibility label contains an
-    /// ellipsis or the frame is a narrow column. Screenshot review covers the rest.
+    /// Geometry shared with `design_checks.measure_axxxl`. Off-screen scroll content and
+    /// chat behind the scrim are not measured. A label of "Today" that draws as "Tod…"
+    /// still fails only when the accessibility label contains an ellipsis or the frame
+    /// is a narrow column. Screenshot review covers the rest.
     private func measureScreenFit(_ app: XCUIApplication, screen: String) -> ScreenFit {
         let windowElement = app.windows.firstMatch
         guard windowElement.waitForExistence(timeout: 8) else {
@@ -833,32 +849,57 @@ final class DriveUITests: XCTestCase {
         let status = app.statusBars.firstMatch
         let statusFrame = status.exists ? status.frame : CGRect.null
         let controls = fittedControls(app, window: window, statusBar: statusFrame)
+        let dimmed = element(app, "jobSheet.dim").exists
+        let sheet = sheetPort(app)
+        let scrolls = scrollViewPorts(app)
+        let clips = clipPorts(app)
+        var measured: [FittedControl] = []
         var reasons: [String] = []
         for item in controls {
-            if let reason = horizontalOverflow(item.frame, window: window) {
-                reasons.append("\(item.describe) \(reason)")
+            let decision = visibility(
+                item,
+                dimmed: dimmed,
+                sheet: sheet,
+                scrolls: scrolls,
+                clips: clips,
+                window: window
+            )
+            guard decision.keep else { continue }
+            var visible = item
+            visible.islandExempt = decision.islandExempt
+            measured.append(visible)
+            reasons += decision.reasons.map { "\(visible.describe) \($0)" }
+            if let reason = horizontalOverflow(visible.frame, window: window) {
+                reasons.append("\(visible.describe) \(reason)")
             }
-            if let reason = islandOverlap(item, inset: inset, window: window) {
-                reasons.append("\(item.describe) \(reason)")
+            if let reason = islandOverlap(visible, inset: inset, window: window) {
+                reasons.append("\(visible.describe) \(reason)")
             }
-            if let reason = truncationProxy(item) {
-                reasons.append("\(item.describe) \(reason)")
+            if let reason = truncationProxy(visible) {
+                reasons.append("\(visible.describe) \(reason)")
             }
         }
-        reasons += headerOverlapReasons(controls, inset: inset)
-        let payload: [String: Any] = [
+        reasons += headerOverlapReasons(measured, inset: inset)
+        var payload: [String: Any] = [
             "window": rect(window),
             "safeAreaTop": Double(inset),
+            "dimmed": dimmed,
+            "scrollViews": scrolls.map { ["id": $0.id, "frame": rect($0.frame)] as [String: Any] },
+            "clips": clips.map { ["id": $0.id, "frame": rect($0.frame)] as [String: Any] },
             "elements": controls.map { item in
                 [
                     "id": item.id,
                     "label": item.label,
                     "type": item.type,
                     "inStatusBar": item.inStatusBar,
+                    "hittable": item.hittable,
                     "frame": rect(item.frame),
                 ] as [String: Any]
             },
         ]
+        if let sheet {
+            payload["sheet"] = rect(sheet)
+        }
         return ScreenFit(payload: payload, reasons: reasons)
     }
 
@@ -894,11 +935,148 @@ final class DriveUITests: XCTestCase {
                     label: item.label,
                     type: type,
                     frame: frame,
-                    inStatusBar: inBar
+                    inStatusBar: inBar,
+                    hittable: item.isHittable
                 ))
             }
         }
         return found
+    }
+
+    private struct VisibilityDecision {
+        var keep: Bool
+        var reasons: [String]
+        var islandExempt: Bool
+    }
+
+    /// Same rules as `design_checks._axxxl_keep`. Non-hittable and fully scrolled-away
+    /// elements are dropped. Text cut off by the bottom of the window is kept and failed.
+    private func visibility(
+        _ item: FittedControl,
+        dimmed: Bool,
+        sheet: CGRect?,
+        scrolls: [Viewport],
+        clips: [Viewport],
+        window: CGRect
+    ) -> VisibilityDecision {
+        if item.id == "jobSheet.dim" {
+            return VisibilityDecision(keep: false, reasons: [], islandExempt: false)
+        }
+        if behindSheet(item, dimmed: dimmed, sheet: sheet) {
+            return VisibilityDecision(keep: false, reasons: [], islandExempt: false)
+        }
+        if mostlyAboveWindow(item.frame, window: window) {
+            return VisibilityDecision(keep: false, reasons: [], islandExempt: false)
+        }
+        if scrolledAway(item, scrolls: scrolls, window: window) {
+            return VisibilityDecision(keep: false, reasons: [], islandExempt: false)
+        }
+        var reasons: [String] = []
+        if let clip = windowClipReason(item.frame, window: window) {
+            reasons.append(clip)
+        }
+        if let fixed = fixedClipReason(item, clips: clips) {
+            reasons.append(fixed)
+        }
+        if !item.hittable && reasons.isEmpty {
+            return VisibilityDecision(keep: false, reasons: [], islandExempt: false)
+        }
+        return VisibilityDecision(
+            keep: true,
+            reasons: reasons,
+            islandExempt: dimmed && item.id == "chat.garage"
+        )
+    }
+
+    private func behindSheet(_ item: FittedControl, dimmed: Bool, sheet: CGRect?) -> Bool {
+        guard dimmed else { return false }
+        if item.id == "jobSheet.dim" || item.id == "chat.garage" || item.id.hasPrefix("jobSheet.") {
+            return false
+        }
+        if item.id.hasPrefix("answerCard.") || item.id.hasPrefix("chat.") {
+            return true
+        }
+        if let sheet, !sheet.contains(CGPoint(x: item.frame.midX, y: item.frame.midY)) {
+            return true
+        }
+        return !item.hittable
+    }
+
+    /// A chip at y=-128 still intersects the window by about a point. That is not on screen.
+    private func mostlyAboveWindow(_ frame: CGRect, window: CGRect) -> Bool {
+        let visible = frame.intersection(window)
+        if visible.isNull || visible.isInfinite { return true }
+        return frame.minY < window.minY - 2 && visible.height <= 8
+    }
+
+    private func scrolledAway(_ item: FittedControl, scrolls: [Viewport], window: CGRect) -> Bool {
+        guard !scrolls.isEmpty else { return false }
+        let inViewport = scrolls.contains { scroll in
+            let inter = item.frame.intersection(scroll.frame)
+            return !inter.isNull && !inter.isInfinite && inter.width > 2 && inter.height > 2
+        }
+        if inViewport { return false }
+        let onWindow = item.frame.intersection(window)
+        let windowHeight = onWindow.isNull || onWindow.isInfinite ? 0 : onWindow.height
+        return !item.hittable || windowHeight <= 2
+    }
+
+    /// Text that starts in the top 80% of the window and still runs off the bottom.
+    /// A peek of the next scrolled row (minY in the bottom 20%) is not a clip.
+    private func windowClipReason(_ frame: CGRect, window: CGRect) -> String? {
+        let visible = frame.intersection(window)
+        guard !visible.isNull, !visible.isInfinite, visible.height > 48 else { return nil }
+        if frame.minY >= window.minY + window.height * 0.80 { return nil }
+        let pastBottom = frame.maxY - window.maxY
+        guard pastBottom > 80, frame.height > 0, pastBottom > frame.height * 0.35 else { return nil }
+        return String(
+            format: "clipped by its container (minY %.0f, %.0fpt past the bottom of %.0fpt)",
+            frame.minY,
+            pastBottom,
+            frame.height
+        )
+    }
+
+    private func fixedClipReason(_ item: FittedControl, clips: [Viewport]) -> String? {
+        for clip in clips {
+            let outer = clip.frame
+            guard outer.contains(CGPoint(x: item.frame.midX, y: item.frame.midY)) else { continue }
+            let frame = item.frame
+            if frame.minX < outer.minX - 4
+                || frame.minY < outer.minY - 4
+                || frame.maxX > outer.maxX + 4
+                || frame.maxY > outer.maxY + 4
+            {
+                let name = clip.id.isEmpty ? "clip" : clip.id
+                return "extends outside fixed container \(name)"
+            }
+        }
+        return nil
+    }
+
+    private func sheetPort(_ app: XCUIApplication) -> CGRect? {
+        for id in ["jobSheet.half", "jobSheet.full", "jobSheet.collapsed"] {
+            let item = element(app, id)
+            if item.exists, item.frame.width > 1, item.frame.height > 1 {
+                return item.frame
+            }
+        }
+        return nil
+    }
+
+    private func scrollViewPorts(_ app: XCUIApplication) -> [Viewport] {
+        app.scrollViews.allElementsBoundByIndex.compactMap { item in
+            guard item.exists else { return nil }
+            let frame = item.frame
+            guard frame.width > 1, frame.height > 1 else { return nil }
+            return Viewport(id: item.identifier, frame: frame)
+        }
+    }
+
+    private func clipPorts(_ app: XCUIApplication) -> [Viewport] {
+        let bay = element(app, "onboarding.bay")
+        guard bay.exists, bay.frame.width > 1, bay.frame.height > 1 else { return [] }
+        return [Viewport(id: "onboarding.bay", frame: bay.frame)]
     }
 
     private func horizontalOverflow(_ frame: CGRect, window: CGRect) -> String? {
@@ -915,8 +1093,9 @@ final class DriveUITests: XCTestCase {
 
     /// Status-bar chrome (clock, signal) sits in the island on purpose. App headers do not.
     /// Body copy such as `jobSheet.answer` is not a header, so scrolling it does not fail this check.
+    /// `chat.garage` above a sheet is the dimmed sliver from #121, not an island collision.
     private func islandOverlap(_ item: FittedControl, inset: CGFloat, window: CGRect) -> String? {
-        if item.id == "jobSheet.dim" || item.frame.height >= window.height * 0.45 { return nil }
+        if item.islandExempt || item.id == "jobSheet.dim" || item.frame.height >= window.height * 0.45 { return nil }
         if item.id.isEmpty && item.frame.maxY <= inset + 2 { return nil }
         guard item.frame.minY < inset - 2, item.frame.maxY > window.minY else { return nil }
         let ident = item.id.lowercased()
@@ -951,6 +1130,7 @@ final class DriveUITests: XCTestCase {
     private func headerOverlapReasons(_ items: [FittedControl], inset: CGFloat) -> [String] {
         let band = items.filter { item in
             !item.inStatusBar
+                && !item.islandExempt
                 && item.id != "jobSheet.dim"
                 && item.frame.minY < inset + 96
                 && item.frame.height < 160

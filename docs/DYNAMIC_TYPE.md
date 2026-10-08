@@ -93,6 +93,18 @@ On each main screen at AXXXL, `assertFitsOnScreen` and `measure_axxxl` **FAIL** 
 - Two header controls in the top band overlap by more than 4pt (the "Garage" over "Sidekick" bug). A control that fully contains its own label does not count.
 - The accessibility label contains `…` or `...`.
 - A long token is squeezed into a column narrower than 72pt and taller than 1.35× its width (mid-word wrap proxy).
+- Text starts in the top 80% of the window, more than 48pt of it is on screen, and more than 80pt (and more than 35% of its height) continues past the bottom edge. That is a fixed container cutting the block off, which is how the welcome sentence ("Ask about a…") sat on the page dots. A row that only peeks in from the bottom 20% is the next scrolled item, not a failure.
+- Text whose center sits inside a fixed clip (`clips` in `layout-axxxl.json`, the bay drawing `onboarding.bay`) but whose frame extends more than 4pt outside that clip. That is an illustration label spilling out of its box.
+
+These are not failures:
+
+- An element that is not hittable, unless it is the clipped-text case above.
+- An element fully outside its scroll view's visible frame (a chip scrolled up under the sheet header, a step that has already moved off).
+- While `jobSheet.dim` is up, chat and answer-card elements behind the scrim. `chat.garage` stays in the tree: it is the dimmed sliver above the sheet, and it is exempt from the island and header-overlap checks. `assertHalfSheetLeavesChatSliver` still requires that sliver.
+
+`testAccessibilityXXXLHeaderAndHalfSheet` writes every screen into `layout-axxxl.json` before it asserts, so one failure does not drop job-sheet-full, closeout, or citation-page. Thresholds live in `DriveUITests` and `design_checks.py` and match.
+
+At accessibility sizes the welcome page leads with the pitch, then the truck card, then a shorter bay drawing. The words "radiator area" and "air box" sit under that drawing and wrap. They are not drawn inside the fixed boxes. Default size keeps the 200pt drawing above the pitch.
 
 Jobs and Scan log are skipped, not failed, while `JobHistoryView.swift` / `ScanLogView.swift` are absent. When those screens are in the checkout they are checked like the others. PR #114 (`cursor/job-history-scan-log-a9cc`) is being fixed separately. These checks are expected to fail on that branch until its headers and rows follow this page. Do not weaken the checks to match it.
 

@@ -572,7 +572,7 @@ def _axxxl_overflow(frame: list[float], window: list[float]) -> str | None:
 
 def _axxxl_island(item: dict[str, Any], inset: float, window: list[float]) -> str | None:
     """Match DriveUITests.islandOverlap. Status-bar chrome is ignored. Body copy is not a header."""
-    if item.get("id") == "jobSheet.dim":
+    if item.get("id") == "jobSheet.dim" or item.get("islandExempt"):
         return None
     _, y, _, h = item["frame"]
     if h >= window[3] * 0.45:
@@ -621,11 +621,182 @@ def _contains_frame(outer: list[float], inner: list[float]) -> bool:
     )
 
 
+# Text that starts in the top 80% of the window and still runs more than 80pt
+# (and more than 35% of its own height) past the bottom edge is clipped by a
+# fixed container. A bottom-edge peek of the next scrolled row is not.
+AXXXL_CLIP_MIN_INTERSECTION = 48.0
+AXXXL_CLIP_PAST = 80.0
+AXXXL_CLIP_PAST_FRACTION = 0.35
+AXXXL_CLIP_MAX_MIN_Y_FRACTION = 0.80
+
+
+def _rect_intersection(a: list[float], b: list[float]) -> list[float] | None:
+    ax, ay, aw, ah = a
+    bx, by, bw, bh = b
+    x0 = max(ax, bx)
+    y0 = max(ay, by)
+    x1 = min(ax + aw, bx + bw)
+    y1 = min(ay + ah, by + bh)
+    if x1 - x0 <= 0 or y1 - y0 <= 0:
+        return None
+    return [x0, y0, x1 - x0, y1 - y0]
+
+
+def _center_in(frame: list[float], outer: list[float]) -> bool:
+    cx = frame[0] + frame[2] / 2
+    cy = frame[1] + frame[3] / 2
+    return outer[0] <= cx <= outer[0] + outer[2] and outer[1] <= cy <= outer[1] + outer[3]
+
+
+def _payload_frames(payload: dict[str, Any], key: str) -> list[dict[str, Any]]:
+    raw = payload.get(key) or []
+    if not isinstance(raw, list):
+        return []
+    found: list[dict[str, Any]] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        frame = _axxxl_frame(item.get("frame"))
+        if frame is None:
+            continue
+        found.append({"id": str(item.get("id") or ""), "frame": frame})
+    return found
+
+
+def _dimmed(payload: dict[str, Any], elements: list[dict[str, Any]]) -> bool:
+    if "dimmed" in payload:
+        return bool(payload.get("dimmed"))
+    return any(item.get("id") == "jobSheet.dim" for item in elements)
+
+
+def _sheet_frame(payload: dict[str, Any], elements: list[dict[str, Any]]) -> list[float] | None:
+    direct = _axxxl_frame(payload.get("sheet"))
+    if direct is not None:
+        return direct
+    for ident in ("jobSheet.half", "jobSheet.full", "jobSheet.collapsed"):
+        for item in elements:
+            if item.get("id") == ident:
+                return item["frame"]
+    return None
+
+
+def _behind_sheet(item: dict[str, Any], dimmed: bool, sheet: list[float] | None) -> bool:
+    """Chat under the scrim is not on screen. The Garage sliver and the sheet's own controls are."""
+    if not dimmed:
+        return False
+    ident = str(item.get("id") or "")
+    if ident == "jobSheet.dim" or ident == "chat.garage" or ident.startswith("jobSheet."):
+        return False
+    if ident.startswith("answerCard.") or ident.startswith("chat."):
+        return True
+    if sheet is not None and not _center_in(item["frame"], sheet):
+        return True
+    return item.get("hittable") is False
+
+
+def _scroll_frames(payload: dict[str, Any]) -> list[list[float]]:
+    return [item["frame"] for item in _payload_frames(payload, "scrollViews")]
+
+
+def _mostly_above_window(frame: list[float], window: list[float]) -> bool:
+    """A chip scrolled to y=-128 still reports a 1pt intersection. That is not on screen."""
+    inter = _rect_intersection(frame, window)
+    if inter is None:
+        return True
+    return frame[1] < window[1] - 2 and inter[3] <= 8
+
+
+def _scrolled_away(
+    item: dict[str, Any],
+    scrolls: list[list[float]],
+    window: list[float],
+) -> bool:
+    """Fully outside every scroll viewport. On-screen headers and the Garage sliver stay."""
+    if not scrolls:
+        return False
+    visible = False
+    for scroll in scrolls:
+        inter = _rect_intersection(item["frame"], scroll)
+        if inter is not None and inter[2] > 2 and inter[3] > 2:
+            visible = True
+            break
+    if visible:
+        return False
+    window_inter = _rect_intersection(item["frame"], window)
+    window_h = 0.0 if window_inter is None else window_inter[3]
+    if item.get("hittable") is False or window_h <= 2:
+        return True
+    return False
+
+
+def _window_clip(frame: list[float], window: list[float]) -> str | None:
+    """Match DriveUITests.windowClipReason. See docs/DYNAMIC_TYPE.md."""
+    inter = _rect_intersection(frame, window)
+    if inter is None or inter[3] <= AXXXL_CLIP_MIN_INTERSECTION:
+        return None
+    y, h = frame[1], frame[3]
+    if y >= window[3] * AXXXL_CLIP_MAX_MIN_Y_FRACTION:
+        return None
+    past_bottom = (y + h) - (window[1] + window[3])
+    if past_bottom <= AXXXL_CLIP_PAST or h <= 0 or past_bottom <= h * AXXXL_CLIP_PAST_FRACTION:
+        return None
+    return (
+        f"clipped by its container (minY {y:.0f}, {past_bottom:.0f}pt past the bottom of {h:.0f}pt)"
+    )
+
+
+def _fixed_clip(item: dict[str, Any], clips: list[dict[str, Any]]) -> str | None:
+    frame = item["frame"]
+    for clip in clips:
+        outer = clip["frame"]
+        if not _center_in(frame, outer):
+            continue
+        if (
+            frame[0] < outer[0] - 4
+            or frame[1] < outer[1] - 4
+            or frame[0] + frame[2] > outer[0] + outer[2] + 4
+            or frame[1] + frame[3] > outer[1] + outer[3] + 4
+        ):
+            name = clip.get("id") or "clip"
+            return f"extends outside fixed container {name}"
+    return None
+
+
+def _axxxl_keep(
+    item: dict[str, Any],
+    payload: dict[str, Any],
+    elements: list[dict[str, Any]],
+    window: list[float],
+) -> tuple[bool, list[str]]:
+    """Visible elements only. Returns (measure?, extra reasons). Thresholds match DriveUITests."""
+    if item.get("id") == "jobSheet.dim":
+        return False, []
+    dimmed = _dimmed(payload, elements)
+    if _behind_sheet(item, dimmed, _sheet_frame(payload, elements)):
+        return False, []
+    if _mostly_above_window(item["frame"], window):
+        return False, []
+    if _scrolled_away(item, _scroll_frames(payload), window):
+        return False, []
+    reasons: list[str] = []
+    clipped = _window_clip(item["frame"], window)
+    if clipped:
+        reasons.append(clipped)
+    fixed = _fixed_clip(item, _payload_frames(payload, "clips"))
+    if fixed:
+        reasons.append(fixed)
+    if item.get("hittable") is False and not reasons:
+        return False, []
+    if dimmed and item.get("id") == "chat.garage":
+        item["islandExempt"] = True
+    return True, reasons
+
+
 def _axxxl_overlaps(items: list[dict[str, Any]], inset: float) -> list[str]:
     band = []
     for item in items:
         frame = item["frame"]
-        if item.get("inStatusBar") or item.get("id") == "jobSheet.dim":
+        if item.get("inStatusBar") or item.get("id") == "jobSheet.dim" or item.get("islandExempt"):
             continue
         if frame[1] < inset + 96 and frame[3] < 160 and frame[3] > 1:
             band.append(item)
@@ -678,21 +849,31 @@ def measure_axxxl(payload: dict[str, Any] | None, screen: str) -> dict[str, Any]
     raw_elements = payload.get("elements") or []
     if not isinstance(raw_elements, list):
         raw_elements = []
+    staged: list[dict[str, Any]] = []
     for raw in raw_elements:
         if not isinstance(raw, dict):
             continue
         frame = _axxxl_frame(raw.get("frame"))
         if frame is None:
             continue
-        item = {
-            "id": str(raw.get("id") or ""),
-            "label": str(raw.get("label") or ""),
-            "type": str(raw.get("type") or ""),
-            "inStatusBar": bool(raw.get("inStatusBar")),
-            "frame": frame,
-        }
+        staged.append(
+            {
+                "id": str(raw.get("id") or ""),
+                "label": str(raw.get("label") or ""),
+                "type": str(raw.get("type") or ""),
+                "inStatusBar": bool(raw.get("inStatusBar")),
+                "hittable": True if "hittable" not in raw else bool(raw.get("hittable")),
+                "frame": frame,
+            }
+        )
+    for item in staged:
+        keep, extra = _axxxl_keep(item, payload, staged, window)
+        if not keep:
+            continue
         parsed.append(item)
-        overflow = _axxxl_overflow(frame, window)
+        for reason in extra:
+            reasons.append(f"{_axxxl_name(item)} {reason}")
+        overflow = _axxxl_overflow(item["frame"], window)
         if overflow:
             reasons.append(f"{_axxxl_name(item)} {overflow}")
         island = _axxxl_island(item, inset, window)
@@ -1068,6 +1249,123 @@ def self_test() -> int:
         "job-history",
     )
     missing = measure_axxxl(None, "scan-log")
+    # Scrolled-off sheet content, chat behind the scrim, and the Garage sliver must not fail.
+    clipped_away = measure_axxxl(
+        {
+            "window": window,
+            "safeAreaTop": 59,
+            "dimmed": True,
+            "sheet": [0, 95, 402, 779],
+            "scrollViews": [{"id": "jobSheet.body", "frame": [0, 250, 402, 330]}],
+            "elements": [
+                {
+                    "id": "jobSheet.dim",
+                    "label": "Close job sheet",
+                    "type": "button",
+                    "hittable": True,
+                    "frame": [0, 0, 402, 874],
+                },
+                {
+                    "id": "chat.garage",
+                    "label": "Garage",
+                    "type": "button",
+                    "hittable": True,
+                    "frame": [16, 28, 165, 63],
+                },
+                {
+                    "id": "jobSheet.chip.0",
+                    "label": "FAKE-DOC-2JZ · p. 999",
+                    "type": "button",
+                    "hittable": True,
+                    "frame": [16, -128, 370, 129],
+                },
+                {
+                    "id": "jobSheet.partChip",
+                    "label": "fuse/relay",
+                    "type": "staticText",
+                    "hittable": False,
+                    "frame": [16, 9, 370, 71],
+                },
+                {
+                    "id": "jobSheet.stepsHeading",
+                    "label": "Steps 1 of 3",
+                    "type": "staticText",
+                    "hittable": False,
+                    "frame": [16, 87, 256, 59],
+                },
+                {
+                    "id": "answerCard.chip.0",
+                    "label": "FAKE-DOC-2JZ · p. 999",
+                    "type": "button",
+                    "hittable": True,
+                    "frame": [30, 556, 529, 71],
+                },
+                {
+                    "id": "",
+                    "label": "You said Rough idle after a cold start",
+                    "type": "staticText",
+                    "hittable": False,
+                    "frame": [98, -119, 288, 207],
+                },
+                {
+                    "id": "jobSheet.title",
+                    "label": "Job · Cold idle",
+                    "type": "staticText",
+                    "hittable": True,
+                    "frame": [16, 117, 207, 125],
+                },
+                {
+                    "id": "jobSheet.close",
+                    "label": "Close",
+                    "type": "button",
+                    "hittable": True,
+                    "frame": [337, 122, 43, 43],
+                },
+            ],
+        },
+        "job-sheet-half",
+    )
+    body_clip = measure_axxxl(
+        {
+            "window": window,
+            "safeAreaTop": 59,
+            "scrollViews": [{"id": "onboarding.welcome", "frame": [0, 200, 402, 510]}],
+            "elements": [
+                {
+                    "id": "",
+                    "label": "Ask about a problem in chat.",
+                    "type": "staticText",
+                    "hittable": True,
+                    "frame": [24, 636, 349, 497],
+                },
+                {
+                    "id": "onboarding.next",
+                    "label": "Next",
+                    "type": "button",
+                    "hittable": True,
+                    "frame": [24, 737, 354, 87],
+                },
+            ],
+        },
+        "onboarding-1",
+    )
+    bay_spill = measure_axxxl(
+        {
+            "window": window,
+            "safeAreaTop": 59,
+            "clips": [{"id": "onboarding.bay", "frame": [24, 210, 354, 120]}],
+            "elements": [
+                {
+                    "id": "onboarding.bay.radiator",
+                    "label": "radiator area",
+                    "type": "staticText",
+                    "hittable": True,
+                    "frame": [30, 200, 300, 80],
+                }
+            ],
+        },
+        "onboarding-1",
+    )
 
     import tempfile
 
@@ -1143,6 +1441,12 @@ def self_test() -> int:
         errors.append(f"skipped Jobs screen should be N/A, got {skipped}")
     if missing["verdict"] != "FAIL":
         errors.append(f"missing scan-log frames should FAIL, got {missing}")
+    if clipped_away["verdict"] != "REVIEW":
+        errors.append(f"scrolled-off sheet content and the Garage sliver should be REVIEW, got {clipped_away}")
+    if body_clip["verdict"] != "FAIL" or not any("clipped by its container" in reason for reason in body_clip["reasons"]):
+        errors.append(f"welcome body cut off above the dots should FAIL, got {body_clip}")
+    if bay_spill["verdict"] != "FAIL" or not any("fixed container" in reason for reason in bay_spill["reasons"]):
+        errors.append(f"illustration label outside its box should FAIL, got {bay_spill}")
     if flag_errors:
         errors.extend(flag_errors)
     if wired_cell["verdict"] != "FAIL":
