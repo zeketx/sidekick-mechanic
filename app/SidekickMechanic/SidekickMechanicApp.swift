@@ -60,21 +60,28 @@ struct SidekickMechanicApp: App {
 struct AppRootView: View {
     @Bindable var chatModel: ChatViewModel
     var launch: DemoLaunchOptions
+    private let garagePreview: GaragePreview?
     @AppStorage(OnboardingStorage.completedKey) private var onboardingCompleted = false
     @State private var page: OnboardingPage
     @State private var isOnboardingVisible: Bool
-    @State private var isGaragePresented = false
+    @State private var isGaragePresented: Bool
 
     init(chatModel: ChatViewModel, launch: DemoLaunchOptions) {
         self.chatModel = chatModel
         self.launch = launch
         let onboarding = OnboardingLaunchOptions.parse()
+        let preview = GaragePreview.parse()
+        self.garagePreview = preview
         if onboarding.resetOnboarding {
             UserDefaults.standard.set(false, forKey: OnboardingStorage.completedKey)
         }
         let completed = UserDefaults.standard.bool(forKey: OnboardingStorage.completedKey)
         _page = State(initialValue: onboarding.screen ?? .welcome)
-        _isOnboardingVisible = State(initialValue: onboarding.screen != nil || !completed)
+        _isOnboardingVisible = State(
+            initialValue: preview == nil && (onboarding.screen != nil || !completed)
+        )
+        // A sheet that starts presented often never appears. Flip it on first appear.
+        _isGaragePresented = State(initialValue: false)
     }
 
     var body: some View {
@@ -86,6 +93,11 @@ struct AppRootView: View {
             }
         }
         .modifier(AccessibilityLaunchModifier(enabled: launch.prefersAccessibilitySize))
+        .onAppear {
+            if garagePreview != nil {
+                isGaragePresented = true
+            }
+        }
     }
 
     @ViewBuilder
@@ -111,22 +123,13 @@ struct AppRootView: View {
             }
         }
         .sheet(isPresented: $isGaragePresented) {
-            NavigationStack {
-                GarageListView(canvas: .white)
-                    .navigationTitle("Your garage")
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbar {
-                        ToolbarItem(placement: .confirmationAction) {
-                            Button("Done") { isGaragePresented = false }
-                                .accessibilityIdentifier("garage.done")
-                        }
-                    }
-                    .toolbarBackground(.white, for: .navigationBar)
-                    .toolbarBackground(.visible, for: .navigationBar)
-            }
-            .presentationBackground(.white)
-            .presentationBackgroundInteraction(.disabled)
-            .modifier(AccessibilityLaunchModifier(enabled: launch.prefersAccessibilitySize))
+            GarageScreen(onClose: { isGaragePresented = false }, preview: garagePreview)
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
+                .presentationBackground(JobSheetChrome.screen)
+                .presentationCornerRadius(CGFloat(JobSheetLayout.topCornerRadius))
+                .presentationBackgroundInteraction(.disabled)
+                .modifier(AccessibilityLaunchModifier(enabled: launch.prefersAccessibilitySize))
         }
     }
 
