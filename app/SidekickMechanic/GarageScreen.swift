@@ -193,7 +193,10 @@ struct GarageScreen: View {
                     .foregroundStyle(.secondary)
             } else {
                 LazyVGrid(
-                    columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)],
+                    columns: [
+                        GridItem(.flexible(), spacing: 12, alignment: .top),
+                        GridItem(.flexible(), spacing: 12, alignment: .top),
+                    ],
                     spacing: 12
                 ) {
                     ForEach(model.library.photos) { photo in
@@ -955,7 +958,7 @@ struct GarageSheetPositionReader: UIViewControllerRepresentable {
             guard let window = view.window else { return }
             let height = window.bounds.height
             guard height > 0 else { return }
-            let source = sheetHostView ?? view
+            guard let source = sheetHostView ?? viewIfLoaded else { return }
             guard source.bounds.height > 0 else { return }
             let top = source.convert(CGPoint.zero, to: window).y
             let next = 1 - Double(top / height)
