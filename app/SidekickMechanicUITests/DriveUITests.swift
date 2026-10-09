@@ -130,6 +130,7 @@ final class DriveUITests: XCTestCase {
     func testEditGarageAddsFactAndTodo() throws {
         let app = launchApp(arguments: [
             "-sidekick.onboarding.completed", "YES",
+            "-garageTemporaryStore", "1",
         ])
         let garage = element(app, "chat.garage")
         XCTAssertTrue(garage.waitForExistence(timeout: 8), "chat.garage is missing")

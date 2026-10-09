@@ -204,6 +204,46 @@ public enum GarageStoreError: Error, Equatable {
     case badFileName
 }
 
+/// Black dim behind a garage sheet. Higher coverage (sheet pulled up) is darker.
+public enum GarageScrim {
+    /// 0.5 when the sheet is at the bottom of its travel, 0.75 when it covers the screen.
+    public static func opacity(coverage: Double) -> Double {
+        let t = min(1, max(0, coverage))
+        return 0.5 + 0.25 * t
+    }
+}
+
+/// `-garageTemporaryStore 1` keeps UI-test edits out of Application Support.
+public enum GarageStoreLocation {
+    public static let temporaryFlag = "-garageTemporaryStore"
+    public static let temporaryEnvironmentKey = "SIDEKICK_GARAGE_TEMPORARY"
+    public static let temporaryFolderName = "sidekick-garage-uitest"
+
+    public static func usesTemporaryStore(
+        arguments: [String] = ProcessInfo.processInfo.arguments,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> Bool {
+        if arguments.contains(temporaryFlag) {
+            if let raw = LaunchArgument.flag(arguments, temporaryFlag) {
+                return FeatureFlags.isEnabled(raw)
+            }
+            return true
+        }
+        return FeatureFlags.isEnabled(environment[temporaryEnvironmentKey])
+    }
+
+    /// Wipes and recreates the sandbox temp folder so each flagged launch starts from the seed.
+    public static func prepareTemporaryRoot(fileManager: FileManager = .default) throws -> URL {
+        let root = fileManager.temporaryDirectory
+            .appendingPathComponent(temporaryFolderName, isDirectory: true)
+        if fileManager.fileExists(atPath: root.path) {
+            try fileManager.removeItem(at: root)
+        }
+        try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
+        return root
+    }
+}
+
 /// JSON file plus JPEG sidecars. The app uses Application Support. Tests pass a temp folder.
 public struct GarageLibraryStore: Sendable {
     public let root: URL
@@ -212,7 +252,14 @@ public struct GarageLibraryStore: Sendable {
         self.root = root
     }
 
-    public static func live() -> GarageLibraryStore {
+    public static func live(
+        arguments: [String] = ProcessInfo.processInfo.arguments,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> GarageLibraryStore {
+        if GarageStoreLocation.usesTemporaryStore(arguments: arguments, environment: environment),
+           let root = try? GarageStoreLocation.prepareTemporaryRoot() {
+            return GarageLibraryStore(root: root)
+        }
         if let root = try? defaultRoot() {
             return GarageLibraryStore(root: root)
         }

@@ -65,6 +65,8 @@ struct AppRootView: View {
     @State private var page: OnboardingPage
     @State private var isOnboardingVisible: Bool
     @State private var isGaragePresented: Bool
+    @State private var garageScrimVisible = false
+    @State private var garageCoverage = 0.9
 
     init(chatModel: ChatViewModel, launch: DemoLaunchOptions) {
         self.chatModel = chatModel
@@ -93,8 +95,21 @@ struct AppRootView: View {
             }
         }
         .modifier(AccessibilityLaunchModifier(enabled: launch.prefersAccessibilitySize))
+        .overlay {
+            if garageScrimVisible {
+                GarageDim(coverage: garageCoverage, identifier: "garage.dim", label: "Close garage") {
+                    isGaragePresented = false
+                }
+            }
+        }
+        .onChange(of: isGaragePresented) { _, isPresented in
+            if isPresented {
+                garageScrimVisible = true
+            }
+        }
         .onAppear {
             if garagePreview != nil {
+                garageScrimVisible = true
                 isGaragePresented = true
             }
         }
@@ -108,7 +123,7 @@ struct AppRootView: View {
                     ChatScreen(
                         model: chatModel,
                         launch: launch,
-                        onOpenGarage: { isGaragePresented = true }
+                        onOpenGarage: openGarage
                     )
                     .tabItem { Label("Chat", systemImage: "bubble.left.and.text.bubble.right") }
                     ReadingsTab()
@@ -118,19 +133,29 @@ struct AppRootView: View {
                 ChatScreen(
                     model: chatModel,
                     launch: launch,
-                    onOpenGarage: { isGaragePresented = true }
+                    onOpenGarage: openGarage
                 )
             }
         }
-        .sheet(isPresented: $isGaragePresented) {
-            GarageScreen(onClose: { isGaragePresented = false }, preview: garagePreview)
-                .presentationDetents([.large])
-                .presentationDragIndicator(.visible)
-                .presentationBackground(JobSheetChrome.screen)
-                .presentationCornerRadius(CGFloat(JobSheetLayout.topCornerRadius))
-                .presentationBackgroundInteraction(.disabled)
-                .modifier(AccessibilityLaunchModifier(enabled: launch.prefersAccessibilitySize))
+        .sheet(isPresented: $isGaragePresented, onDismiss: { garageScrimVisible = false }) {
+            GarageScreen(
+                onClose: { isGaragePresented = false },
+                preview: garagePreview,
+                coverage: $garageCoverage
+            )
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
+            .presentationBackground(Color.white)
+            .presentationCornerRadius(CGFloat(JobSheetLayout.topCornerRadius))
+            .presentationBackgroundInteraction(.disabled)
+            .preferredColorScheme(.light)
+            .modifier(AccessibilityLaunchModifier(enabled: launch.prefersAccessibilitySize))
         }
+    }
+
+    private func openGarage() {
+        garageScrimVisible = true
+        isGaragePresented = true
     }
 
     private func completeOnboarding() {

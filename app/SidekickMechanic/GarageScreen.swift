@@ -12,10 +12,20 @@ struct GarageScreen: View {
     @State private var sheet: GarageSheet?
     @State private var formDetent: PresentationDetent = .large
     @State private var todoDraft = ""
+    @State private var editorCoverage = 0.9
+    @State private var editorScrimVisible = false
+    @Binding var coverage: Double
+    private let preview: GaragePreview?
     var onClose: () -> Void
 
-    init(onClose: @escaping () -> Void, preview: GaragePreview? = nil) {
+    init(
+        onClose: @escaping () -> Void,
+        preview: GaragePreview? = nil,
+        coverage: Binding<Double> = .constant(0.9)
+    ) {
         self.onClose = onClose
+        self.preview = preview
+        self._coverage = coverage
         if let preview {
             let root = FileManager.default.temporaryDirectory
                 .appendingPathComponent("sidekick-garage-preview", isDirectory: true)
@@ -37,43 +47,85 @@ struct GarageScreen: View {
     var body: some View {
         VStack(spacing: 0) {
             header
-            ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
-                    Text(GarageCopy.notice)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .accessibilityIdentifier("onboarding.garage")
-                    Text(GarageCopy.tbdHint)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                    if let statusMessage = model.statusMessage {
-                        Text(statusMessage)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text(GarageCopy.notice)
                             .font(.subheadline)
-                            .foregroundStyle(.red)
-                            .accessibilityIdentifier("garage.status")
-                    }
+                            .foregroundStyle(.secondary)
+                            .accessibilityIdentifier("onboarding.garage")
+                        Text(GarageCopy.tbdHint)
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                        if let statusMessage = model.statusMessage {
+                            Text(statusMessage)
+                                .font(.subheadline)
+                                .foregroundStyle(.red)
+                                .accessibilityIdentifier("garage.status")
+                        }
 
-                    factsSection
-                    photosSection
-                    itemsSection
-                    todosSection
+                        factsSection
+                        photosSection
+                        itemsSection
+                        todosSection
+                            .id("garage.todos.anchor")
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.top, 8)
+                    .padding(.bottom, 28)
                 }
-                .padding(.horizontal, 24)
-                .padding(.top, 8)
-                .padding(.bottom, 28)
+                .scrollContentBackground(.hidden)
+                .onAppear { scrollToTodos(proxy) }
+                .task { await scrollToTodosAfterLayout(proxy) }
             }
-            .scrollContentBackground(.hidden)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .background(JobSheetChrome.screen)
-        .sheet(item: $sheet) { item in
-            GarageEditorSheet(sheet: item, model: model, onClose: { sheet = nil })
-                .presentationDetents([.medium, .large], selection: $formDetent)
-                .presentationDragIndicator(.visible)
-                .presentationBackground(Color.white)
-                .presentationCornerRadius(CGFloat(JobSheetLayout.topCornerRadius))
-                .preferredColorScheme(.light)
+        .background(Color.white)
+        .background {
+            GarageSheetPositionReader(coverage: $coverage)
         }
+        .overlay {
+            if editorScrimVisible {
+                GarageDim(coverage: editorCoverage, identifier: "garage.form.dim", label: "Close") {
+                    sheet = nil
+                }
+            }
+        }
+        .preferredColorScheme(.light)
+        .onAppear {
+            if sheet != nil {
+                editorScrimVisible = true
+            }
+        }
+        .onChange(of: sheet?.id) { _, id in
+            if id != nil {
+                editorScrimVisible = true
+            }
+        }
+        .sheet(item: $sheet, onDismiss: { editorScrimVisible = false }) { item in
+            GarageEditorSheet(
+                sheet: item,
+                model: model,
+                coverage: $editorCoverage,
+                onClose: { sheet = nil }
+            )
+            .presentationDetents([.medium, .large], selection: $formDetent)
+            .presentationDragIndicator(.visible)
+            .presentationBackground(Color.white)
+            .presentationCornerRadius(CGFloat(JobSheetLayout.topCornerRadius))
+            .preferredColorScheme(.light)
+        }
+    }
+
+    private func scrollToTodos(_ proxy: ScrollViewProxy) {
+        guard preview == .todos else { return }
+        proxy.scrollTo("garage.todos.anchor", anchor: .top)
+    }
+
+    private func scrollToTodosAfterLayout(_ proxy: ScrollViewProxy) async {
+        guard preview == .todos else { return }
+        try? await Task.sleep(for: .milliseconds(100))
+        scrollToTodos(proxy)
     }
 
     private var header: some View {
@@ -140,11 +192,15 @@ struct GarageScreen: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
             } else {
-                LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
+                LazyVGrid(
+                    columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)],
+                    spacing: 12
+                ) {
                     ForEach(model.library.photos) { photo in
                         photoCard(photo)
                     }
                 }
+                .clipped()
             }
         }
     }
@@ -228,6 +284,8 @@ struct GarageScreen: View {
 
     private func present(_ next: GarageSheet) {
         formDetent = .large
+        editorCoverage = 0.9
+        editorScrimVisible = true
         sheet = next
     }
 
@@ -289,11 +347,13 @@ struct GarageScreen: View {
 
     private func photoCard(_ photo: GaragePhoto) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            thumbnail(fileName: photo.fileName, height: 120)
+            thumbnail(fileName: photo.fileName)
             if !photo.caption.isEmpty {
                 Text(photo.caption)
                     .font(.caption)
                     .foregroundStyle(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
             if model.isEditing {
                 Button(GarageCopy.remove) { model.removePhoto(id: photo.id) }
@@ -318,7 +378,7 @@ struct GarageScreen: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .top, spacing: 12) {
                 if let fileName = item.photoFileName {
-                    thumbnail(fileName: fileName, height: 56)
+                    thumbnail(fileName: fileName)
                         .frame(width: 56)
                 }
                 VStack(alignment: .leading, spacing: 4) {
@@ -387,27 +447,14 @@ struct GarageScreen: View {
         .accessibilityIdentifier("garage.todo.\(todo.id)")
     }
 
-    @ViewBuilder
-    private func thumbnail(fileName: String, height: CGFloat) -> some View {
-        if let data = model.imageData(fileName: fileName), let image = UIImage(data: data) {
-            Image(uiImage: image)
-                .resizable()
-                .scaledToFill()
-                .frame(maxWidth: .infinity)
-                .frame(height: height)
-                .clipped()
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+    private func thumbnail(fileName: String) -> some View {
+        let image: UIImage?
+        if let data = model.imageData(fileName: fileName) {
+            image = UIImage(data: data)
         } else {
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(Color(white: 0.91))
-                .frame(maxWidth: .infinity)
-                .frame(height: height)
-                .overlay {
-                    Text("Photo missing")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+            image = nil
         }
+        return SquarePhoto(image: image, missingLabel: image == nil ? "Photo missing" : nil)
     }
 }
 
@@ -437,11 +484,14 @@ extension GaragePreview {
     }
 }
 
-/// White sheet. Medium and large detents: the system scrim gets darker as the sheet is pulled higher.
+/// White add/edit sheet. Its own dim sits on the garage sheet and darkens as this sheet rises.
 private struct GarageEditorSheet: View {
     var sheet: GarageSheet
     var model: GarageModel
+    @Binding var coverage: Double
     var onClose: () -> Void
+    @State private var cameraCoverage = 0.9
+    @State private var cameraScrimVisible = false
 
     @State private var label: String
     @State private var value: String
@@ -453,9 +503,15 @@ private struct GarageEditorSheet: View {
     @State private var showCamera = false
     @State private var pickError: String?
 
-    init(sheet: GarageSheet, model: GarageModel, onClose: @escaping () -> Void) {
+    init(
+        sheet: GarageSheet,
+        model: GarageModel,
+        coverage: Binding<Double>,
+        onClose: @escaping () -> Void
+    ) {
         self.sheet = sheet
         self.model = model
+        self._coverage = coverage
         self.onClose = onClose
         if case .editFact(let id) = sheet, let fact = model.library.facts.first(where: { $0.id == id }) {
             _label = State(initialValue: fact.label)
@@ -486,6 +542,16 @@ private struct GarageEditorSheet: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Color.white)
+        .background {
+            GarageSheetPositionReader(coverage: $coverage)
+        }
+        .overlay {
+            if cameraScrimVisible {
+                GarageDim(coverage: cameraCoverage, identifier: "garage.camera.dim", label: "Close camera") {
+                    showCamera = false
+                }
+            }
+        }
         .preferredColorScheme(.light)
         .onChange(of: pickerItem) { _, item in
             guard let item else { return }
@@ -493,7 +559,12 @@ private struct GarageEditorSheet: View {
                 await loadPickedPhoto(item)
             }
         }
-        .sheet(isPresented: $showCamera) {
+        .onChange(of: showCamera) { _, isShown in
+            if isShown {
+                cameraScrimVisible = true
+            }
+        }
+        .sheet(isPresented: $showCamera, onDismiss: { cameraScrimVisible = false }) {
             CameraPicker(
                 onCapture: { data in
                     imageData = data
@@ -502,6 +573,9 @@ private struct GarageEditorSheet: View {
                 },
                 onCancel: { showCamera = false }
             )
+            .background {
+                GarageSheetPositionReader(coverage: $cameraCoverage)
+            }
             .presentationBackground(Color.white)
             .presentationCornerRadius(CGFloat(JobSheetLayout.topCornerRadius))
             .presentationDetents([.large])
@@ -662,7 +736,11 @@ private struct GarageEditorSheet: View {
             .buttonStyle(.plain)
             .accessibilityIdentifier(libraryIdentifier)
             if UIImagePickerController.isSourceTypeAvailable(.camera) {
-                Button(GarageCopy.takePhoto) { showCamera = true }
+                Button(GarageCopy.takePhoto) {
+                    cameraCoverage = 0.9
+                    cameraScrimVisible = true
+                    showCamera = true
+                }
                     .buttonStyle(.plain)
                     .font(.body)
                     .foregroundStyle(.primary)
@@ -674,13 +752,7 @@ private struct GarageEditorSheet: View {
     @ViewBuilder
     private var photoPreview: some View {
         if let imageData, let image = UIImage(data: imageData) {
-            Image(uiImage: image)
-                .resizable()
-                .scaledToFill()
-                .frame(maxWidth: .infinity)
-                .frame(height: 180)
-                .clipped()
-                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            SquarePhoto(image: image, cornerRadius: 12)
                 .accessibilityIdentifier("garage.form.preview")
         }
     }
@@ -761,6 +833,146 @@ private struct CameraPicker: UIViewControllerRepresentable {
 
         func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
             onCancel()
+        }
+    }
+}
+
+/// 1:1 box. The image is aspect-filled inside that box, then clipped.
+/// A wide photo must not set the cell's width or it spills into the next card.
+struct SquarePhoto: View {
+    var image: UIImage?
+    var cornerRadius: CGFloat = 8
+    var missingLabel: String?
+
+    var body: some View {
+        Color.clear
+            .aspectRatio(1, contentMode: .fit)
+            .overlay {
+                GeometryReader { geo in
+                    photo(size: geo.size)
+                }
+            }
+            .clipped()
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+    }
+
+    @ViewBuilder
+    private func photo(size: CGSize) -> some View {
+        if let image {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFill()
+                .frame(width: size.width, height: size.height)
+                .clipped()
+        } else {
+            Color(white: 0.91)
+                .frame(width: size.width, height: size.height)
+                .overlay {
+                    if let missingLabel {
+                        Text(missingLabel)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(4)
+                    }
+                }
+        }
+    }
+}
+
+/// Custom dim. The system sheet dim is a light grey, so the sheet turns that off
+/// and this overlay tracks how high the sheet is pulled.
+struct GarageDim: View {
+    var coverage: Double
+    var identifier: String
+    var label: String
+    var onTap: () -> Void
+
+    var body: some View {
+        Color.black
+            .opacity(GarageScrim.opacity(coverage: coverage))
+            .ignoresSafeArea()
+            .contentShape(Rectangle())
+            .onTapGesture(perform: onTap)
+            .accessibilityIdentifier(identifier)
+            .accessibilityLabel(label)
+            .accessibilityAddTraits(.isButton)
+    }
+}
+
+/// Reports sheet coverage and disables the system dim. Coverage is 0 at the bottom of the screen and 1 at the top.
+struct GarageSheetPositionReader: UIViewControllerRepresentable {
+    @Binding var coverage: Double
+
+    func makeUIViewController(context: Context) -> Controller {
+        Controller()
+    }
+
+    func updateUIViewController(_ controller: Controller, context: Context) {
+        controller.onCoverage = { next in
+            coverage = next
+        }
+        controller.undim()
+    }
+
+    final class Controller: UIViewController {
+        var onCoverage: ((Double) -> Void)?
+        private var lastSent = -1.0
+
+        override func viewDidLoad() {
+            super.viewDidLoad()
+            view.backgroundColor = .clear
+            view.isUserInteractionEnabled = false
+        }
+
+        override func viewDidAppear(_ animated: Bool) {
+            super.viewDidAppear(animated)
+            refresh()
+        }
+
+        override func viewDidLayoutSubviews() {
+            super.viewDidLayoutSubviews()
+            refresh()
+        }
+
+        func refresh() {
+            undim()
+            publish()
+        }
+
+        func undim() {
+            var current: UIViewController? = self
+            while let controller = current {
+                if let sheet = controller.sheetPresentationController {
+                    sheet.largestUndimmedDetentIdentifier = .large
+                    return
+                }
+                current = controller.parent
+            }
+        }
+
+        private func publish() {
+            guard let window = view.window else { return }
+            let height = window.bounds.height
+            guard height > 0 else { return }
+            let source = sheetHostView ?? view
+            guard source.bounds.height > 0 else { return }
+            let top = source.convert(CGPoint.zero, to: window).y
+            let next = 1 - Double(top / height)
+            guard abs(next - lastSent) > 0.004 else { return }
+            lastSent = next
+            onCoverage?(next)
+        }
+
+        private var sheetHostView: UIView? {
+            var current: UIViewController? = self
+            while let controller = current {
+                if controller.sheetPresentationController != nil {
+                    return controller.view
+                }
+                current = controller.parent
+            }
+            return nil
         }
     }
 }

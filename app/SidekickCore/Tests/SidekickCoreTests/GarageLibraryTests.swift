@@ -137,6 +137,51 @@ final class GarageLibraryTests: XCTestCase {
         XCTAssertEqual(GaragePreview.view.sampleLibrary().todos, [])
     }
 
+    func testGarageScrimDarkensAsTheSheetCoversMore() {
+        XCTAssertEqual(GarageScrim.opacity(coverage: 0), 0.5)
+        XCTAssertEqual(GarageScrim.opacity(coverage: 0.5), 0.625)
+        XCTAssertEqual(GarageScrim.opacity(coverage: 1), 0.75)
+        XCTAssertEqual(GarageScrim.opacity(coverage: -1), 0.5)
+        XCTAssertEqual(GarageScrim.opacity(coverage: 2), 0.75)
+    }
+
+    func testTemporaryStoreFlagWipesTheSandboxFolder() async throws {
+        XCTAssertFalse(
+            GarageStoreLocation.usesTemporaryStore(arguments: ["SidekickMechanic"], environment: [:])
+        )
+        XCTAssertTrue(
+            GarageStoreLocation.usesTemporaryStore(
+                arguments: ["SidekickMechanic", "-garageTemporaryStore", "1"],
+                environment: [:]
+            )
+        )
+        XCTAssertFalse(
+            GarageStoreLocation.usesTemporaryStore(
+                arguments: ["SidekickMechanic", "-garageTemporaryStore", "0"],
+                environment: [:]
+            )
+        )
+        XCTAssertTrue(
+            GarageStoreLocation.usesTemporaryStore(
+                arguments: ["SidekickMechanic"],
+                environment: ["SIDEKICK_GARAGE_TEMPORARY": "yes"]
+            )
+        )
+
+        let leftover = FileManager.default.temporaryDirectory
+            .appendingPathComponent(GarageStoreLocation.temporaryFolderName, isDirectory: true)
+        try FileManager.default.createDirectory(at: leftover, withIntermediateDirectories: true)
+        try Data("FAKE".utf8).write(to: leftover.appendingPathComponent("garage.json"))
+
+        let store = GarageLibraryStore.live(
+            arguments: ["SidekickMechanic", "-garageTemporaryStore", "1"],
+            environment: [:]
+        )
+        XCTAssertEqual(store.root.lastPathComponent, GarageStoreLocation.temporaryFolderName)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: store.jsonURL.path))
+        XCTAssertEqual(try store.load().facts.map(\.id).count, 6)
+    }
+
     func testRejectedFileNameCannotEscapeThePhotoFolder() async throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("garage-path-\(UUID().uuidString)", isDirectory: true)
