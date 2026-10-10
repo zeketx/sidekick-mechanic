@@ -1,12 +1,12 @@
 ---
-description: pstack per-role model choices (overrides skill defaults)
-alwaysApply: true
+description: Opt-in low-cost pstack models. Apply only when the user says "low-cost mode", "low cost", or "grok-only", the prompt contains a line "Cost: LOW", or the user invokes /cheap. Otherwise do not apply this rule.
+alwaysApply: false
 ---
-# pstack model configuration. One line per role. Delete a line to fall back to the skill default.
-# `inherit-parent` or `auto` as a value: the role runs on the parent chat model (omit Task `model`). Alias entries in a panel list still count toward its fan-out.
-# Project copy of the setup-pstack rule, so cloud agents and local checkouts share it. `~/.cursor/rules/pstack-models.mdc` does not travel with the repo. Read these lines even when that user file is absent.
+# pstack model configuration for low-cost mode only. One line per role.
+# Inactive unless `/cheap`, "low-cost mode", "low cost", "grok-only", or a `Cost: LOW` line is in the prompt. When inactive, pstack's built-in defaults stay as shipped.
+# While active, these lines override pstack skill defaults for this session. `inherit-parent` or `auto` runs that role on the parent chat model (omit Task `model`). Alias entries in a panel list still count toward its fan-out.
 # budget: large (xhigh)
-# Bare `grok-4.6` is not a Task slug. Detected grok-4.6 slug at this budget: `cursor-grok-4.6-xhigh` (2026-10-10). If Task rejects it, use another `cursor-grok-4.6-*` slug from the error. Do not use Claude, GPT, or Gemini.
+# Bare `grok-4.6` is not a Task slug. Detected slug: `cursor-grok-4.6-xhigh`. If Task rejects it, use another `cursor-grok-4.6-*` slug from the error. Do not substitute Claude, GPT, or Gemini while this rule is active.
 feature, refactoring: cursor-grok-4.6-xhigh
 bug-fix: cursor-grok-4.6-xhigh
 perf-issue: cursor-grok-4.6-xhigh

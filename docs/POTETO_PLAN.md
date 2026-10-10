@@ -6,9 +6,11 @@ Every skill named here exists in pstack today. The skill descriptions below are 
 
 ## When to use poteto-mode
 
-The pstack plugin is enabled by the repo in [`.cursor/settings.json`](../.cursor/settings.json) (`plugins.pstack.enabled`). Role models are pinned in [`.cursor/rules/pstack-models.mdc`](../.cursor/rules/pstack-models.mdc) (`alwaysApply: true`). That file is the project copy of the rule `/setup-pstack` would write at `~/.cursor/rules/pstack-models.mdc`, which does not travel with the repo.
+The pstack plugin is enabled by the repo in [`.cursor/settings.json`](../.cursor/settings.json) (`plugins.pstack.enabled`). pstack keeps its original default models. The grok-4.6 map in [`.cursor/rules/pstack-models.mdc`](../.cursor/rules/pstack-models.mdc) is opt-in (`alwaysApply: false`).
 
-Checked on this cloud agent on 2026-10-10. `/poteto-mode` and the routed skills (`how`, `why`, `arena`, `swarm`, `architect`, `interrogate`, `reflect`) resolved from the user plugin cache (`~/.cursor/plugins/cache`, pstack `source: user` in `.cloud-plugin-manifest.json`). The checkout this VM booted was behind `main` and did not contain `.cursor/settings.json` until it was fetched, so that run does not show the project file installing the plugin by itself. A subagent in that same session received `AGENTS.md` as an always-applied rule and did not receive the model rule, which was added after the session started. `~/.cursor/rules/pstack-models.mdc` was absent. Locally, if `/poteto-mode` is missing after opening the repo, run `/add-plugin pstack` once and reload the window. pstack's setup guide still documents that command. Do not copy the plugin into `.cursor/skills/` unless that install fails.
+Turn low-cost mode on in the IDE with `/cheap`, or by saying `low-cost mode`, `low cost`, or `grok-only`. In a cloud-agent launch prompt, add a line `Cost: LOW` next to the `Mode:` line. While it is on, every pstack role, including panel lists, uses `cursor-grok-4.6-xhigh`. Otherwise those lines stay out of context and pstack's defaults apply. `/cheap` is the repo skill [`.cursor/skills/cheap/SKILL.md`](../.cursor/skills/cheap/SKILL.md). It reads the rule and applies it for that session.
+
+Checked on this cloud agent on 2026-10-10. `/poteto-mode` and the routed skills (`how`, `why`, `arena`, `swarm`, `architect`, `interrogate`, `reflect`) resolved from the user plugin cache (`~/.cursor/plugins/cache`, pstack `source: user` in `.cloud-plugin-manifest.json`). The checkout this VM booted was behind `main` and did not contain `.cursor/settings.json` until it was fetched, so this run does not show the project file installing the plugin by itself. Locally, if `/poteto-mode` is missing after opening the repo, run `/add-plugin pstack` once and reload the window. pstack's setup guide still documents that command. Do not copy the plugin into `.cursor/skills/` unless that install fails.
 
 Every PR declares a mode on its first line: `Mode: HARD (reason)` or `Mode: LIGHT (reason)`. The `PR mode declared` check fails unless the body has a line matching `^Mode: (HARD|LIGHT)\b` (`HARD` and `LIGHT` are case-sensitive).
 
@@ -31,13 +33,13 @@ All of these are invoked explicitly (they set `disable-model-invocation: true`).
 | `/maintain-verification-skill` | Periodic pass that keeps the verify skill and its feature map honest. | After each milestone that adds user-facing features. |
 | `/no-comments` | Spawns a reviewer that removes comments that explain *what* instead of *why*, fixes accepted findings, and offers to encode claimed constraints as tests or lints. | Before review on medium and large PRs. |
 | `/automate-me` | Turns the owner's working conventions into a personal `-mode` skill (for example `zeke-mode`) by mining recent transcripts and asking a few questions. | Once there are a few weeks of agent sessions (around M3). |
-| `/setup-pstack` | Writes a user-level `~/.cursor/rules/pstack-models.mdc`. This repo already pins every role in `.cursor/rules/pstack-models.mdc`. | Do not run it for this repo. A user-level file would not travel, and it can hide the project pin on that machine. |
+| `/setup-pstack` | Writes a user-level `~/.cursor/rules/pstack-models.mdc`. | Not the repo default. A user-level file overrides pstack on that machine only. |
 | `/how`, `/show-me-your-work` | `how` explains how existing code works before changing it. `show-me-your-work` keeps a decision log for long or unattended runs. | Pulled in by the skills above. Rarely called directly. |
 
 ## Cost policy
 
-1. **Every pstack role is `cursor-grok-4.6-xhigh`.** The pin is [`.cursor/rules/pstack-models.mdc`](../.cursor/rules/pstack-models.mdc). pstack's built-in defaults send judgment and prose to Claude, so a missing line spends more than intended. Bare `grok-4.6` is not a Task slug. On 2026-10-10 Task rejected it and listed `cursor-grok-4.6-xhigh` as the grok-4.6 slug at the large (`xhigh`) budget. No Claude, GPT, or Gemini unless the owner asks for that task.
-2. **Panels stay small.** `arena runners`, `architect runners`, and `interrogate reviewers` are lists, and each entry is one subagent. Default to two entries, both `cursor-grok-4.6-xhigh`. Only widen to three, or add other model families, for the one-way-door decisions marked ★ below, and only when the owner says so for that task.
+1. **Default models are pstack's own.** Low-cost mode is opt-in. Trigger it with `/cheap`, or with the phrases `low-cost mode`, `low cost`, or `grok-only`, or with a launch line `Cost: LOW`. While it is on, every role in `.cursor/rules/pstack-models.mdc` is `cursor-grok-4.6-xhigh`. Bare `grok-4.6` is not a Task slug. On 2026-10-10 Task rejected it and listed `cursor-grok-4.6-xhigh` as the grok-4.6 slug at the large (`xhigh`) budget.
+2. **Panels stay small.** `arena runners`, `architect runners`, and `interrogate reviewers` are lists, and each entry is one subagent. In low-cost mode the rule uses two entries, both `cursor-grok-4.6-xhigh`. With low-cost mode off, pstack's default panel applies. Only widen to three, or add other model families, for the one-way-door decisions marked ★ below, and only when the owner says so for that task.
 3. **Small UI work skips the nested-agent playbooks.** No `architect`, `arena`, `interrogate`, `swarm`, or `no-comments` (it spawns its own subagent). One agent does the work directly and follows AGENTS.md. A task counts as small UI work when all of these are true:
    - It changes SwiftUI views only (layout, copy, styling, previews).
    - It adds or changes no types in `SidekickCore` or `backend/contracts/`.
@@ -50,7 +52,7 @@ All of these are invoked explicitly (they set `disable-model-invocation: true`).
 ★ = one-way door. Get it right before building on it. Widening the panel is allowed here with owner approval.
 
 ### M0: Repo, tooling, and ECU check
-- Models are already pinned in `.cursor/rules/pstack-models.mdc`. Do not run `/setup-pstack` for this repo.
+- pstack's default models stay in place. Low-cost mode is `/cheap` or a launch line `Cost: LOW`.
 - Repo scaffold, CI, templates: plain `/poteto-mode`. Mechanical work, no architect.
 - ECU identification spike: `/poteto-mode` (its Investigation playbook fits: read-only, cited answer). Every claim cited. Result stays TBD until delivery.
 
