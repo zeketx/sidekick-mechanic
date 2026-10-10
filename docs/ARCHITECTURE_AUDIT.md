@@ -48,10 +48,15 @@ There is no Dockerfile, no `railway.toml`, and no Sidekick service in the owner'
 | medium | app | A missing `display` is outline on the card and not-found on the job sheet. | `app/SidekickCore/Sources/SidekickCore/ChatViewModel.swift:112`. `app/SidekickCore/Sources/SidekickCore/HighlightViewer.swift:34-35`. | S |
 | medium | tests | A test chunk stores `Torque: 18 N·m (180 kgf·cm, 13 ft·lbf)` plus `B02630` and `IG0152` on `2jz-ge-rm` page 985. It is not marked `FAKE-SPEC`. This audit does not treat that string as a vehicle fact. | `backend/tests/test_manual_pages.py:266-274`. | S |
 | medium | docs | `docs/design/spec-guard.md:89` says `LlmAnswerProducer` supplies no chunk text, so every spec is refused. `producer.py:209-220` supplies the hit text. | Those two files. | S |
-| medium | demo | A located highlight replaces the cited answer with a sentence that calls the stand-in JPEG "this demo photo of a 1990 Toyota Land Cruiser LJ78 with a 2JZ-GE swap." The catalog label on the same module says the photos are not Zeke's truck. Attaching a photo on the job sheet also replaces the answer text with scripted copy. | `backend/demo.py:33` and `:484-493`. `JobSheet.swift:480-487`. | S |
+| medium | demo | A located highlight replaces the cited answer with a sentence that calls the stand-in JPEG "this demo photo of a 1990 Toyota Land Cruiser LJ78 with a 2JZ-GE swap." The catalog label on the same module says the photos are not Zeke's truck. That replacement runs only after a grounded answer keeps a citation. With the index installed, a location question the model answers with an empty citation list becomes `not_found_in_manual` and never reaches the outline. The tests that show an outline build the producer with no retriever. Attaching a photo on the job sheet also replaces the answer text with scripted copy. If the server omits `geometry`, the card draws the bundled catalog polygon for that photo and part. | `backend/demo.py:33` and `:484-493`. `backend/producer.py:199-206` and `:265-268`. `backend/tests/test_demo.py:288-307`. `JobSheet.swift:480-487`. `AnswerCardView.swift:84-88`. | S |
+| medium | retrieval | `bm25(chunks, 8, 1)` and `bm25(chunks, 1, 8)` return the same scores. `doc_id` and `page` are the first two columns and they are `UNINDEXED`, so those two weights do not land on `labels` and `text`. `bm25(chunks, 0, 0, 8, 1)` does change the label-only row. The design note says `bm25` weights labels above text. The Python reranker still reorders the 40 candidates it is given. | `backend/retrieval.py:18-35` and `:381-389`. `docs/design/retrieval-index.md:52`. Confirmed on an in-memory FTS5 table. | S |
+| medium | spec guard | The safety note is prepended after `guard_answer`. The current note has no unit. `test_chat_does_not_scan_the_safety_note` patches the note to include `999 V` and asserts that sentence is returned. The next edit to `SAFETY_NOTE` ships inside procedure answers. | `backend/app.py:137-139`. `backend/safety.py:56-65`. `backend/tests/test_chat.py:209-229`. | S |
+| medium | manuals | A cited page PNG is cached as `<doc_id>/<page>.png` on the server and under `sidekick-manual-pages/<doc_id>/<page>.png` on the phone. Neither key includes the sha256 ingest records. Replacing the PDF leaves the old raster behind the new citation. | `backend/manual_pages.py:152-160`. `ManualPage.swift:164-166` and `:248-253`. `backend/ingest.py:44-51`. | S |
 | medium | config | No Sidekick Railway service and no `OPENROUTER` variable name on the account that holds the owner's other projects. The key in docs is not a live secret. | Railway inventory, 2026-10-10. No Dockerfile or `railway.toml` in the tree. | S |
 | low | API | `POST /chat`, page PNGs, and go-deeper have no auth. The README binds `127.0.0.1`. The app does not enforce that bind. | `backend/app.py:127`. | M if this is ever reachable off the laptop |
 | low | retrieval | An FTS `OperationalError` becomes an empty hit list, then "not in the manual." | `backend/retrieval.py:408-411`. `backend/producer.py:188-189`. | S |
+| low | retrieval | "Headlight fuse" matches neither the engine-wiring rule nor the chassis-wiring rule, so it searches the whole index. A `MANUALS.md` that fails to parse makes `_wiring_manual_blocked` return false, which turns the chassis refusal off. | `backend/producer.py:94-109` and `:359-367`. | S |
+| low | highlight | `HighlightStyle.DIM` defaults to `dim_factor` 1.0, so the default render leaves the photo unchanged. A test locks that in. The module text says dim darkens pixels outside the polygon. `POST /chat` does not call this renderer. | `backend/highlight.py:10` and `:51`. `backend/tests/test_highlight.py:111-114`. | S |
 | low | persistence | Chat, confirm taps, and the job sheet are a new UUID every launch. Garage notes are the durable store. | `SidekickMechanicApp.swift:19`. `JobSheet.swift:384`. | M, and it is issue #128 |
 
 ## Fix now
@@ -66,7 +71,8 @@ Do these before a live `SIDEKICK_LLM_API_KEY` is used against the repair manual,
 6. On a garage decode failure, rename the file aside before any write, or refuse writes until it loads. Size S.
 7. Stop reading an exit code of 0 from `python -m eval` as a quality result. Point the README at `golden.jsonl`, and either keep the CI job labeled as a smoke test or fail it when citation accuracy is 0 on a run that was supposed to retrieve. Size S for the label, M for a real gate.
 8. Correct `docs/design/spec-guard.md` so it matches `cited_chunk_texts`. Size S.
-9. Stop replacing the cited answer when a demo outline matches. Keep the page text, and stop naming the stand-in JPEG as the owner's truck. Size S.
+9. Stop replacing the cited answer when a demo outline matches. Keep the page text, and stop naming the stand-in JPEG as the owner's truck. Attach the outline from the question even when retrieval returns a refusal. Size S.
+10. Pass `bm25` four weights, `(0, 0, 8, 1)`, so the label weight lands on `labels`. Correct `docs/design/retrieval-index.md`. Size S.
 
 ## Fine for a personal app, revisit later
 
@@ -79,6 +85,9 @@ One owner, two ingested manuals, four demo JPEGs, and no public URL.
 - A Swift renderer that matches the Python golden images. The card placeholder is honest until that exists.
 - A Railway service. Add it when there is a deploy, and put the key there then.
 - Aligning the phone timeout with the server retry budget. Annoying, not a wrong torque.
+- Putting the manifest sha256 in the page-PNG cache key. The current key is doc id and page number. It matters when a PDF is replaced.
+- Scanning `SAFETY_NOTE` before it is prepended. The copy in the tree has no unit. The test that allows a patched `999 V` is the footgun.
+- The chassis-wiring regex and the fail-open manifest read. The refusal for a blocked `lj78-wiring` manual is still the right behavior when the question actually matches.
 
 ## Keep
 
@@ -89,7 +98,7 @@ One owner, two ingested manuals, four demo JPEGs, and no public URL.
 - FTS5 as the Phase 1 store. Stdlib `sqlite3`, one file, page-level chunks, SHA check before ingest. That matches one truck.
 - Keys only from the environment. `.env.example` leaves `SIDEKICK_LLM_API_KEY` empty and selects `FakeLLMClient` when it is empty. `backend/llm.py:174-178`. No API key is committed.
 - The catalog label that says the polygons are scripted and the photos are not the owner's truck. `backend/data/demo/demo_bay_photos.json:2` and `DEMO_LABEL` at `backend/demo.py:33`. The located-answer sentence does not follow that label. That sentence is in the fix-now list.
-- The blocked-manual refusal for chassis wiring when `lj78-wiring` is `blocked`. Keep that fail-closed. The fail-open on a broken manifest, `producer.py` returning false on `ManifestError`, is the small exception in the fix-now list only if you touch that function anyway.
+- The blocked-manual refusal for chassis wiring when `lj78-wiring` is `blocked`. Keep that fail-closed. The fail-open on a broken manifest is the low finding above, not a reason to drop the refusal.
 
 ## How this shape got here
 
