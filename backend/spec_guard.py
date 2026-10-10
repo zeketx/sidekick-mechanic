@@ -28,11 +28,15 @@ _UNIT_PATTERNS: tuple[tuple[str, str], ...] = (
     ("fahrenheit", r"degrees?\s+fahrenheit|°\s*f|deg(?:rees?)?\s+f"),
     ("mmhg", r"mm\s*hg"),
     ("kgfcm2", r"kgf?\s*/\s*cm\s*(?:\^?\s*2|²)"),
+    # kgf·cm is torque. It must not fall through to the bare cm length unit.
+    ("kgfcm", r"kgf\s*[·⋅•.\-]?\s*cm"),
     ("nm", r"newton[\s-]+met(?:er|re)s?|n\s*[·⋅•.\-]?\s*m"),
     ("kgfm", r"kgf\s*[·⋅•.\-]?\s*m|kg\s*[·⋅•.\-]?\s*m"),
     (
         "ftlbf",
-        r"foot[\s-]+pounds?|ft\s*[·⋅•.\-]?\s*lbs?|lbs?\s*[·⋅•.\-]?\s*ft",
+        # lbf is the Toyota spelling. lbs? stops at lb and leaves f, so ft·lbf
+        # used to match the length unit ft.
+        r"foot[\s-]+pounds?|ft\s*[·⋅•.\-]?\s*lb(?:f|s)?|lb(?:f|s)?\s*[·⋅•.\-]?\s*ft",
     ),
     ("inlbf", r"inch[\s-]+pounds?|in\s*[·⋅•.\-]?\s*lbs?"),
     ("kohm", r"kilo[\s-]?ohms?|kohms?|k\s*ohms?"),
