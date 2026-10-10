@@ -113,6 +113,80 @@ final class DriveUITests: XCTestCase {
         try writeShot("taps-citation-closed.png")
     }
 
+    @MainActor
+    func testAskAboutPageFromCitation() throws {
+        let app = openAskAboutTheFixturePage()
+        XCTAssertTrue(element(app, "chat.pageContext").exists, "The page chip should stay on this chat")
+        XCTAssertTrue(element(app, "jobSheet.collapsed").exists, "Ask should drop the job sheet so the starters are visible")
+        XCTAssertFalse(element(app, "jobSheet.half").exists)
+        try writeShot("taps-citation-ask.png")
+    }
+
+    @MainActor
+    func testPageStarterQuestionsAreHittable() throws {
+        let app = openAskAboutTheFixturePage()
+        for identifier in ["chat.starter.explain", "chat.starter.tools", "chat.starter.connector"] {
+            let starter = element(app, identifier)
+            XCTAssertTrue(starter.waitForExistence(timeout: 5), "\(identifier) should be on this chat")
+            XCTAssertTrue(starter.isHittable, "\(identifier) should be hittable without scrolling")
+        }
+    }
+
+    @MainActor
+    func testManualPageZoomReportsScale() throws {
+        let app = launchApp(arguments: [
+            "-screen", "job-sheet-half",
+            "-demoPhoto", "hilux",
+        ])
+        XCTAssertTrue(element(app, "jobSheet.half").waitForExistence(timeout: 8))
+        let chip = element(app, "jobSheet.chip.0")
+        XCTAssertTrue(chip.waitForExistence(timeout: 5), "jobSheet.chip.0 is missing")
+        chip.tap()
+
+        let image = element(app, "citation.pageImage")
+        XCTAssertTrue(image.waitForExistence(timeout: 5), "citation.pageImage is missing")
+        XCTAssertEqual(image.value as? String, "zoomed 1.0x")
+        image.doubleTap()
+
+        let deadline = Date().addingTimeInterval(3)
+        while (image.value as? String) != "zoomed 2.5x", Date() < deadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        }
+        XCTAssertEqual(image.value as? String, "zoomed 2.5x")
+    }
+
+    @MainActor
+    private func openAskAboutTheFixturePage() -> XCUIApplication {
+        let app = launchApp(arguments: [
+            "-screen", "job-sheet-half",
+            "-demoPhoto", "hilux",
+        ])
+        XCTAssertTrue(element(app, "jobSheet.half").waitForExistence(timeout: 8))
+        let chip = element(app, "jobSheet.chip.0")
+        XCTAssertTrue(chip.waitForExistence(timeout: 5), "jobSheet.chip.0 is missing")
+        chip.tap()
+
+        XCTAssertTrue(element(app, "citation.viewer").waitForExistence(timeout: 5))
+        let ask = element(app, "citation.ask")
+        XCTAssertTrue(
+            ask.waitForExistence(timeout: 5),
+            "citation.ask is missing. FAKE-DOC-2JZ should show the page."
+        )
+        ask.tap()
+
+        let viewer = element(app, "citation.viewer")
+        let deadline = Date().addingTimeInterval(2)
+        while viewer.exists, Date() < deadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.1))
+        }
+        XCTAssertFalse(viewer.exists, "citation.viewer should close after Ask about this page")
+        XCTAssertTrue(
+            element(app, "chat.starter.explain").waitForExistence(timeout: 5),
+            "Explain this page simply should be on the same chat"
+        )
+        return app
+    }
+
     func testTapScrimCollapsesHalfSheet() throws {
         let app = launchApp(arguments: [
             "-screen", "job-sheet-half",

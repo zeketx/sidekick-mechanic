@@ -34,6 +34,7 @@ final class ManualReaderModelTests: XCTestCase {
         XCTAssertEqual(model.stage.last?.scale, 1)
         XCTAssertEqual(model.stage.last?.pan, .zero)
         XCTAssertFalse(model.isZoomed)
+        XCTAssertEqual(model.zoomAccessibilityValue, "zoomed 1.0x")
         XCTAssertNil(model.snippet)
     }
 
@@ -43,6 +44,7 @@ final class ManualReaderModelTests: XCTestCase {
         model.handle(.layout(viewport: viewport))
         model.handle(.doubleTap(at: ViewPoint(x: 95, y: 260)))
         XCTAssertTrue(model.isZoomed)
+        XCTAssertEqual(model.zoomAccessibilityValue, "zoomed 2.5x")
 
         model.handle(.turn(.next))
 
@@ -51,6 +53,7 @@ final class ManualReaderModelTests: XCTestCase {
         XCTAssertEqual(model.stage.last?.scale, 1)
         XCTAssertEqual(model.stage.last?.pan, .zero)
         XCTAssertFalse(model.isZoomed)
+        XCTAssertEqual(model.zoomAccessibilityValue, "zoomed 1.0x")
     }
 
     func testDragTowardALoadingNeighborDoesNotTurn() async throws {

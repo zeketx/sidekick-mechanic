@@ -87,6 +87,14 @@ public enum PageSlot: Equatable, Sendable {
     case missing
 }
 
+/// "zoomed 2.5x". One decimal and POSIX digits so a UI test can read the scale.
+public enum ZoomAccessibility {
+    public static func value(scale: Double) -> String {
+        let tenths = Int((scale * 10).rounded())
+        return "zoomed \(tenths / 10).\(abs(tenths % 10))x"
+    }
+}
+
 public enum NeighborStatus: Equatable, Sendable {
     case ready
     case loading
@@ -151,6 +159,11 @@ public final class ManualReaderModel {
     public var goDeeper: GoDeeper? { goDeeperByPage[state.current] }
 
     public var isZoomed: Bool { state.zoom != .fit }
+
+    /// Scale the page image reports to UI tests. The accessibility frame does not change when the image scales.
+    public var zoomAccessibilityValue: String {
+        ZoomAccessibility.value(scale: state.zoom.scale)
+    }
 
     public var currentFailure: ManualPageError? {
         if case let .failed(error) = slots[state.current] { return error }

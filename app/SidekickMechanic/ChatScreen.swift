@@ -59,6 +59,7 @@ struct ChatScreen: View {
     @State private var demoImages: DemoImageStore
     @State private var presentedViewer: HighlightViewerSession?
     @State private var presentedCitation: Citation?
+    @State private var capturePlug = false
     @State private var jobSheet: JobSheetViewModel
     @State private var lookBackPath: [LookBackVisit]
     @State private var lookBackGeneration: Int
@@ -175,7 +176,10 @@ struct ChatScreen: View {
         }
         .statusBarHidden(false)
         .persistentSystemOverlays(.visible)
-        .citationSheet($presentedCitation)
+        .citationSheet($presentedCitation, onAsk: askAboutPage)
+        .plugCaptureSheet(isPresented: $capturePlug) { photo in
+            model.attachPlugPhoto(photo)
+        }
         .task(id: demoLoadToken) {
             guard model.isDemoMode || launch.opensJobSheet || launch.opensLookBack || launch.showDemoChrome else { return }
             await demoImages.load(from: configuration)
@@ -295,7 +299,8 @@ struct ChatScreen: View {
                         attribution: session.attribution,
                         shareAlike: session.shareAlike,
                         onYes: session.onYes,
-                        onNotThis: session.onNotThis
+                        onNotThis: session.onNotThis,
+                        onAsk: askAboutPage
                     )
                     .modifier(
                         AccessibilityLaunchModifier(enabled: launch.prefersAccessibilitySize)
@@ -509,6 +514,8 @@ struct ChatScreen: View {
                     .accessibilityIdentifier("chat.error")
                     .accessibilityLabel("Error. \(errorMessage)")
             }
+            pageContextChip
+            starterRow
             composer
         }
         .background(JobSheetChrome.screen)
@@ -521,6 +528,87 @@ struct ChatScreen: View {
                 )
             )
         )
+    }
+
+    @ViewBuilder
+    private var pageContextChip: some View {
+        if let page = model.draftAttachment?.page {
+            HStack(spacing: 6) {
+                Text(page.chipLabel)
+                    .font(.subheadline)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .accessibilityIdentifier("chat.pageContext")
+                Button {
+                    model.unpinPage()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.caption.weight(.bold))
+                        .frame(width: 22, height: 22)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Unpin page")
+            }
+            .padding(.leading, 10)
+            .padding(.trailing, 6)
+            .padding(.vertical, 4)
+            .background(JobSheetChrome.paper, in: Capsule())
+            .overlay {
+                Capsule().strokeBorder(Color.primary.opacity(0.18), lineWidth: 1)
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    @ViewBuilder
+    private var starterRow: some View {
+        if !model.starterQuestions.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(model.starterQuestions) { starter in
+                    Button(starter.text) {
+                        if starter.wantsPlugPhoto {
+                            capturePlug = true
+                        } else {
+                            Task { await model.send(starter) }
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .font(.subheadline)
+                    .foregroundStyle(.primary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(JobSheetChrome.paper, in: Capsule())
+                    .overlay {
+                        Capsule().strokeBorder(Color.primary.opacity(0.18), lineWidth: 1)
+                    }
+                    .accessibilityIdentifier(starterIdentifier(starter))
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.top, 8)
+            .padding(.bottom, 4)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func starterIdentifier(_ starter: StarterQuestion) -> String {
+        switch starter {
+        case .explainSimply: "chat.starter.explain"
+        case .tools: "chat.starter.tools"
+        case .whichConnector: "chat.starter.connector"
+        }
+    }
+
+    private func askAboutPage(_ page: PageRef) {
+        presentedCitation = nil
+        presentedViewer = nil
+        // Half and full hide the composer, which is where the page chip and starters live.
+        withAnimation(.easeInOut(duration: 0.22)) {
+            jobSheet.close()
+        }
+        model.askAbout(page)
     }
 
     private var composer: some View {

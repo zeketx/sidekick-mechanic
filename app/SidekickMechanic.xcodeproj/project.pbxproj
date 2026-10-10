@@ -16,6 +16,7 @@
 		E3B11CEF4C0FAF51B5B38689 /* DemoHighlightView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA6E449AB2CCC4A451FC49CA /* DemoHighlightView.swift */; };
 		EE5981AB831000F2971BD24E /* DemoModeChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EB4D68F04A32B2EE2BCE0E3 /* DemoModeChrome.swift */; };
 		EF2F2ADDFB91BBD9D49CCA4A /* ChatScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2690995B0121B547CC4651A /* ChatScreen.swift */; };
+		F8C32D05B1E76A49C5D2F3B8 /* PlugCaptureSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7B21C94A0D65F38B4C1E2A7 /* PlugCaptureSheet.swift */; };
 		F1A8C4D29B3E5F708C1D2E4A /* HighlightViewerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C4E1A90B3D24F6E8A1C2D3E /* HighlightViewerView.swift */; };
 		A91F0C2E7B4D81A35E6C0D11 /* JobSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D2E4B71C0A93F15E6B7D802 /* JobSheetView.swift */; };
 		C4D9F2E15B8A3C02D6E7F918 /* JobHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3C8E1D04A7F2B91C5D6E807 /* JobHistoryView.swift */; };
@@ -49,6 +50,7 @@
 		C8D1A2B03C82E5D7A6F4B0C2 /* CitationSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CitationSheet.swift; sourceTree = "<group>"; };
 		BA6E449AB2CCC4A451FC49CA /* DemoHighlightView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoHighlightView.swift; sourceTree = "<group>"; };
 		C2690995B0121B547CC4651A /* ChatScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatScreen.swift; sourceTree = "<group>"; };
+		E7B21C94A0D65F38B4C1E2A7 /* PlugCaptureSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlugCaptureSheet.swift; sourceTree = "<group>"; };
 		7C4E1A90B3D24F6E8A1C2D3E /* HighlightViewerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HighlightViewerView.swift; sourceTree = "<group>"; };
 		8D2E4B71C0A93F15E6B7D802 /* JobSheetView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JobSheetView.swift; sourceTree = "<group>"; };
 		B3C8E1D04A7F2B91C5D6E807 /* JobHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JobHistoryView.swift; sourceTree = "<group>"; };
@@ -118,6 +120,7 @@
 			children = (
 				1CEEF8A9243926DFB350F145 /* AnswerCardView.swift */,
 				C2690995B0121B547CC4651A /* ChatScreen.swift */,
+				E7B21C94A0D65F38B4C1E2A7 /* PlugCaptureSheet.swift */,
 				9890FA44BA3B2B62C0293DC5 /* CitationPageView.swift */,
 				C8D1A2B03C82E5D7A6F4B0C2 /* CitationSheet.swift */,
 				7C4E1A90B3D24F6E8A1C2D3E /* HighlightViewerView.swift */,
@@ -225,6 +228,7 @@
 			files = (
 				D710CCA0D98A9429B1D09428 /* AnswerCardView.swift in Sources */,
 				EF2F2ADDFB91BBD9D49CCA4A /* ChatScreen.swift in Sources */,
+				F8C32D05B1E76A49C5D2F3B8 /* PlugCaptureSheet.swift in Sources */,
 				41976CE283ADE9BF1B986389 /* CitationPageView.swift in Sources */,
 				B4C8E1D02A91F4C6B7D3E0A1 /* CitationSheet.swift in Sources */,
 				F1A8C4D29B3E5F708C1D2E4A /* HighlightViewerView.swift in Sources */,
