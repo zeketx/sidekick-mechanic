@@ -4,7 +4,7 @@ import XCTest
 
 @MainActor
 final class ChatViewModelTests: XCTestCase {
-    func testSendEnabledOnlyWhenTrimmedTextIsPresentAndIdle() {
+    func testSendEnabledOnlyWhenTrimmedTextIsPresentAndIdle() async {
         let idle = makeModel(composerText: "")
         XCTAssertFalse(idle.canSend)
 
@@ -14,13 +14,20 @@ final class ChatViewModelTests: XCTestCase {
         idle.composerText = "  rough idle  "
         XCTAssertTrue(idle.canSend)
 
-        let loading = makeModel(composerText: "rough idle", isLoading: true)
+        let gate = GateChatClient()
+        let loading = makeModel(client: gate, composerText: "rough idle")
+        let task = Task { await loading.send() }
+        await gate.waitForSend()
+        XCTAssertTrue(loading.isLoading)
         XCTAssertFalse(loading.canSend)
+        gate.resume(with: .success(plainAnswer()))
+        await task.value
 
-        let failed = makeModel(
-            composerText: "rough idle",
-            errorMessage: ChatClientError.timeout.userMessage
-        )
+        let failedClient = ScriptedChatClient(results: [.failure(ChatClientError.timeout)])
+        let failed = makeModel(client: failedClient, composerText: "rough idle")
+        await failed.send()
+        failed.composerText = "rough idle"
+        XCTAssertEqual(failed.errorMessage, ChatClientError.timeout.userMessage)
         XCTAssertTrue(failed.canSend)
     }
 
@@ -62,10 +69,11 @@ final class ChatViewModelTests: XCTestCase {
         XCTAssertEqual(model.messages.count, 2)
         XCTAssertEqual(try assistantAnswer(model.messages[1]), plainAnswer())
         XCTAssertEqual(model.messages[0].id.rawValue, "msg-1")
-        XCTAssertEqual(model.messages[1].id.rawValue, "msg-2")
+        XCTAssertEqual(model.messages[1].id.rawValue, "msg-3")
         XCTAssertEqual(model.composerText, "second thought")
         XCTAssertTrue(model.canSend)
         XCTAssertEqual(try userText(client.sent[0].messages[0]), "hello")
+        XCTAssertEqual(client.sent[0].id.rawValue, "msg-2")
     }
 
     func testMockClientAppendsUserThenFixtureAnswer() async throws {
@@ -174,7 +182,7 @@ final class ChatViewModelTests: XCTestCase {
             .failure(ChatClientError.timeout),
             .success(try XCTUnwrap(fixtures["plain.json"])),
         ])
-        let ids = SequentialMessageIDs(values: ["msg-1", "msg-2", "msg-3"])
+        let ids = SequentialMessageIDs(values: ["msg-1", "msg-2", "msg-3", "msg-4"])
         let model = makeModel(client: client, makeMessageID: { ids.next() })
         model.composerText = "first try"
         await model.send()
@@ -241,23 +249,35 @@ final class ChatViewModelTests: XCTestCase {
         client: any ChatClient = ScriptedChatClient(results: []),
         messages: [Message] = [],
         composerText: String = "",
-        isLoading: Bool = false,
-        errorMessage: String? = nil,
         isDemoMode: Bool = false,
         selectedDemoPhotoID: String? = nil,
         makeMessageID: (@Sendable () -> MessageID)? = nil
     ) -> ChatViewModel {
-        let ids = SequentialMessageIDs(values: ["msg-1", "msg-2", "msg-3", "msg-4"])
-        return ChatViewModel(
-            conversationID: ConversationID(rawValue: "convo-1")!,
-            messages: messages,
-            composerText: composerText,
-            isLoading: isLoading,
-            errorMessage: errorMessage,
-            isDemoMode: isDemoMode,
-            selectedDemoPhotoID: selectedDemoPhotoID,
+        let ids = SequentialMessageIDs(values: ["msg-1", "msg-2", "msg-3", "msg-4", "msg-5"])
+        let makeID = makeMessageID ?? { ids.next() }
+        let seeded = messages.isEmpty ? [] : [seededJob(messages: messages)]
+        let jobs = JobsModel(
+            source: .memory(seeded),
             client: client,
-            makeMessageID: makeMessageID ?? { ids.next() }
+            makeID: { makeID().rawValue }
+        )
+        let target: ChatTarget = seeded.isEmpty ? .newJob : .job(seeded[0].id)
+        return ChatViewModel(
+            jobs: jobs,
+            target: target,
+            composerText: composerText,
+            isDemoMode: isDemoMode,
+            selectedDemoPhotoID: selectedDemoPhotoID
+        )
+    }
+
+    private func seededJob(messages: [Message]) -> JobSheetState {
+        let id = JobID(rawValue: "convo-1")!
+        return JobSheetState(
+            id: id,
+            title: "Earlier note",
+            createdAt: Date(timeIntervalSince1970: 1_760_000_000),
+            conversation: Conversation(id: ConversationID(rawValue: id.rawValue)!, messages: messages)
         )
     }
 

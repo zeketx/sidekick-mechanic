@@ -1,3 +1,5 @@
+import Foundation
+
 /// Launch keys for the look-back screens. Matches the Figma frame names.
 public enum LookBackScreen: String, CaseIterable, Hashable, Sendable {
     case jobHistory = "job-history"
@@ -7,7 +9,7 @@ public enum LookBackScreen: String, CaseIterable, Hashable, Sendable {
 /// Copy locked by tests. Matches the approved Jobs frame.
 public enum JobHistoryCopy {
     public static let title = "Jobs"
-    public static let subtitle = "One row per ask"
+    public static let subtitle = "Each one keeps its own chat."
     public static let back = "Back"
 }
 
@@ -24,80 +26,97 @@ public enum ScanLogCopy {
     public static let thumbBanner = "Not your truck"
 }
 
-/// One Jobs row. Wraps #113's `JobSheetState`. Session-only scripted data.
-public struct JobHistoryRow: Equatable, Sendable, Identifiable {
-    public var id: MessageID { job.id }
-    public var job: JobSheetState
-    public var dateLabel: String
-
-    public init(job: JobSheetState, dateLabel: String) {
-        self.job = job
-        self.dateLabel = dateLabel
-    }
-
-    /// Tap opens that job sheet at half height. Does not append chat (JH-2 later).
-    public func openedSheet() -> JobSheetState {
-        var job = job
-        job.detent = .half
-        return job
-    }
-}
-
-/// Scripted Jobs list from the Figma frame.
+/// Scripted Jobs list from the Figma frame. Memory only. Never written to jobs.json.
 public enum JobHistoryScript {
-    public static var rows: [JobHistoryRow] {
+    public static func jobs(now: Date, calendar: Calendar = .current) -> [JobSheetState] {
         [
-            row(
+            job(
                 id: "job-history-cold-idle",
                 title: "Cold idle",
-                date: "Today",
+                ask: JobSheetCopy.question,
+                createdAt: now,
                 outcome: .worked,
                 photoID: "commons-hilux-2jz"
             ),
-            row(
+            job(
                 id: "job-history-hard-start",
                 title: "Hard start",
-                date: "Yesterday",
+                ask: "Hard start",
+                createdAt: calendar.date(byAdding: .day, value: -1, to: now) ?? now,
                 outcome: .partly,
                 photoID: "commons-supra-n5abh"
             ),
-            row(
+            job(
                 id: "job-history-battery-light",
                 title: "Battery light",
-                date: "Sep 28",
+                ask: "Battery light",
+                createdAt: latestPast(month: 9, day: 28, now: now, calendar: calendar),
                 outcome: .didnt,
                 photoID: "hrymx-2jz-ge-25308847029"
             ),
-            row(
+            job(
                 id: "job-history-hose-check",
                 title: "Hose check",
-                date: "Sep 20",
+                ask: "Hose check",
+                createdAt: latestPast(month: 9, day: 20, now: now, calendar: calendar),
                 outcome: .worked,
                 photoID: "flickr-robmarson-6763892857"
             ),
         ]
     }
 
-    public static func row(
+    private static func job(
         id: String,
         title: String,
-        date: String,
+        ask: String,
+        createdAt: Date,
         outcome: JobOutcome,
         photoID: String
-    ) -> JobHistoryRow {
-        JobHistoryRow(
-            job: JobSheetState(
-                sourceMessageID: MessageID(rawValue: id)!,
-                title: title,
-                answerText: JobSheetCopy.answer(photoID: photoID),
-                citations: [HighlightViewerScript.fixtureCitation],
-                photoID: photoID,
-                highlight: JobSheetScript.highlight(photoID: photoID),
-                detent: .collapsed,
-                outcome: outcome
+    ) -> JobSheetState {
+        let jobID = JobID(rawValue: id)!
+        let highlight = JobSheetScript.highlight(photoID: photoID)
+        let found = FoundAnswer(
+            text: JobSheetCopy.answer(photoID: photoID),
+            citations: [HighlightViewerScript.fixtureCitation],
+            highlight: highlight
+        )!
+        let pick = JobSheetScript.selection(photoID: photoID)
+        return JobSheetState(
+            id: jobID,
+            title: title,
+            createdAt: createdAt,
+            conversation: Conversation(
+                id: ConversationID(rawValue: id)!,
+                messages: [
+                    .user(UserMessage(id: MessageID(rawValue: "\(id)-user")!, text: ask)!),
+                    .assistant(
+                        AssistantMessage(
+                            id: MessageID(rawValue: "\(id)-assistant")!,
+                            answer: .found(found)
+                        )
+                    ),
+                ]
             ),
-            dateLabel: date
+            steps: JobSheetCopy.steps(photoID: photoID),
+            outcome: outcome,
+            photoID: photoID,
+            tags: DemoOutlineCatalog.tags(partID: pick.partID, hasOutline: true)
         )
+    }
+
+    /// Most recent month/day strictly before `now`'s day. Noon, so a DST shift cannot change the day.
+    private static func latestPast(month: Int, day: Int, now: Date, calendar: Calendar) -> Date {
+        let year = calendar.component(.year, from: now)
+        let thisYear = calendar.date(
+            from: DateComponents(year: year, month: month, day: day, hour: 12)
+        )
+        let lastYear = calendar.date(
+            from: DateComponents(year: year - 1, month: month, day: day, hour: 12)
+        )
+        if let thisYear, calendar.startOfDay(for: thisYear) < calendar.startOfDay(for: now) {
+            return thisYear
+        }
+        return lastYear ?? now
     }
 }
 
