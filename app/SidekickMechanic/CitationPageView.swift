@@ -41,6 +41,9 @@ struct CitationPageView: View {
             headerBar
         }
         .background(JobSheetChrome.paper)
+        .overlay(alignment: .top) {
+            sheetTopMarker("citation.sheetTop")
+        }
         .modifier(
             AccessibilityLaunchModifier(
                 enabled: DemoLaunchOptions.parse().prefersAccessibilitySize
@@ -62,7 +65,8 @@ struct CitationPageView: View {
             }
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 10)
+        .sheetHeaderClearance()
+        .padding(.bottom, 10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(JobSheetChrome.paper)
         .accessibilityElement(children: .contain)

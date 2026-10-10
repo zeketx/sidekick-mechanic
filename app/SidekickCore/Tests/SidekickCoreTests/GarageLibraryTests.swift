@@ -145,7 +145,7 @@ final class GarageLibraryTests: XCTestCase {
         XCTAssertEqual(GarageScrim.opacity(coverage: 2), 0.75)
     }
 
-    func testTemporaryStoreFlagWipesTheSandboxFolder() async throws {
+    func testTemporaryStoreKeepsNotesAcrossANewLiveStore() async throws {
         XCTAssertFalse(
             GarageStoreLocation.usesTemporaryStore(arguments: ["SidekickMechanic"], environment: [:])
         )
@@ -168,18 +168,31 @@ final class GarageLibraryTests: XCTestCase {
             )
         )
 
-        let leftover = FileManager.default.temporaryDirectory
-            .appendingPathComponent(GarageStoreLocation.temporaryFolderName, isDirectory: true)
-        try FileManager.default.createDirectory(at: leftover, withIntermediateDirectories: true)
-        try Data("FAKE".utf8).write(to: leftover.appendingPathComponent("garage.json"))
+        let arguments = ["SidekickMechanic", "-garageTemporaryStore", "1"]
+        let clean = try GarageStoreLocation.prepareTemporaryRoot()
+        XCTAssertEqual(clean.lastPathComponent, GarageStoreLocation.temporaryFolderName)
 
-        let store = GarageLibraryStore.live(
-            arguments: ["SidekickMechanic", "-garageTemporaryStore", "1"],
-            environment: [:]
+        let model = GarageModel(
+            store: .live(arguments: arguments, environment: [:]),
+            makeID: { "fact-kept" }
         )
-        XCTAssertEqual(store.root.lastPathComponent, GarageStoreLocation.temporaryFolderName)
-        XCTAssertFalse(FileManager.default.fileExists(atPath: store.jsonURL.path))
-        XCTAssertEqual(try store.load().facts.map(\.id).count, 6)
+        XCTAssertTrue(model.addFact(label: "FAKE-LABEL", value: "FAKE-NOTE"))
+        XCTAssertTrue(model.addTodo(title: "FAKE-TODO"))
+        XCTAssertTrue(model.setTodoDone(id: "fact-kept", isDone: true))
+        XCTAssertTrue(model.addPhoto(caption: "FAKE-PHOTO", jpeg: Data([9, 9])))
+        XCTAssertTrue(model.addItem(name: "FAKE-PART", note: "FAKE-NOTE", jpeg: nil))
+
+        let again = GarageLibraryStore.live(arguments: arguments, environment: [:])
+        XCTAssertEqual(again.root.lastPathComponent, GarageStoreLocation.temporaryFolderName)
+        XCTAssertNotEqual(again.root.path, try GarageLibraryStore.defaultRoot().path)
+        let loaded = try again.load()
+        XCTAssertEqual(loaded.facts.first { $0.id == "fact-kept" }?.value, "FAKE-NOTE")
+        XCTAssertEqual(loaded.todos.map(\.title), ["FAKE-TODO"])
+        XCTAssertEqual(loaded.todos.map(\.isDone), [true])
+        XCTAssertEqual(loaded.photos.map(\.caption), ["FAKE-PHOTO"])
+        XCTAssertEqual(try again.readPhoto(fileName: "fact-kept.jpg"), Data([9, 9]))
+        XCTAssertEqual(loaded.items.map(\.name), ["FAKE-PART"])
+        try? FileManager.default.removeItem(at: again.root)
     }
 
     func testRejectedFileNameCannotEscapeThePhotoFolder() async throws {

@@ -137,11 +137,11 @@ struct JobSheetView: View {
     }
 
     private var handle: some View {
-        Capsule()
+            Capsule()
             .fill(Color.secondary.opacity(0.35))
-            .frame(width: 36, height: 5)
-            .padding(.top, 8)
-            .padding(.bottom, 6)
+            .frame(width: 36, height: CGFloat(JobSheetLayout.grabberHeight))
+            .padding(.top, CGFloat(JobSheetLayout.grabberTopPadding))
+            .padding(.bottom, CGFloat(JobSheetLayout.grabberBottomPadding))
             .frame(maxWidth: .infinity)
             .contentShape(Rectangle())
             .gesture(
@@ -178,6 +178,7 @@ struct JobSheetView: View {
             .accessibilityIdentifier(model.detent == .collapsed ? "jobSheet.open" : "jobSheet.close")
         }
         .padding(.horizontal, 16)
+        .sheetHeaderClearance(underCustomGrabber: true)
         .padding(.bottom, 8)
     }
 
