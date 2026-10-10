@@ -4,7 +4,9 @@ import UIKit
 
 /// Bottom sheet for one job (JS-1/2/3). Outline comes from #112's public renderer.
 struct JobSheetView: View {
-    @Bindable var model: JobSheetViewModel
+    var job: JobSheetState
+    @Bindable var sheet: JobSheetViewModel
+    var onEdit: (JobEdit) -> Void
     var image: UIImage?
     var attribution: String
     var shareAlike: Bool
@@ -26,7 +28,7 @@ struct JobSheetView: View {
         VStack(spacing: 0) {
             handle
             header
-            if model.detent == .collapsed {
+            if sheet.detent == .collapsed {
                 collapsedPeek
                     .padding(.horizontal, 16)
                     .padding(.bottom, 12)
@@ -46,7 +48,7 @@ struct JobSheetView: View {
                 .ignoresSafeArea(.container, edges: .bottom)
         }
         .ignoresSafeArea(.container, edges: .bottom)
-        .animation(.easeInOut(duration: 0.22), value: model.detent)
+        .animation(.easeInOut(duration: 0.22), value: sheet.detent)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(detentIdentifier)
         .confirmationDialog(JobSheetCopy.creditInfo, isPresented: $showsCredit, titleVisibility: .visible) {
@@ -57,7 +59,7 @@ struct JobSheetView: View {
         .alert(JobSheetCopy.addTagPrompt, isPresented: $isAddingTag) {
             TextField(JobSheetCopy.tagsHeading, text: $newTagText)
             Button(JobSheetCopy.addTag) {
-                model.addTag(newTagText)
+                onEdit(.addTag(newTagText))
                 newTagText = ""
             }
             Button("Cancel", role: .cancel) {
@@ -67,11 +69,11 @@ struct JobSheetView: View {
     }
 
     private var contentTopInset: CGFloat {
-        CGFloat(JobSheetLayout.contentTopInset(detent: model.detent, topSafeArea: Double(topSafeArea)))
+        CGFloat(JobSheetLayout.contentTopInset(detent: sheet.detent, topSafeArea: Double(topSafeArea)))
     }
 
     private var detentIdentifier: String {
-        switch model.detent {
+        switch sheet.detent {
         case .collapsed: "jobSheet.collapsed"
         case .half: "jobSheet.half"
         case .full: "jobSheet.full"
@@ -83,7 +85,7 @@ struct JobSheetView: View {
         let screen = max(probed, UIScreen.main.bounds.height)
         return CGFloat(
             JobSheetLayout.height(
-                detent: model.detent,
+                detent: sheet.detent,
                 screenHeight: Double(screen),
                 topSafeArea: Double(topSafeArea),
                 isAccessibilitySize: isAccessibilitySize
@@ -102,19 +104,19 @@ struct JobSheetView: View {
     }
 
     private var catalogPhotoID: String {
-        model.job?.photoID ?? DemoLaunchOptions.defaultPhotoID
+        job.photoID ?? DemoLaunchOptions.defaultPhotoID
     }
 
     private var catalogPartID: String? {
-        model.job?.highlight?.partID.rawValue
+        job.highlight?.partID.rawValue
     }
 
     /// Public #112 view model. Thumbnails follow resolve(), not a copied outline.
     private var presentation: HighlightViewerPresentation {
         HighlightViewerPresentation.resolve(
             source: HighlightViewerState.fromDemo(
-                display: model.job?.highlight?.display,
-                highlight: model.job?.highlight
+                display: job.highlight?.display,
+                highlight: job.highlight
             ),
             flags: flags,
             photoID: catalogPhotoID,
@@ -124,7 +126,7 @@ struct JobSheetView: View {
 
     private var outlineGeometry: HighlightGeometry? {
         guard presentation.showsOutline else { return nil }
-        return model.job?.highlight?.geometry
+        return job.highlight?.geometry
             ?? HighlightViewerScript.geometry(
                 photoID: presentation.outlinePhotoID,
                 partID: presentation.partID,
@@ -147,7 +149,7 @@ struct JobSheetView: View {
             .gesture(
                 DragGesture(minimumDistance: 8)
                     .onEnded { value in
-                        model.applyDrag(translationHeight: value.translation.height)
+                        sheet.applyDrag(translationHeight: value.translation.height)
                     }
             )
             .accessibilityIdentifier("jobSheet.handle")
@@ -156,18 +158,18 @@ struct JobSheetView: View {
 
     private var header: some View {
         HStack(alignment: .firstTextBaseline) {
-            Text(model.job?.headerTitle ?? JobSheetCopy.titlePrefix + JobSheetCopy.title)
+            Text(job.headerTitle)
                 .font(.headline)
                 .foregroundStyle(.primary)
                 .lineLimit(isAccessibilitySize ? 1 : 3)
                 .minimumScaleFactor(isAccessibilitySize ? 0.6 : 1)
                 .accessibilityIdentifier("jobSheet.title")
             Spacer(minLength: 8)
-            Button(model.detent == .collapsed ? JobSheetCopy.open : JobSheetCopy.close) {
-                if model.detent == .collapsed {
-                    model.open()
+            Button(sheet.detent == .collapsed ? JobSheetCopy.open : JobSheetCopy.close) {
+                if sheet.detent == .collapsed {
+                    sheet.open()
                 } else {
-                    model.close()
+                    sheet.close()
                 }
             }
             .buttonStyle(.plain)
@@ -175,7 +177,7 @@ struct JobSheetView: View {
             .foregroundStyle(.secondary)
             .fixedSize()
             .layoutPriority(1)
-            .accessibilityIdentifier(model.detent == .collapsed ? "jobSheet.open" : "jobSheet.close")
+            .accessibilityIdentifier(sheet.detent == .collapsed ? "jobSheet.open" : "jobSheet.close")
         }
         .padding(.horizontal, 16)
         .sheetHeaderClearance(underCustomGrabber: true)
@@ -187,14 +189,14 @@ struct JobSheetView: View {
             photoThumb(height: 48, fillsWidth: false)
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
-                    Text(model.job?.hasPhoto == true ? JobSheetCopy.photoCaption : JobSheetCopy.peekHint)
+                    Text(job.hasPhoto == true ? JobSheetCopy.photoCaption : JobSheetCopy.peekHint)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
-                    if model.job?.hasPhoto == true {
+                    if job.hasPhoto == true {
                         creditInfoButton
                     }
                 }
-                if model.job?.hasPhoto == true {
+                if job.hasPhoto == true {
                     partChip
                 } else {
                     attachButton
@@ -208,21 +210,21 @@ struct JobSheetView: View {
     private var expandedBody: some View {
         VStack(spacing: 0) {
             ScrollView {
-                VStack(alignment: .leading, spacing: model.detent == .full ? 16 : 8) {
+                VStack(alignment: .leading, spacing: sheet.detent == .full ? 16 : 8) {
                     if showsHalfPhoto {
                         photoStage
                     }
-                    Text(model.job?.answerText ?? JobSheetCopy.answer(photoID: catalogPhotoID))
+                    Text(job.answerText)
                         .font(.body)
                         .foregroundStyle(.primary)
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier("jobSheet.answer")
                     chipRow
                     stepsList
-                    if model.job?.hasPhoto != true {
+                    if job.hasPhoto != true {
                         attachButton
                     }
-                    if model.detent == .full {
+                    if sheet.detent == .full {
                         notesField
                         tagsRow
                         howDidItGo
@@ -232,14 +234,14 @@ struct JobSheetView: View {
                 .padding(.horizontal, 16)
                 .padding(
                     .bottom,
-                    model.detent == .full
+                    sheet.detent == .full
                         ? 24
                         : CGFloat(JobSheetLayout.halfScrollBottomPadding)
                 )
                 .fixedSize(horizontal: false, vertical: true)
             }
             .accessibilityIdentifier("jobSheet.body")
-            if model.detent != .full {
+            if sheet.detent != .full {
                 halfOutcomeRow
                     .padding(.horizontal, 16)
                     .padding(.top, CGFloat(JobSheetLayout.halfOutcomeTopSpacing))
@@ -249,11 +251,11 @@ struct JobSheetView: View {
     }
 
     private var showsFilledOutcome: Bool {
-        JobSheetLayout.fillsSelectedOutcome(detent: model.detent, outcome: model.job?.outcome)
+        JobSheetLayout.fillsSelectedOutcome(detent: sheet.detent, outcome: job.outcome)
     }
 
     private var showsHalfPhoto: Bool {
-        model.detent == .full
+        sheet.detent == .full
             || JobSheetLayout.halfPhotoHeight(isAccessibilitySize: isAccessibilitySize) > 0
     }
 
@@ -264,7 +266,7 @@ struct JobSheetView: View {
     private var photoStage: some View {
         VStack(alignment: .leading, spacing: 4) {
             photoThumb(
-                height: model.detent == .full
+                height: sheet.detent == .full
                     ? CGFloat(JobSheetLayout.fullPhotoHeight)
                     : CGFloat(JobSheetLayout.halfPhotoHeight),
                 fillsWidth: true
@@ -275,11 +277,11 @@ struct JobSheetView: View {
                     .foregroundStyle(.secondary)
                     .accessibilityIdentifier("jobSheet.photoCaption")
                 Spacer(minLength: 8)
-                if model.job?.hasPhoto == true {
+                if job.hasPhoto == true {
                     creditInfoButton
                 }
             }
-            if model.job?.hasPhoto == true {
+            if job.hasPhoto == true {
                 Text(creditText)
                     .font(.caption2)
                     .foregroundStyle(.secondary)
@@ -292,7 +294,7 @@ struct JobSheetView: View {
 
     @ViewBuilder
     private func photoThumb(height: CGFloat, fillsWidth: Bool) -> some View {
-        if model.job?.hasPhoto == true {
+        if job.hasPhoto == true {
             Button(action: onOpenHighlight) {
                 DemoHighlightView(
                     image: image ?? HighlightPlaceholderImage.make(),
@@ -360,7 +362,7 @@ struct JobSheetView: View {
     private var chipRow: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                ForEach(Array((model.job?.citations ?? []).enumerated()), id: \.offset) { index, citation in
+                ForEach(Array(job.citations.enumerated()), id: \.offset) { index, citation in
                     Button {
                         onOpenCitation(citation)
                     } label: {
@@ -390,7 +392,7 @@ struct JobSheetView: View {
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.primary)
                 .accessibilityIdentifier("jobSheet.stepsHeading")
-            ForEach(JobSheetCopy.steps(photoID: catalogPhotoID, partID: catalogPartID)) { step in
+            ForEach(job.steps) { step in
                 HStack(alignment: .firstTextBaseline, spacing: 10) {
                     Image(systemName: step.isComplete ? "checkmark.square.fill" : "square")
                         .font(.body)
@@ -414,15 +416,15 @@ struct JobSheetView: View {
 
     private var notesBinding: Binding<String> {
         Binding(
-            get: { model.job?.notes ?? "" },
-            set: { model.setNotes($0) }
+            get: { job.notes },
+            set: { onEdit(.notes($0)) }
         )
     }
 
     private var whatFixedBinding: Binding<String> {
         Binding(
-            get: { model.job?.whatFixed ?? "" },
-            set: { model.setWhatFixed($0) }
+            get: { job.whatFixed },
+            set: { onEdit(.whatFixed($0)) }
         )
     }
 
@@ -453,7 +455,7 @@ struct JobSheetView: View {
                 .accessibilityIdentifier("jobSheet.tagsHeading")
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    ForEach(Array((model.job?.tags ?? []).enumerated()), id: \.offset) { index, tag in
+                    ForEach(Array(job.tags.enumerated()), id: \.offset) { index, tag in
                         JobSheetChipLabel(text: tag)
                             .accessibilityIdentifier("jobSheet.tag.\(index)")
                     }
@@ -503,9 +505,9 @@ struct JobSheetView: View {
     }
 
     private func outcomeSegment(_ outcome: JobOutcome) -> some View {
-        let selected = model.job?.outcome == outcome
+        let selected = job.outcome == outcome
         return Button {
-            model.selectOutcome(outcome)
+            onEdit(.outcome(outcome))
         } label: {
             Text(outcome.label)
                 .font(.body.weight(.semibold))
@@ -562,7 +564,7 @@ struct JobSheetView: View {
                         .foregroundStyle(.secondary)
                     ForEach(JobOutcome.allCases, id: \.self) { outcome in
                         Button(outcome.label) {
-                            model.selectOutcome(outcome)
+                            onEdit(.outcome(outcome))
                         }
                         .buttonStyle(.plain)
                         .font(.body)
@@ -750,27 +752,35 @@ extension View {
 }
 
 private struct JobSheetPreview: View {
-    @State private var model: JobSheetViewModel
+    @State private var jobs: JobsModel
+    @State private var sheet: JobSheetViewModel
+    private let jobID: JobID
 
     init(detent: JobSheetDetent, outcome: JobOutcome? = nil) {
-        _model = State(
-            initialValue: JobSheetViewModel(
-                job: JobSheetScript.makeJob(
-                    detent: detent,
-                    photoID: DemoLaunchOptions.defaultPhotoID,
-                    outcome: outcome
-                )
-            )
+        let job = JobSheetScript.job(
+            photoID: DemoLaunchOptions.defaultPhotoID,
+            outcome: outcome,
+            now: Date(timeIntervalSince1970: 1_760_000_000)
         )
+        _jobs = State(initialValue: JobsModel(source: .memory([job]), client: JobSheetPreviewClient()))
+        _sheet = State(initialValue: JobSheetViewModel(detent: detent))
+        jobID = job.id
     }
 
     var body: some View {
+        let job = jobs.job(jobID) ?? JobSheetScript.job(
+            photoID: DemoLaunchOptions.defaultPhotoID,
+            outcome: nil,
+            now: Date(timeIntervalSince1970: 1_760_000_000)
+        )
         NavigationStack {
             JobSheetChrome.screen
                 .ignoresSafeArea()
                 .safeAreaInset(edge: .bottom, spacing: 0) {
                     JobSheetView(
-                        model: model,
+                        job: job,
+                        sheet: sheet,
+                        onEdit: { jobs.edit(job.id, $0) },
                         image: HighlightPlaceholderImage.make(),
                         attribution: "Demo data. Not Zeke's truck.",
                         shareAlike: true,
@@ -779,5 +789,13 @@ private struct JobSheetPreview: View {
                     )
                 }
         }
+    }
+}
+
+private struct JobSheetPreviewClient: ChatClient {
+    func send(_ conversation: Conversation, demoPhotoID: String?) async throws -> Answer {
+        _ = conversation
+        _ = demoPhotoID
+        throw ChatClientError.offline
     }
 }

@@ -4,26 +4,29 @@ import UIKit
 
 @main
 struct SidekickMechanicApp: App {
-    private static let launch = DemoLaunchOptions.parse()
-    @State private var chatModel = SidekickMechanicApp.makeChatModel()
+    private static let demo = DemoLaunchOptions.parse()
+    private static let jobsLaunch = JobsLaunch.resolve(demo: demo)
+    @State private var jobs: JobsModel
+    @State private var chat: ChatViewModel
 
     init() {
         Self.installOpaqueChrome()
-    }
-
-    private static func makeChatModel() -> ChatViewModel {
-        let launch = Self.launch
-        let jobLaunch = launch.opensJobSheet
-        let lookBack = launch.opensLookBack
-        return ChatViewModel(
-            conversationID: ConversationID(rawValue: UUID().uuidString)!,
-            messages: jobLaunch ? JobSheetScript.messages : [],
-            composerText: launch.enablesDemoMode && !jobLaunch && !lookBack ? launch.cannedQuestion : "",
-            isDemoMode: launch.enablesDemoMode,
-            selectedDemoPhotoID: launch.enablesDemoMode ? launch.resolvedPhotoID : nil,
-            highlightStyle: launch.style ?? .outline,
+        let jobs = JobsModel(
+            source: Self.jobsLaunch.source,
             client: LiveChatClient(configuration: ChatClientConfiguration(baseURL: AppConfig.backendURL))
         )
+        let demo = Self.demo
+        _jobs = State(initialValue: jobs)
+        _chat = State(initialValue: ChatViewModel(
+            jobs: jobs,
+            target: Self.jobsLaunch.opening,
+            composerText: demo.enablesDemoMode && !demo.opensJobSheet && !demo.opensLookBack
+                ? demo.cannedQuestion
+                : "",
+            isDemoMode: demo.enablesDemoMode,
+            selectedDemoPhotoID: demo.enablesDemoMode ? demo.resolvedPhotoID : nil,
+            highlightStyle: demo.style ?? .outline
+        ))
     }
 
     /// Solid #F4F4F4 bars. iOS 26 glass capsules stay off the v1 chrome.
@@ -48,7 +51,7 @@ struct SidekickMechanicApp: App {
 
     var body: some Scene {
         WindowGroup {
-            AppRootView(chatModel: chatModel, launch: Self.launch)
+            AppRootView(jobs: jobs, chat: chat, launch: Self.demo)
                 .background(JobSheetChrome.screen)
                 .statusBarHidden(false)
                 .persistentSystemOverlays(.visible)
@@ -58,7 +61,8 @@ struct SidekickMechanicApp: App {
 
 /// First-open onboarding, then Chat. Garage is a sheet so chat is not wiped.
 struct AppRootView: View {
-    @Bindable var chatModel: ChatViewModel
+    @Bindable var jobs: JobsModel
+    @Bindable var chat: ChatViewModel
     var launch: DemoLaunchOptions
     private let garagePreview: GaragePreview?
     @AppStorage(OnboardingStorage.completedKey) private var onboardingCompleted = false
@@ -68,8 +72,9 @@ struct AppRootView: View {
     @State private var garageScrimVisible = false
     @State private var garageCoverage = 0.9
 
-    init(chatModel: ChatViewModel, launch: DemoLaunchOptions) {
-        self.chatModel = chatModel
+    init(jobs: JobsModel, chat: ChatViewModel, launch: DemoLaunchOptions) {
+        self.jobs = jobs
+        self.chat = chat
         self.launch = launch
         let onboarding = OnboardingLaunchOptions.parse()
         let preview = GaragePreview.parse()
@@ -121,7 +126,8 @@ struct AppRootView: View {
             if launch.showDemoChrome {
                 TabView {
                     ChatScreen(
-                        model: chatModel,
+                        jobs: jobs,
+                        model: chat,
                         launch: launch,
                         onOpenGarage: openGarage
                     )
@@ -131,7 +137,8 @@ struct AppRootView: View {
                 }
             } else {
                 ChatScreen(
-                    model: chatModel,
+                    jobs: jobs,
+                    model: chat,
                     launch: launch,
                     onOpenGarage: openGarage
                 )

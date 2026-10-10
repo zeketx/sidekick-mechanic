@@ -17,6 +17,7 @@ final class DriveUITests: XCTestCase {
     func testOpenJobsThenColdIdleRow() throws {
         let app = launchApp(arguments: [
             "-sidekick.onboarding.completed", "YES",
+            "-jobsStore", "demo",
         ])
         let jobs = element(app, "chat.jobs")
         XCTAssertTrue(jobs.waitForExistence(timeout: 8), "chat.jobs is missing")
@@ -39,6 +40,33 @@ final class DriveUITests: XCTestCase {
             "Half sheet from a Jobs row should dim chat"
         )
         try writeShot("taps-job-row-opened.png")
+    }
+
+    func testJobsKeepTheirOwnChatAcrossRelaunch() throws {
+        let stamp = String(Int(Date().timeIntervalSince1970) % 100000)
+        let alpha = "Alpha squeak \(stamp)"
+        let bravo = "Bravo rattle \(stamp)"
+        var app = launchApp(arguments: [
+            "-sidekick.onboarding.completed", "YES",
+            "-jobsStore", "fresh",
+        ])
+        send(alpha, app)
+        tap(app, "chat.newJob")
+        XCTAssertFalse(userBubble(app, alpha).exists)
+        send(bravo, app)
+        app.terminate()
+        app = launchApp(arguments: [
+            "-sidekick.onboarding.completed", "YES",
+            "-jobsStore", "keep",
+        ])
+        tap(app, "chat.jobs")
+        tap(app, "jobHistory.row.alpha-squeak-\(stamp)")
+        XCTAssertTrue(userBubble(app, alpha).waitForExistence(timeout: 5))
+        XCTAssertFalse(userBubble(app, bravo).exists)
+        tap(app, "chat.jobs")
+        tap(app, "jobHistory.row.bravo-rattle-\(stamp)")
+        XCTAssertTrue(userBubble(app, bravo).waitForExistence(timeout: 5))
+        XCTAssertFalse(userBubble(app, alpha).exists)
     }
 
     func testDragSheetCollapsedToHalf() throws {
@@ -498,7 +526,7 @@ final class DriveUITests: XCTestCase {
             (
                 "chat",
                 ["-sidekick.onboarding.completed", "YES"],
-                ["chat.garage", "chat.jobs", "chat.scanLog", "chat.composer", "chat.send", "chat.messageList"],
+                ["chat.garage", "chat.jobs", "chat.newJob", "chat.scanLog", "chat.composer", "chat.send", "chat.messageList"],
                 false
             ),
             (
@@ -1026,6 +1054,31 @@ final class DriveUITests: XCTestCase {
     /// `.accessibilityElement(children: .contain)` overwrites every child identifier (that is why
     /// chat.jobs, jobSheet.handle and jobHistory.scanLog went missing). With `.contain` a plain
     /// VStack container may not appear at all, so tests target leaf identifiers.
+    private func send(_ text: String, _ app: XCUIApplication) {
+        let composer = element(app, "chat.composer")
+        XCTAssertTrue(composer.waitForExistence(timeout: 8), "chat.composer is missing")
+        composer.tap()
+        composer.typeText(text)
+        let sendButton = element(app, "chat.send")
+        XCTAssertTrue(sendButton.waitForExistence(timeout: 3), "chat.send is missing")
+        sendButton.tap()
+        XCTAssertTrue(userBubble(app, text).waitForExistence(timeout: 5))
+    }
+
+    private func tap(_ app: XCUIApplication, _ identifier: String) {
+        let match = element(app, identifier)
+        XCTAssertTrue(match.waitForExistence(timeout: 5), "\(identifier) is missing")
+        match.tap()
+    }
+
+    private func userBubble(_ app: XCUIApplication, _ text: String) -> XCUIElement {
+        app.descendants(matching: .any).matching(NSPredicate(
+            format: "identifier == %@ AND label == %@",
+            "chat.userMessage",
+            "You said \(text)"
+        )).firstMatch
+    }
+
     private func element(_ app: XCUIApplication, _ identifier: String) -> XCUIElement {
         app.descendants(matching: .any).matching(identifier: identifier).firstMatch
     }
