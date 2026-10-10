@@ -235,7 +235,6 @@ public enum GarageStoreLocation {
         return FeatureFlags.isEnabled(environment[temporaryEnvironmentKey])
     }
 
-    /// Creates the sandbox folder when it is missing. Does not delete saved notes.
     public static func temporaryRoot(fileManager: FileManager = .default) throws -> URL {
         let root = fileManager.temporaryDirectory
             .appendingPathComponent(temporaryFolderName, isDirectory: true)
@@ -243,8 +242,7 @@ public enum GarageStoreLocation {
         return root
     }
 
-    /// Deletes the sandbox folder. Tests call this when they want the seed. The app does not.
-    public static func prepareTemporaryRoot(fileManager: FileManager = .default) throws -> URL {
+    public static func wipeTemporaryRoot(fileManager: FileManager = .default) throws -> URL {
         let root = fileManager.temporaryDirectory
             .appendingPathComponent(temporaryFolderName, isDirectory: true)
         if fileManager.fileExists(atPath: root.path) {

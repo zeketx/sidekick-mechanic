@@ -154,8 +154,6 @@ public enum ScanLogScript {
         .reference, .confident, .notFound,
     ]
 
-    /// One category per cell, spread across every filter chip except "all".
-    /// Two chips match two cells. The rest match one. No two chips match the same set.
     public static let filterTags = [
         "intake",
         "cooling",
@@ -181,7 +179,6 @@ public enum ScanLogScript {
     }
 }
 
-/// "all" shows every cell. Any other chip shows cells whose tag is that chip.
 public enum ScanLogFilter {
     public static func shown(_ entries: [ScanLogEntry], chip: String) -> [ScanLogEntry] {
         if chip == "all" {

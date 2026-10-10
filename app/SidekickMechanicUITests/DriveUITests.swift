@@ -1,3 +1,4 @@
+import SidekickCore
 import XCTest
 
 /// Taps launch arguments cannot reach: Garage sheet, Jobs row, Scan log, sheet detents, scrim.
@@ -204,8 +205,7 @@ final class DriveUITests: XCTestCase {
         }
     }
 
-    /// Matches `JobSheetLayout.headerTopClearance`. The UI test target does not link SidekickCore.
-    private let sheetHeaderClearance: CGFloat = 32
+    private var sheetHeaderClearance: CGFloat { CGFloat(JobSheetLayout.headerTopClearance) }
 
     func testSheetHeadersClearTheGrabber() throws {
         let garage = launchApp(arguments: [

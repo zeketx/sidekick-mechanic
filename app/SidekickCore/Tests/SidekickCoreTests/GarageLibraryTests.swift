@@ -169,7 +169,7 @@ final class GarageLibraryTests: XCTestCase {
         )
 
         let arguments = ["SidekickMechanic", "-garageTemporaryStore", "1"]
-        let clean = try GarageStoreLocation.prepareTemporaryRoot()
+        let clean = try GarageStoreLocation.wipeTemporaryRoot()
         XCTAssertEqual(clean.lastPathComponent, GarageStoreLocation.temporaryFolderName)
 
         let model = GarageModel(
