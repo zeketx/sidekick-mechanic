@@ -13,7 +13,8 @@ struct SidekickMechanicApp: App {
         Self.installOpaqueChrome()
         let jobs = JobsModel(
             source: Self.jobsLaunch.source,
-            client: LiveChatClient(configuration: ChatClientConfiguration(baseURL: AppConfig.backendURL))
+            client: LiveChatClient(configuration: ChatClientConfiguration(baseURL: AppConfig.backendURL)),
+            installing: Self.jobsLaunch.installed
         )
         let demo = Self.demo
         _jobs = State(initialValue: jobs)

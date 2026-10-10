@@ -137,6 +137,7 @@ final class DriveUITests: XCTestCase {
         let app = launchApp(arguments: [
             "-screen", "job-sheet-half",
             "-demoPhoto", "hilux",
+            "-jobsStore", "fresh",
         ])
         XCTAssertTrue(element(app, "jobSheet.half").waitForExistence(timeout: 8))
         let chip = element(app, "jobSheet.chip.0")
@@ -160,6 +161,7 @@ final class DriveUITests: XCTestCase {
         let app = launchApp(arguments: [
             "-screen", "job-sheet-half",
             "-demoPhoto", "hilux",
+            "-jobsStore", "fresh",
         ])
         XCTAssertTrue(element(app, "jobSheet.half").waitForExistence(timeout: 8))
         let chip = element(app, "jobSheet.chip.0")

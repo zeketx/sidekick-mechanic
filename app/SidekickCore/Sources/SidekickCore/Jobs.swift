@@ -164,16 +164,20 @@ public struct JobsLaunch: Equatable, Sendable {
     public var source: JobsSource
     public var opening: ChatTarget
     public var sheetDetent: JobSheetDetent
+    /// Jobs written when `source` is a file that opened empty.
+    /// A `-screen` launch stays in memory unless `-jobsStore fresh` is also set.
+    public var installed: [JobSheetState] = []
 
     public static let storeFlag = "-jobsStore"
     public static let storeEnvironmentKey = "SIDEKICK_JOBS_STORE"
     public static let temporaryFolderName = "sidekick-jobs-uitest"
 
     /// Precedence, first match wins:
-    /// 1. Any `-screen` / `SIDEKICK_SCREEN` value is memory-only.
-    /// 2. `-jobsStore demo` is the four scripted jobs, in memory.
-    /// 3. `-jobsStore keep` is the temp file. Any other `-jobsStore` value is a fresh temp file.
-    /// 4. Otherwise Application Support, a new job, collapsed.
+    /// 1. `-screen` plus `-jobsStore fresh` installs that screen's jobs into a fresh temp file.
+    /// 2. Any other `-screen` / `SIDEKICK_SCREEN` value is memory-only, even with `-jobsStore demo` or `keep`.
+    /// 3. `-jobsStore demo` is the four scripted jobs, in memory.
+    /// 4. `-jobsStore keep` is the temp file. Any other `-jobsStore` value is a fresh temp file.
+    /// 5. Otherwise Application Support, a new job, collapsed.
     public static func resolve(
         demo: DemoLaunchOptions = .parse(),
         arguments: [String] = ProcessInfo.processInfo.arguments,
@@ -182,7 +186,16 @@ public struct JobsLaunch: Equatable, Sendable {
     ) -> JobsLaunch {
         let rawScreen = LaunchArgument.flag(arguments, "-screen") ?? environment["SIDEKICK_SCREEN"] ?? ""
         if !rawScreen.isEmpty {
-            return screenLaunch(rawScreen, demo: demo, now: now)
+            let launched = screenLaunch(rawScreen, demo: demo, now: now)
+            if jobsStoreToken(arguments: arguments, environment: environment) == "fresh" {
+                return JobsLaunch(
+                    source: .file(.temporary(.fresh)),
+                    opening: launched.opening,
+                    sheetDetent: launched.sheetDetent,
+                    installed: launched.memoryJobs
+                )
+            }
+            return launched
         }
         if let token = jobsStoreToken(arguments: arguments, environment: environment) {
             switch token {
@@ -211,6 +224,11 @@ public struct JobsLaunch: Equatable, Sendable {
             opening: .newJob,
             sheetDetent: .collapsed
         )
+    }
+
+    private var memoryJobs: [JobSheetState] {
+        if case let .memory(jobs) = source { return jobs }
+        return []
     }
 
     private static func screenLaunch(_ rawScreen: String, demo: DemoLaunchOptions, now: Date) -> JobsLaunch {
@@ -285,9 +303,11 @@ public final class JobsModel {
     }
 
     /// Opens the source synchronously. A missing file is an empty list and writes nothing.
+    /// `installing` is written only when a file source opened empty, so a fresh temp store can hold a screen's jobs.
     public init(
         source: JobsSource,
         client: any ChatClient,
+        installing: [JobSheetState] = [],
         makeID: @escaping @Sendable () -> String = { UUID().uuidString },
         now: @escaping @Sendable () -> Date = { Date() }
     ) {
@@ -301,8 +321,19 @@ public final class JobsModel {
         case let .file(location):
             switch JobFile.open(location, now: now()) {
             case let .ready(loaded, writer):
-                jobs = loaded
-                backing = .file(writer, setAsideFileName: nil)
+                if loaded.isEmpty, !installing.isEmpty {
+                    jobs = installing
+                    backing = .file(writer, setAsideFileName: nil)
+                    do {
+                        try writer.save(installing)
+                    } catch {
+                        jobs = []
+                        saveFailure = JobsCopy.saveFailed
+                    }
+                } else {
+                    jobs = loaded
+                    backing = .file(writer, setAsideFileName: nil)
+                }
             case let .setAside(name, writer):
                 jobs = []
                 backing = .file(writer, setAsideFileName: name)
