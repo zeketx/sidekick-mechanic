@@ -46,6 +46,8 @@ final class ChatClientTests: XCTestCase {
             infoDictionary: nil
         )
         XCTAssertEqual(fromEnv.chatURL, URL(string: "http://127.0.0.1:8000/chat"))
+        XCTAssertEqual(fromEnv.requestTimeout, ChatClientConfiguration.serverRetryBudget)
+        XCTAssertEqual(ChatClientConfiguration.serverRetryBudget, 120)
 
         let fromPlist = try ChatClientConfiguration.load(
             environment: [:],

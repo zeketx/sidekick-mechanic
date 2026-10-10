@@ -378,6 +378,17 @@ def test_env_example_documents_keys_without_secrets() -> None:
     assert "SIDEKICK_VISION_API_KEY=" in text
 
 
+def test_server_retry_budget_fits_in_the_phone_timeout() -> None:
+    attempts = DEFAULT_MAX_RETRIES + 1
+    backoff = sum(0.25 * (2**attempt) for attempt in range(DEFAULT_MAX_RETRIES))
+    budget = attempts * DEFAULT_TIMEOUT_SECONDS + backoff
+    assert attempts == 3
+    assert backoff == 0.75
+    assert budget == 90.75
+    # ChatClientConfiguration.serverRetryBudget in SidekickCore.
+    assert budget < 120
+
+
 def test_env_file_is_gitignored() -> None:
     gitignore = (REPO_ROOT / ".gitignore").read_text(encoding="utf-8")
     assert ".env" in {line.strip() for line in gitignore.splitlines()}
