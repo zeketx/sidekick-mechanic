@@ -117,7 +117,6 @@ def is_png(data: bytes) -> bool:
     return data.startswith(_PNG_SIGNATURE)
 
 
-# One page. A hung pdftoppm must not hold the request open.
 RASTER_TIMEOUT_SECONDS = 30
 
 

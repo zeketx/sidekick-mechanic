@@ -386,13 +386,6 @@ def _wiring_manual_blocked() -> bool:
 
 
 def _retrieval_query(conversation: Conversation) -> str:
-    """Join the owner's questions. Assistant text is not a search term.
-
-    A follow-up such as "And the gap?" has to carry the earlier question.
-    Assistant turns include refusals and the safety note, which would
-    pull the index off the question.
-    """
-
     parts = [
         message.text.strip()
         for message in conversation.messages

@@ -276,8 +276,6 @@ def test_missing_chunks_file_fails_build(tmp_path: Path) -> None:
 
 
 def test_bm25_label_weight_beats_a_text_only_match() -> None:
-    # Labels are derived from page text in build_index, so a label-only row
-    # cannot be built through search(). This inserts the columns FTS5 scores.
     connection = sqlite3.connect(":memory:")
     connection.row_factory = sqlite3.Row
     connection.executescript(_SCHEMA_SQL)

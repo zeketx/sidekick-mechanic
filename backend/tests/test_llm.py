@@ -385,7 +385,6 @@ def test_server_retry_budget_fits_in_the_phone_timeout() -> None:
     assert attempts == 3
     assert backoff == 0.75
     assert budget == 90.75
-    # ChatClientConfiguration.serverRetryBudget in SidekickCore.
     assert budget < 120
 
 

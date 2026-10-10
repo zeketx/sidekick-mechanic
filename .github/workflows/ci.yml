@@ -68,8 +68,6 @@ jobs:
     name: Eval smoke test
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # Fake-LLM smoke test. Exit 0 is not citation quality.
-    # A run that retrieved pages fails when citation accuracy is 0.
     if: github.event_name == 'pull_request'
     defaults:
       run:

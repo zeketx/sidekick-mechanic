@@ -114,12 +114,6 @@ def retrieval_ran(payload: Mapping[str, Any]) -> bool:
 
 
 def require_citation_accuracy_when_retrieved(payload: Mapping[str, Any]) -> None:
-    """Fail when a retrieval run's citation accuracy is zero.
-
-    A run with no retrieved hits is a smoke test. Exit 0 on that run is not
-    a quality result, and this function does not treat it as one.
-    """
-
     if not retrieval_ran(payload):
         return
     metrics = payload.get("metrics")

@@ -33,8 +33,6 @@ public struct ChatClientConfiguration: Equatable, Sendable {
     public var baseURL: URL
     public var requestTimeout: TimeInterval
 
-    /// Covers the server provider budget in `backend/llm.py`: three 30s attempts
-    /// plus 0.25s and 0.5s of backoff, with room for the response to return.
     public static let serverRetryBudget: TimeInterval = 120
 
     public init(baseURL: URL, requestTimeout: TimeInterval = ChatClientConfiguration.serverRetryBudget) {
