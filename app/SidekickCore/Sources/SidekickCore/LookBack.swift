@@ -106,18 +106,23 @@ public struct ScanLogEntry: Equatable, Sendable, Identifiable {
     public var id: String
     public var photoID: String
     public var source: HighlightViewerState
+    /// Part caption under the photo. An outline uses the catalog short tag. A miss is an em dash.
     public var tagLabel: String
+    /// Filter chip this cell belongs to. Separate from `tagLabel`, so a filter does not rename the part.
+    public var filterTag: String
 
     public init(
         id: String,
         photoID: String,
         source: HighlightViewerState,
-        tagLabel: String
+        tagLabel: String,
+        filterTag: String
     ) {
         self.id = id
         self.photoID = photoID
         self.source = source
         self.tagLabel = tagLabel
+        self.filterTag = filterTag
     }
 
     public func presentation(flags: FeatureFlags = .v1) -> HighlightViewerPresentation {
@@ -155,6 +160,7 @@ public enum ScanLogScript {
         .reference, .confident, .notFound,
     ]
 
+    /// One topic per cell. Independent of the part caption.
     public static let filterTags = [
         "intake",
         "cooling",
@@ -170,11 +176,15 @@ public enum ScanLogScript {
     public static var entries: [ScanLogEntry] {
         cellStates.enumerated().map { index, source in
             let photoID = photos[index % photos.count]
+            let shown = HighlightViewerPresentation.resolve(source: source, photoID: photoID)
             return ScanLogEntry(
                 id: "scan-log-\(index)",
                 photoID: photoID,
                 source: source,
-                tagLabel: filterTags[index]
+                tagLabel: shown.showsOutline
+                    ? DemoOutlineCatalog.shortTag(partID: shown.partID)
+                    : "—",
+                filterTag: filterTags[index]
             )
         }
     }
@@ -185,6 +195,6 @@ public enum ScanLogFilter {
         if chip == "all" {
             return entries
         }
-        return entries.filter { $0.tagLabel == chip }
+        return entries.filter { $0.filterTag == chip }
     }
 }

@@ -161,9 +161,13 @@ struct GarageScreen: View {
         VStack(alignment: .leading, spacing: 12) {
             sectionTitle(GarageCopy.about)
             if model.isEditing {
-                addButton(GarageCopy.addFact, identifier: "garage.addFact") {
+                Button(GarageCopy.addFact) {
                     present(.addFact)
                 }
+                .buttonStyle(.plain)
+                .font(.body)
+                .foregroundStyle(.primary)
+                .accessibilityIdentifier("garage.addFact")
             }
             if !confirmedFacts.isEmpty {
                 sectionTitle(GarageCopy.confirmed)

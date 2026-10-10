@@ -89,7 +89,7 @@ final class LookBackTests: XCTestCase {
         XCTAssertLessThan(ScanLogCopy.thumbBanner.count, HighlightViewerCopy.referenceBanner.count)
         XCTAssertFalse(ScanLogCopy.thumbBanner.contains("Demo"))
 
-        XCTAssertEqual(entries.map(\.tagLabel), ScanLogScript.filterTags)
+        XCTAssertEqual(entries.map(\.filterTag), ScanLogScript.filterTags)
         let outlined = entries.filter { $0.presentation().showsOutline }
         XCTAssertEqual(outlined.count, 6)
         for entry in outlined {
@@ -99,6 +99,7 @@ final class LookBackTests: XCTestCase {
                 photoID: entry.photoID,
                 state: entry.source
             ).partID)
+            XCTAssertEqual(entry.tagLabel, DemoOutlineCatalog.shortTag(partID: shown.partID))
             XCTAssertEqual(
                 geometry,
                 HighlightViewerScript.geometry(
@@ -120,8 +121,8 @@ final class LookBackTests: XCTestCase {
         for entry in empty {
             XCTAssertNil(entry.geometry())
             XCTAssertEqual(entry.presentation().kind, .notFound)
-            XCTAssertNotEqual(entry.tagLabel, "—")
-            XCTAssertTrue(ScanLogCopy.chips.contains(entry.tagLabel))
+            XCTAssertEqual(entry.tagLabel, "—")
+            XCTAssertTrue(ScanLogCopy.chips.contains(entry.filterTag))
         }
     }
 
@@ -150,7 +151,7 @@ final class LookBackTests: XCTestCase {
         for chip in ScanLogCopy.chips where chip != "all" {
             let shown = ScanLogFilter.shown(entries, chip: chip)
             XCTAssertFalse(shown.isEmpty, chip)
-            XCTAssertTrue(shown.allSatisfy { $0.tagLabel == chip }, chip)
+            XCTAssertTrue(shown.allSatisfy { $0.filterTag == chip }, chip)
         }
     }
 
@@ -165,7 +166,8 @@ final class LookBackTests: XCTestCase {
         XCTAssertEqual(shown.banner, "Reference, not your truck.")
         XCTAssertEqual(reference.cellBanner(), "Not your truck")
         XCTAssertEqual(shown.partID, "throttle-body")
-        XCTAssertEqual(reference.tagLabel, "watch")
+        XCTAssertEqual(reference.tagLabel, "throttle")
+        XCTAssertEqual(reference.filterTag, "watch")
         XCTAssertNil(ScanLogScript.entries[0].cellBanner())
         XCTAssertEqual(
             reference.geometry(),
