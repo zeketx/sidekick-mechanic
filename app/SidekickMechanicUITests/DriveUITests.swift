@@ -42,6 +42,7 @@ final class DriveUITests: XCTestCase {
         try writeShot("taps-job-row-opened.png")
     }
 
+    @MainActor
     func testJobsKeepTheirOwnChatAcrossRelaunch() throws {
         let stamp = String(Int(Date().timeIntervalSince1970) % 100000)
         let alpha = "Alpha squeak \(stamp)"
@@ -1054,6 +1055,7 @@ final class DriveUITests: XCTestCase {
     /// `.accessibilityElement(children: .contain)` overwrites every child identifier (that is why
     /// chat.jobs, jobSheet.handle and jobHistory.scanLog went missing). With `.contain` a plain
     /// VStack container may not appear at all, so tests target leaf identifiers.
+    @MainActor
     private func send(_ text: String, _ app: XCUIApplication) {
         let composer = element(app, "chat.composer")
         XCTAssertTrue(composer.waitForExistence(timeout: 8), "chat.composer is missing")
@@ -1065,12 +1067,14 @@ final class DriveUITests: XCTestCase {
         XCTAssertTrue(userBubble(app, text).waitForExistence(timeout: 5))
     }
 
+    @MainActor
     private func tap(_ app: XCUIApplication, _ identifier: String) {
         let match = element(app, identifier)
         XCTAssertTrue(match.waitForExistence(timeout: 5), "\(identifier) is missing")
         match.tap()
     }
 
+    @MainActor
     private func userBubble(_ app: XCUIApplication, _ text: String) -> XCUIElement {
         app.descendants(matching: .any).matching(NSPredicate(
             format: "identifier == %@ AND label == %@",
@@ -1132,7 +1136,14 @@ final class DriveUITests: XCTestCase {
         let app = XCUIApplication()
         // Skip first-run onboarding unless a test opts in with -resetOnboarding.
         let onboarding = arguments.contains("-resetOnboarding") || arguments.contains("-sidekick.onboarding.completed")
-        app.launchArguments = onboarding ? arguments : arguments + ["-sidekick.onboarding.completed", "YES"]
+        var launchArguments = onboarding ? arguments : arguments + ["-sidekick.onboarding.completed", "YES"]
+        // Neither -screen nor -jobsStore opens Application Support jobs.json.
+        // -screen stays memory-only. Anything else gets a fresh temp store, same idea as -garageTemporaryStore.
+        let pinsJobs = launchArguments.contains("-screen") || launchArguments.contains("-jobsStore")
+        if !pinsJobs {
+            launchArguments += ["-jobsStore", "fresh"]
+        }
+        app.launchArguments = launchArguments
         app.launchEnvironment = environment
         app.launch()
         return app

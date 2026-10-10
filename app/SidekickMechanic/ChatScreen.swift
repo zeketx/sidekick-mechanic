@@ -2,6 +2,13 @@ import SidekickCore
 import SwiftUI
 import UIKit
 
+private struct TopChromeHeightKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
 /// Message list and composer. Assistant replies use `AnswerCardView`.
 struct ChatScreen: View {
     @Bindable var jobs: JobsModel
@@ -13,7 +20,9 @@ struct ChatScreen: View {
     @State private var presentedViewer: HighlightViewerSession?
     @State private var presentedCitation: Citation?
     @State private var jobSheet: JobSheetViewModel
-    @State private var lookBackPath: [LookBackScreen]
+    @State private var lookBackPath: [LookBackVisit]
+    @State private var lookBackGeneration: Int
+    @State private var topChromeHeight: CGFloat
     @State private var windowHeight: CGFloat
     @State private var topSafeArea: CGFloat
     @State private var bottomSafeArea: CGFloat
@@ -44,6 +53,8 @@ struct ChatScreen: View {
         _presentedCitation = State(initialValue: nil)
         _jobSheet = State(initialValue: JobSheetViewModel(detent: detent))
         _lookBackPath = State(initialValue: [])
+        _lookBackGeneration = State(initialValue: 0)
+        _topChromeHeight = State(initialValue: 0)
         _windowHeight = State(initialValue: 0)
         _topSafeArea = State(initialValue: 0)
         _bottomSafeArea = State(initialValue: 0)
@@ -78,6 +89,11 @@ struct ChatScreen: View {
                             )
                         }
                     }
+                    .background {
+                        GeometryReader { proxy in
+                            Color.clear.preference(key: TopChromeHeightKey.self, value: proxy.size.height)
+                        }
+                    }
                 }
                 .safeAreaInset(edge: .bottom, spacing: 0) {
                     bottomBar
@@ -91,10 +107,12 @@ struct ChatScreen: View {
                 // and opaque UINavigationBarAppearance. Garage is plain text here.
                 .toolbar(.hidden, for: .navigationBar)
                 .background(JobSheetChrome.screen)
-                .navigationDestination(for: LookBackScreen.self) { screen in
-                    lookBackDestination(screen)
+                .navigationDestination(for: LookBackVisit.self) { visit in
+                    lookBackDestination(visit)
+                        .id(visit)
                 }
         }
+        .onPreferenceChange(TopChromeHeightKey.self) { topChromeHeight = $0 }
         .overlay {
             ZStack(alignment: .bottom) {
                 jobSheetScrim
@@ -132,21 +150,59 @@ struct ChatScreen: View {
         "\(model.isDemoMode)-\(launch.opensJobSheet)-\(launch.opensLookBack)-\(launch.showDemoChrome)"
     }
 
+    /// Dim stays full-bleed. Hits do not: the paper header sits under this overlay,
+    /// and a full-screen hit target made Jobs untappable once a sheet was at half.
     @ViewBuilder
     private var jobSheetScrim: some View {
         if presentedJob != nil, JobSheetLayout.scrimOpacity(detent: jobSheet.detent) > 0 {
-            Color.black
-                .opacity(JobSheetLayout.scrimOpacity(detent: jobSheet.detent))
+            let opacity = JobSheetLayout.scrimOpacity(detent: jobSheet.detent)
+            ZStack(alignment: .top) {
+                Color.black
+                    .opacity(opacity)
+                    .ignoresSafeArea()
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+                VStack(spacing: 0) {
+                    Color.clear
+                        .frame(height: headerPassThrough)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                    Color.clear
+                        .frame(maxWidth: .infinity)
+                        .frame(height: scrimHitHeight)
+                        .contentShape(Rectangle())
+                        .onTapGesture { jobSheet.close() }
+                        .accessibilityIdentifier("jobSheet.dim")
+                        .accessibilityLabel("Close job sheet")
+                        .accessibilityAddTraits(.isButton)
+                    Spacer(minLength: 0)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
                 .ignoresSafeArea()
-                .contentShape(Rectangle())
-                .allowsHitTesting(jobSheet.detent != .collapsed)
-                .onTapGesture { jobSheet.close() }
-                .accessibilityIdentifier("jobSheet.dim")
-                .accessibilityLabel("Close job sheet")
-                .accessibilityAddTraits(.isButton)
-                .accessibilityHidden(jobSheet.detent == .collapsed)
-                .animation(.easeInOut(duration: 0.22), value: jobSheet.detent)
+            }
+            .animation(.easeInOut(duration: 0.22), value: jobSheet.detent)
         }
+    }
+
+    /// Window-top to the bottom of the paper header. Zero when the header is hidden (full sheet).
+    private var headerPassThrough: CGFloat {
+        guard showPaperHeader else { return 0 }
+        // A full-screen GeometryReader reading is not the header. Fall back to one bar.
+        let chrome = topChromeHeight > 0 && topChromeHeight < 320 ? topChromeHeight : 44
+        return topSafeArea + chrome
+    }
+
+    /// The dimmed band between the header and the sheet. Its center stays on chat, so a scrim tap still collapses.
+    private var scrimHitHeight: CGFloat {
+        guard windowHeight > 0 else { return 200 }
+        let sheetTop = CGFloat(JobSheetLayout.originY(
+            detent: jobSheet.detent,
+            screenHeight: Double(windowHeight),
+            topSafeArea: Double(topSafeArea),
+            isAccessibilitySize: dynamicTypeSize.isAccessibilitySize
+        ))
+        return max(sheetTop - headerPassThrough, 44)
     }
 
     private var messageList: some View {
@@ -306,9 +362,7 @@ struct ChatScreen: View {
 
     private var jobsButton: some View {
         Button {
-            if lookBackPath.last != .jobHistory {
-                lookBackPath.append(.jobHistory)
-            }
+            showLookBack(.jobHistory)
         } label: {
             lookBackHeaderLabel(title: JobHistoryCopy.title, systemImage: "list.bullet.rectangle")
         }
@@ -322,9 +376,7 @@ struct ChatScreen: View {
 
     private var scanLogButton: some View {
         Button {
-            if lookBackPath.last != .scanLog {
-                lookBackPath.append(.scanLog)
-            }
+            showLookBack(.scanLog)
         } label: {
             lookBackHeaderLabel(title: ScanLogCopy.title, systemImage: "square.grid.2x2")
         }
@@ -373,6 +425,7 @@ struct ChatScreen: View {
                 JobSheetView(
                     job: job,
                     sheet: jobSheet,
+                    onEdit: { jobs.edit(job.id, $0) },
                     image: jobPhoto,
                     attribution: jobAttribution,
                     shareAlike: jobShareAlike,
@@ -382,7 +435,6 @@ struct ChatScreen: View {
                     bottomChromeInset: launch.showDemoChrome
                         ? max(bottomSafeArea, CGFloat(JobSheetLayout.demoTabChromeHeight))
                         : 0,
-                    onEdit: { jobs.edit(job.id, $0) },
                     onOpenHighlight: presentJobViewer,
                     onAttachPhoto: attachDemoPhotoToJob,
                     onOpenCitation: { presentedCitation = $0 }
@@ -590,12 +642,20 @@ struct ChatScreen: View {
 
     private func presentLaunchLookBackIfNeeded() {
         guard lookBackPath.isEmpty, let screen = launch.lookBackScreen else { return }
-        lookBackPath = [screen]
+        showLookBack(screen)
+    }
+
+    /// Replace the stack with a new visit. An equal `LookBackScreen` is the same
+    /// destination, so a second Jobs tap kept the old list and its scroll offset.
+    /// The newest row then sat above the viewport and was not in the accessibility tree.
+    private func showLookBack(_ screen: LookBackScreen) {
+        lookBackGeneration += 1
+        lookBackPath = [LookBackVisit(screen: screen, generation: lookBackGeneration)]
     }
 
     @ViewBuilder
-    private func lookBackDestination(_ screen: LookBackScreen) -> some View {
-        switch screen {
+    private func lookBackDestination(_ visit: LookBackVisit) -> some View {
+        switch visit.screen {
         case .jobHistory:
             JobHistoryView(
                 jobs: jobs.jobs,
@@ -603,6 +663,7 @@ struct ChatScreen: View {
                 store: demoImages,
                 configuration: configuration,
                 flags: launch.featureFlags,
+                visitGeneration: visit.generation,
                 onOpenJob: openHistoryJob
             )
             .modifier(AccessibilityLaunchModifier(enabled: launch.prefersAccessibilitySize))

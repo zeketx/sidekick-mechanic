@@ -2,6 +2,17 @@ import SidekickCore
 import SwiftUI
 import UIKit
 
+/// One look-back push. `generation` makes a second visit a new destination.
+///
+/// NavigationStack keeps the destination for an equal `LookBackScreen`. After
+/// opening a job and coming back, Jobs reused that screen: the scroll offset
+/// from the previous visit stayed, and the newest row was above the viewport
+/// so its identifier was not in the accessibility tree.
+struct LookBackVisit: Hashable {
+    var screen: LookBackScreen
+    var generation: Int
+}
+
 /// Jobs list from the approved Figma frame. Peeks use #112's public outline renderer.
 struct JobHistoryView: View {
     var jobs: [JobSheetState]
@@ -11,9 +22,11 @@ struct JobHistoryView: View {
     @Bindable var store: DemoImageStore
     var configuration: ChatClientConfiguration
     var flags: FeatureFlags = .v1
+    var visitGeneration: Int = 0
     var onOpenJob: (JobID) -> Void
 
     var body: some View {
+        ScrollViewReader { proxy in
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 Text(JobHistoryCopy.subtitle)
@@ -40,9 +53,14 @@ struct JobHistoryView: View {
                     .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                     .accessibilityIdentifier(job.rowIdentifier)
                     .accessibilityHint("Opens this job sheet")
+                    .id(job.id)
                 }
             }
             .padding(16)
+        }
+        .onAppear {
+            guard let top = jobs.first?.id else { return }
+            proxy.scrollTo(top, anchor: .top)
         }
         .background(JobSheetChrome.screen)
         .toolbar(.hidden, for: .tabBar)
@@ -62,6 +80,7 @@ struct JobHistoryView: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("jobHistory.list")
+        }
     }
 
     private func rowCard(_ job: JobSheetState) -> some View {
@@ -268,7 +287,7 @@ struct LookBackPaperHeader: View {
     @ViewBuilder
     private var scanLogLink: some View {
         if showScanLog {
-            NavigationLink(value: LookBackScreen.scanLog) {
+            NavigationLink(value: LookBackVisit(screen: .scanLog, generation: visitGeneration)) {
                 if dynamicTypeSize.isAccessibilitySize {
                     Image(systemName: "square.grid.2x2")
                         .font(.body.weight(.medium))
