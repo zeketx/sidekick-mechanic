@@ -1,3 +1,6 @@
+Mode: HARD (reason) | LIGHT (reason)
+HARD = multi-subsystem, answer/data/retrieval quality, design decision, ~5+ files, or failed verify twice → uses /poteto-mode. LIGHT = one agent, smallest diff.
+
 <!--
   One issue per PR.
   Use `Closes #N` when this PR finishes the issue.

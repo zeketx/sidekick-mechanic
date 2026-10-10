@@ -1,0 +1,30 @@
+name: PR mode declared
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  mode:
+    name: PR mode declared
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Require a Mode line
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = context.payload.pull_request?.body ?? "";
+            const line = body
+              .split(/\r?\n/)
+              .find((entry) => /^Mode: (HARD|LIGHT)\b/.test(entry));
+            if (!line) {
+              core.setFailed(
+                "PR body must contain a line matching ^Mode: (HARD|LIGHT)\\b (HARD and LIGHT are case-sensitive). Example: Mode: LIGHT (one-line reason)"
+              );
+            } else {
+              core.info(`Declared: ${line}`);
+            }

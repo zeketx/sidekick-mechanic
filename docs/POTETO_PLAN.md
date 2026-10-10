@@ -4,6 +4,15 @@ How to run this build with **poteto mode**, the agent playbooks in the pstack pl
 
 Every skill named here exists in pstack today. The skill descriptions below are summarized from each skill's `SKILL.md`. If a skill is renamed or removed, fix this page in its own PR.
 
+## When to use poteto-mode
+
+The pstack plugin is enabled in [`.cursor/settings.json`](../.cursor/settings.json) (`plugins.pstack.enabled`). That is what makes `/poteto-mode` available in this repo.
+
+Every PR declares a mode on its first line: `Mode: HARD (reason)` or `Mode: LIGHT (reason)`. The `PR mode declared` check fails unless the body has a line matching `^Mode: (HARD|LIGHT)\b` (`HARD` and `LIGHT` are case-sensitive).
+
+- **HARD** — multi-subsystem work, answer/data/retrieval quality, a design decision, about five or more files, or verify failed twice. Use `/poteto-mode`.
+- **LIGHT** — one agent, smallest diff. Do not run the poteto-mode playbooks.
+
 ## The skills we use
 
 All of these are invoked explicitly (they set `disable-model-invocation: true`). Type the slash command.

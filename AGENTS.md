@@ -97,6 +97,7 @@ This app gives advice about real machinery. A wrong number can break parts or hu
 - **UI PRs include screenshots** (or a short screen recording) of each changed state: light, dark, and large Dynamic Type where relevant. If you cannot run the app, attach SwiftUI preview code and ask the owner to capture screenshots in Xcode. Say so plainly.
 - **Vehicle-fact PRs list their sources** in a "Sources" section.
 - **Metric changes** (RAG, highlight, latency) include before and after numbers from the eval harness.
+- **Declare a mode.** First line of the body: `Mode: HARD (reason)` or `Mode: LIGHT (reason)`. See [docs/POTETO_PLAN.md](docs/POTETO_PLAN.md).
 - Branch names: `<issue-number>-short-slug`. Commit messages in the imperative ("Add citation chip").
 
 ## Definition of done
@@ -114,4 +115,6 @@ An issue is done when all of these are true:
 
 ## Working style
 
-This repo is built with pstack's poteto mode. See [docs/POTETO_PLAN.md](docs/POTETO_PLAN.md) for which playbook to use when, and the cost policy.
+This repo is built with pstack's poteto mode. The plugin is enabled in `.cursor/settings.json`. See [docs/POTETO_PLAN.md](docs/POTETO_PLAN.md) for which playbook to use when, the cost policy, and when to use poteto-mode.
+
+Every PR starts with `Mode: HARD (reason)` or `Mode: LIGHT (reason)`. HARD (multi-subsystem, answer/data/retrieval quality, a design decision, about five or more files, or verify failed twice) uses `/poteto-mode`. LIGHT is one agent and the smallest diff.
