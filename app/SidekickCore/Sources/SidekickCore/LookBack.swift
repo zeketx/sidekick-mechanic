@@ -19,6 +19,7 @@ public enum ScanLogCopy {
         "all", "intake", "cooling", "ignition", "electrical", "fuel", "inspected", "watch",
     ]
     public static let selectedChip = "all"
+    public static let empty = "Nothing matches."
     /// Fits a grid cell. The highlight card keeps `HighlightViewerCopy.referenceBanner`.
     public static let thumbBanner = "Not your truck"
 }

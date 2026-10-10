@@ -9,6 +9,7 @@ struct OnboardingFlow: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            sheetTopMarker("onboarding.sheetTop")
             header
             pageBody
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -32,7 +33,7 @@ struct OnboardingFlow: View {
             }
         }
         .padding(.horizontal, 16)
-        .padding(.top, 6)
+        .sheetHeaderClearance()
         .padding(.bottom, 2)
     }
 

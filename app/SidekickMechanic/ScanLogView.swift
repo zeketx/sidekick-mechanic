@@ -26,8 +26,15 @@ struct ScanLogView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("scanLog.subtitle")
                 chipRow
+                let rows = ScanLogFilter.shown(ScanLogScript.entries, chip: selectedChip)
+                if rows.isEmpty {
+                    Text(ScanLogCopy.empty)
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("scanLog.empty")
+                }
                 LazyVGrid(columns: columns, alignment: .leading, spacing: 16) {
-                    ForEach(ScanLogFilter.shown(ScanLogScript.entries, chip: selectedChip)) { entry in
+                    ForEach(rows) { entry in
                         Button {
                             onOpenCell(entry)
                         } label: {
@@ -90,6 +97,7 @@ struct ScanLogView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("scanLog.chips")
     }
 

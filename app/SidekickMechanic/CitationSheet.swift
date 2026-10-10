@@ -31,25 +31,3 @@ extension View {
         }
     }
 }
-
-extension View {
-    /// A 1pt leaf at the top of a sheet so a UI test can measure header clearance.
-    func sheetTopMarker(_ identifier: String) -> some View {
-        Text(" ")
-            .font(.system(size: 1))
-            .frame(maxWidth: .infinity, minHeight: 1, maxHeight: 1)
-            .accessibilityIdentifier(identifier)
-            .accessibilityLabel("Sheet top")
-    }
-
-    func sheetHeaderClearance(underCustomGrabber: Bool = false) -> some View {
-        padding(
-            .top,
-            CGFloat(
-                underCustomGrabber
-                    ? JobSheetLayout.headerPaddingUnderGrabber
-                    : JobSheetLayout.headerTopClearance
-            )
-        )
-    }
-}

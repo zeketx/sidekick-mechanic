@@ -267,7 +267,7 @@ struct GarageScreen: View {
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .strokeBorder(Color.secondary.opacity(0.35))
                 }
-            addButton(GarageCopy.add, identifier: "garage.addTodo", enabled: canAddTodo, action: commitTodo)
+            addButton(GarageCopy.addTodo, identifier: "garage.addTodo", enabled: canAddTodo, action: commitTodo)
         }
     }
 
@@ -773,7 +773,7 @@ private struct GarageEditorSheet: View {
                     .foregroundStyle(.primary)
                     .accessibilityIdentifier(cameraIdentifier)
             }
-            if GarageStoreLocation.usesTemporaryStore() {
+            if GarageStoreLocation.showsSamplePhoto() {
                 Button {
                     imageData = Self.sampleJPEG()
                     pickError = nil

@@ -264,6 +264,15 @@ final class DriveUITests: XCTestCase {
             headerID: "citation.close",
             screen: "citation"
         )
+        citation.terminate()
+
+        let onboarding = launchApp(arguments: ["-resetOnboarding", "-screen", "onboarding-1"])
+        assertHeaderClearsGrabber(
+            onboarding,
+            sheetID: "onboarding.sheetTop",
+            headerID: "onboarding.skip",
+            screen: "onboarding"
+        )
     }
 
     func testGarageEditsSurviveCloseAndRelaunch() throws {
@@ -273,12 +282,14 @@ final class DriveUITests: XCTestCase {
         let photoCaption = "FAKE-PHOTO \(stamp)"
         let partName = "FAKE-PART \(stamp)"
         let todoTitle = "Check spare \(stamp)"
+        let folder = "sidekick-garage-\(UUID().uuidString)"
         let arguments = [
             "-sidekick.onboarding.completed", "YES",
             "-garageTemporaryStore", "1",
         ]
+        let environment = [GarageStoreLocation.directoryEnvironmentKey: folder]
 
-        let app = launchApp(arguments: arguments)
+        let app = launchApp(arguments: arguments, environment: environment)
         addGarageRecords(
             app,
             factLabel: factLabel,
@@ -301,7 +312,7 @@ final class DriveUITests: XCTestCase {
         )
         app.terminate()
 
-        let relaunched = launchApp(arguments: arguments)
+        let relaunched = launchApp(arguments: arguments, environment: environment)
         let garage = element(relaunched, "chat.garage")
         XCTAssertTrue(garage.waitForExistence(timeout: 8))
         garage.tap()
@@ -315,33 +326,56 @@ final class DriveUITests: XCTestCase {
         )
     }
 
-    func testScanLogChipsFilterTheGrid() throws {
+    func testScanLogFilterAll() throws {
+        try assertScanLogFilter("all", shown: (0..<9).map { "scan-log-\($0)" })
+    }
+
+    func testScanLogFilterIntake() throws {
+        try assertScanLogFilter("intake", shown: ["scan-log-0", "scan-log-7"])
+    }
+
+    func testScanLogFilterCooling() throws {
+        try assertScanLogFilter("cooling", shown: ["scan-log-1"])
+    }
+
+    func testScanLogFilterIgnition() throws {
+        try assertScanLogFilter("ignition", shown: ["scan-log-2"])
+    }
+
+    func testScanLogFilterElectrical() throws {
+        try assertScanLogFilter("electrical", shown: ["scan-log-3", "scan-log-8"])
+    }
+
+    func testScanLogFilterFuel() throws {
+        try assertScanLogFilter("fuel", shown: ["scan-log-4"])
+    }
+
+    func testScanLogFilterInspected() throws {
+        try assertScanLogFilter("inspected", shown: ["scan-log-5"])
+    }
+
+    func testScanLogFilterWatch() throws {
+        try assertScanLogFilter("watch", shown: ["scan-log-6"])
+    }
+
+    private func assertScanLogFilter(_ chip: String, shown: [String]) throws {
         let app = launchApp(arguments: ["-screen", "scan-log"])
         XCTAssertTrue(element(app, "scanLog.grid").waitForExistence(timeout: 8))
-        let expected: [String: [String]] = [
-            "all": (0..<9).map { "scan-log-\($0)" },
-            "intake": ["scan-log-0", "scan-log-7"],
-            "cooling": ["scan-log-1"],
-            "ignition": ["scan-log-2"],
-            "electrical": ["scan-log-3", "scan-log-8"],
-            "fuel": ["scan-log-4"],
-            "inspected": ["scan-log-5"],
-            "watch": ["scan-log-6"],
-        ]
-        for chip in ["all", "intake", "cooling", "ignition", "electrical", "fuel", "inspected", "watch"] {
-            let control = element(app, "scanLog.chip.\(chip)")
-            XCTAssertTrue(control.waitForExistence(timeout: 3), "scanLog.chip.\(chip) is missing")
-            control.tap()
-            let shown = Set(expected[chip] ?? [])
-            for index in 0..<9 {
-                let id = "scan-log-\(index)"
-                let cell = element(app, "scanLog.cell.\(id)")
-                if shown.contains(id) {
-                    XCTAssertTrue(cell.waitForExistence(timeout: 2), "\(chip) should show \(id)")
-                } else {
-                    XCTAssertFalse(cell.exists, "\(chip) should hide \(id)")
-                }
+        let control = element(app, "scanLog.chip.\(chip)")
+        XCTAssertTrue(control.waitForExistence(timeout: 3), "scanLog.chip.\(chip) is missing")
+        control.tap()
+        let visible = Set(shown)
+        for index in 0..<9 {
+            let id = "scan-log-\(index)"
+            let cell = element(app, "scanLog.cell.\(id)")
+            if visible.contains(id) {
+                XCTAssertTrue(cell.waitForExistence(timeout: 2), "\(chip) should show \(id)")
+            } else {
+                XCTAssertFalse(cell.exists, "\(chip) should hide \(id)")
             }
+        }
+        if shown.isEmpty {
+            XCTAssertTrue(element(app, "scanLog.empty").waitForExistence(timeout: 2))
         }
     }
 
@@ -1038,11 +1072,15 @@ final class DriveUITests: XCTestCase {
         try data.write(to: directory.appendingPathComponent(name))
     }
 
-    private func launchApp(arguments: [String]) -> XCUIApplication {
+    private func launchApp(
+        arguments: [String],
+        environment: [String: String] = [:]
+    ) -> XCUIApplication {
         let app = XCUIApplication()
         // Skip first-run onboarding unless a test opts in with -resetOnboarding.
         let onboarding = arguments.contains("-resetOnboarding") || arguments.contains("-sidekick.onboarding.completed")
         app.launchArguments = onboarding ? arguments : arguments + ["-sidekick.onboarding.completed", "YES"]
+        app.launchEnvironment = environment
         app.launch()
         return app
     }

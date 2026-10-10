@@ -141,6 +141,8 @@ final class LookBackTests: XCTestCase {
         XCTAssertEqual(ScanLogFilter.shown(entries, chip: "fuel").map(\.id), ["scan-log-4"])
         XCTAssertEqual(ScanLogFilter.shown(entries, chip: "inspected").map(\.id), ["scan-log-5"])
         XCTAssertEqual(ScanLogFilter.shown(entries, chip: "watch").map(\.id), ["scan-log-6"])
+        XCTAssertTrue(ScanLogFilter.shown(entries, chip: "not-a-chip").isEmpty)
+        XCTAssertEqual(ScanLogCopy.empty, "Nothing matches.")
         let subsets = ScanLogCopy.chips.map { chip in
             Set(ScanLogFilter.shown(entries, chip: chip).map(\.id))
         }
