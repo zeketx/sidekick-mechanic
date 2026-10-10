@@ -127,6 +127,83 @@ final class DriveUITests: XCTestCase {
         }
     }
 
+    func testEditGarageAddsFactAndTodo() throws {
+        let app = launchApp(arguments: [
+            "-sidekick.onboarding.completed", "YES",
+            "-garageTemporaryStore", "1",
+        ])
+        let garage = element(app, "chat.garage")
+        XCTAssertTrue(garage.waitForExistence(timeout: 8), "chat.garage is missing")
+        garage.tap()
+        XCTAssertTrue(element(app, "onboarding.garage").waitForExistence(timeout: 5))
+        let edit = element(app, "garage.edit")
+        XCTAssertTrue(edit.waitForExistence(timeout: 3), "garage.edit is missing")
+        edit.tap()
+
+        let addFact = element(app, "garage.addFact")
+        XCTAssertTrue(addFact.waitForExistence(timeout: 3), "garage.addFact is missing")
+        addFact.tap()
+
+        let stamp = String(Int(Date().timeIntervalSince1970) % 100000)
+        let factLabel = "Spare \(stamp)"
+        let factValue = "FAKE-NOTE \(stamp)"
+        let todoTitle = "Check spare \(stamp)"
+
+        let label = element(app, "garage.fact.label")
+        XCTAssertTrue(label.waitForExistence(timeout: 5), "garage.fact.label is missing")
+        label.tap()
+        label.typeText(factLabel)
+
+        let value = element(app, "garage.fact.value")
+        XCTAssertTrue(value.waitForExistence(timeout: 3), "garage.fact.value is missing")
+        value.tap()
+        value.typeText(factValue)
+
+        let save = element(app, "garage.fact.save")
+        XCTAssertTrue(save.waitForExistence(timeout: 3), "garage.fact.save is missing")
+        let enabled = NSPredicate(format: "isEnabled == true")
+        XCTAssertEqual(
+            XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: enabled, object: save)], timeout: 3),
+            .completed,
+            "Save stays off until both fields have text"
+        )
+        if save.isHittable {
+            save.tap()
+        } else {
+            value.typeText("\n")
+        }
+
+        let form = element(app, "garage.form.title")
+        let dismissed = NSPredicate(format: "exists == false")
+        XCTAssertEqual(
+            XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: dismissed, object: form)], timeout: 3),
+            .completed,
+            "Saving a fact should close the sheet"
+        )
+        XCTAssertTrue(app.staticTexts[factLabel].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts[factValue].exists)
+
+        var todoField = element(app, "garage.todo.field")
+        var swipes = 0
+        while !todoField.isHittable && swipes < 5 {
+            app.swipeUp()
+            swipes += 1
+            todoField = element(app, "garage.todo.field")
+        }
+        XCTAssertTrue(todoField.waitForExistence(timeout: 3), "garage.todo.field is missing")
+        todoField.tap()
+        todoField.typeText(todoTitle + "\n")
+        let addedTodo = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "identifier BEGINSWITH %@", "garage.todo.toggle."))
+            .firstMatch
+        XCTAssertTrue(addedTodo.waitForExistence(timeout: 5), "The new to-do should show a checkbox")
+        XCTAssertTrue(app.staticTexts[todoTitle].exists)
+
+        if FileManager.default.fileExists(atPath: "/tmp/sidekick-verify-sidekick/evidence-path") {
+            try writeShot("taps-garage-edit.png")
+        }
+    }
+
     func testSkipOnboardingIfPresent() throws {
         let app = launchApp(arguments: [
             "-resetOnboarding",

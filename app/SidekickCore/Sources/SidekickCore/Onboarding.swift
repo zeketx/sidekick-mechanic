@@ -66,29 +66,37 @@ public struct OnboardingLaunchOptions: Equatable, Sendable {
     }
 }
 
-/// One garage row. Display only. Values are from `docs/vehicle/TRUCK.md`.
-public struct GarageFact: Equatable, Identifiable, Hashable, Sendable {
-    public var id: String { label }
-    public let label: String
-    public let value: String
-    public let isConfirmed: Bool
+/// One garage row. Seed values are from `docs/vehicle/TRUCK.md`.
+/// `id` stays put when the owner renames the row.
+public struct GarageFact: Codable, Equatable, Identifiable, Hashable, Sendable {
+    public var id: String
+    public var label: String
+    public var value: String
+    public var isConfirmed: Bool
+
+    public init(id: String, label: String, value: String, isConfirmed: Bool) {
+        self.id = id
+        self.label = label
+        self.value = value
+        self.isConfirmed = isConfirmed
+    }
 }
 
 /// Confirmed truck facts and TBD rows. No input fields.
 public enum GarageFacts {
     /// Chassis, engine, donor ECU — confirmed in TRUCK.md (2026-09-30, VISION.md / AGENTS.md).
     public static let confirmed: [GarageFact] = [
-        GarageFact(label: "Chassis", value: "1990 Land Cruiser LJ78", isConfirmed: true),
-        GarageFact(label: "Engine", value: "2JZ-GE swap", isConfirmed: true),
-        GarageFact(label: "Donor ECU", value: "Lexus · year TBD", isConfirmed: true),
+        GarageFact(id: "chassis", label: "Chassis", value: "1990 Land Cruiser LJ78", isConfirmed: true),
+        GarageFact(id: "engine", label: "Engine", value: "2JZ-GE swap", isConfirmed: true),
+        GarageFact(id: "donor-ecu", label: "Donor ECU", value: "Lexus · year TBD", isConfirmed: true),
     ]
 
     /// OBD type, harness, photo angles — TBD in TRUCK.md until delivery.
     /// Donor year stays on the ECU row (`Lexus · year TBD`), matching the approved Figma.
     public static let pending: [GarageFact] = [
-        GarageFact(label: "OBD type", value: "TBD", isConfirmed: false),
-        GarageFact(label: "Harness", value: "TBD", isConfirmed: false),
-        GarageFact(label: "Photo angles", value: "TBD", isConfirmed: false),
+        GarageFact(id: "obd-type", label: "OBD type", value: "TBD", isConfirmed: false),
+        GarageFact(id: "harness", label: "Harness", value: "TBD", isConfirmed: false),
+        GarageFact(id: "photo-angles", label: "Photo angles", value: "TBD", isConfirmed: false),
     ]
 
     public static let tbdNotice =

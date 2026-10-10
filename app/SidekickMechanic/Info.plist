@@ -20,6 +20,10 @@
 	<string>1.0</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Sidekick uses the camera so you can add a photo of your truck.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Sidekick uses your photo library so you can add a photo of your truck.</string>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>

@@ -23,6 +23,8 @@ targets:
       path: SidekickMechanic/Info.plist
       properties:
         CFBundleDisplayName: Sidekick
+        NSCameraUsageDescription: Sidekick uses the camera so you can add a photo of your truck.
+        NSPhotoLibraryUsageDescription: Sidekick uses your photo library so you can add a photo of your truck.
         UILaunchScreen: {}
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         NSAppTransportSecurity:

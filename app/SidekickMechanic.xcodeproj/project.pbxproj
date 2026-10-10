@@ -21,6 +21,7 @@
 		C4D9F2E15B8A3C02D6E7F918 /* JobHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3C8E1D04A7F2B91C5D6E807 /* JobHistoryView.swift */; };
 		E6F1B4037DAC5E24F8091B3A /* ScanLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5E0A3F26C9B4D13E7F80A29 /* ScanLogView.swift */; };
 		F8C31A07B4D25E91C0A6E2D4 /* OnboardingFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A2E91C4D0B38F15A6C4E9B1 /* OnboardingFlow.swift */; };
+		B8D4F02C3E15A7B9C6D2F158 /* GarageScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7C3E91B2D04F6A8B5C1E047 /* GarageScreen.swift */; };
 		A11F0C2E7B4D81A35E6C0D21 /* DriveUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11F0C2E7B4D81A35E6C0D20 /* DriveUITests.swift */; };
 /* End PBXBuildFile section */
 
@@ -40,6 +41,7 @@
 		4EB4D68F04A32B2EE2BCE0E3 /* DemoModeChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DemoModeChrome.swift; sourceTree = "<group>"; };
 		6E949A9B055A354A7C6DBA2C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		7A2E91C4D0B38F15A6C4E9B1 /* OnboardingFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OnboardingFlow.swift; sourceTree = "<group>"; };
+		A7C3E91B2D04F6A8B5C1E047 /* GarageScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GarageScreen.swift; sourceTree = "<group>"; };
 		904C89F9DDB9E60BB4A35912 /* ReadingsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingsScreen.swift; sourceTree = "<group>"; };
 		96D043F94A922D255BB8222B /* SidekickCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = SidekickCore; path = SidekickCore; sourceTree = SOURCE_ROOT; };
 		9890FA44BA3B2B62C0293DC5 /* CitationPageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CitationPageView.swift; sourceTree = "<group>"; };
@@ -122,6 +124,7 @@
 				D5E0A3F26C9B4D13E7F80A29 /* ScanLogView.swift */,
 				BA6E449AB2CCC4A451FC49CA /* DemoHighlightView.swift */,
 				4EB4D68F04A32B2EE2BCE0E3 /* DemoModeChrome.swift */,
+				A7C3E91B2D04F6A8B5C1E047 /* GarageScreen.swift */,
 				6E949A9B055A354A7C6DBA2C /* Info.plist */,
 				7A2E91C4D0B38F15A6C4E9B1 /* OnboardingFlow.swift */,
 				904C89F9DDB9E60BB4A35912 /* ReadingsScreen.swift */,
@@ -227,6 +230,7 @@
 				E6F1B4037DAC5E24F8091B3A /* ScanLogView.swift in Sources */,
 				E3B11CEF4C0FAF51B5B38689 /* DemoHighlightView.swift in Sources */,
 				EE5981AB831000F2971BD24E /* DemoModeChrome.swift in Sources */,
+				B8D4F02C3E15A7B9C6D2F158 /* GarageScreen.swift in Sources */,
 				F8C31A07B4D25E91C0A6E2D4 /* OnboardingFlow.swift in Sources */,
 				0687133FFA68D04738B1D1D8 /* ReadingsScreen.swift in Sources */,
 				A5EE67255E6EED9CC4E0D94D /* SidekickMechanicApp.swift in Sources */,
