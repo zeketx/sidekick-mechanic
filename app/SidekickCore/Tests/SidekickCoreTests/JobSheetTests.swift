@@ -349,6 +349,14 @@ final class JobSheetTests: XCTestCase {
         XCTAssertEqual(JobSheetLayout.horizontalInset, 0)
         XCTAssertEqual(JobSheetLayout.width(screenWidth: 402), 402)
         XCTAssertEqual(JobSheetLayout.topCornerRadius, 24)
+        XCTAssertGreaterThanOrEqual(JobSheetLayout.headerTopClearance, 32)
+        XCTAssertEqual(
+            JobSheetLayout.grabberTopPadding
+                + JobSheetLayout.grabberHeight
+                + JobSheetLayout.grabberBottomPadding
+                + JobSheetLayout.headerPaddingUnderGrabber,
+            JobSheetLayout.headerTopClearance
+        )
     }
 
     func testSheetIsEdgeToEdgeAndFullReachesScreenBottom() {

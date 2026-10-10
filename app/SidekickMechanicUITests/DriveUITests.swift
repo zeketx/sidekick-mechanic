@@ -204,6 +204,147 @@ final class DriveUITests: XCTestCase {
         }
     }
 
+    /// Matches `JobSheetLayout.headerTopClearance`. The UI test target does not link SidekickCore.
+    private let sheetHeaderClearance: CGFloat = 32
+
+    func testSheetHeadersClearTheGrabber() throws {
+        let garage = launchApp(arguments: [
+            "-sidekick.onboarding.completed", "YES",
+            "-garageTemporaryStore", "1",
+        ])
+        let openGarage = element(garage, "chat.garage")
+        XCTAssertTrue(openGarage.waitForExistence(timeout: 8))
+        openGarage.tap()
+        assertHeaderClearsGrabber(garage, sheetID: "garage.sheetTop", headerID: "garage.done", screen: "garage")
+        element(garage, "garage.edit").tap()
+        let addFact = element(garage, "garage.addFact")
+        XCTAssertTrue(addFact.waitForExistence(timeout: 3))
+        addFact.tap()
+        assertHeaderClearsGrabber(
+            garage,
+            sheetID: "garage.formTop",
+            headerID: "garage.form.cancel",
+            screen: "garage-form"
+        )
+        garage.terminate()
+
+        let collapsed = launchApp(arguments: ["-screen", "job-sheet-collapsed", "-demoPhoto", "hilux"])
+        assertHeaderClearsGrabber(
+            collapsed,
+            sheetID: "jobSheet.collapsed",
+            headerID: "jobSheet.open",
+            screen: "job-sheet-collapsed"
+        )
+        collapsed.terminate()
+
+        let half = launchApp(arguments: ["-screen", "job-sheet-half", "-demoPhoto", "hilux"])
+        assertHeaderClearsGrabber(half, sheetID: "jobSheet.half", headerID: "jobSheet.close", screen: "job-sheet-half")
+        half.terminate()
+
+        let full = launchApp(arguments: ["-screen", "job-sheet-full", "-demoPhoto", "hilux"])
+        assertHeaderClearsGrabber(full, sheetID: "jobSheet.full", headerID: "jobSheet.close", screen: "job-sheet-full")
+        full.terminate()
+
+        let jobs = launchApp(arguments: ["-screen", "job-history"])
+        assertHeaderClearsGrabber(jobs, sheetID: "lookBack.sheetTop", headerID: "lookBack.back", screen: "jobs")
+        let past = element(jobs, "jobHistory.row.cold-idle")
+        XCTAssertTrue(past.waitForExistence(timeout: 5))
+        past.tap()
+        assertHeaderClearsGrabber(jobs, sheetID: "jobSheet.half", headerID: "jobSheet.close", screen: "past-job")
+        jobs.terminate()
+
+        let scan = launchApp(arguments: ["-screen", "scan-log"])
+        assertHeaderClearsGrabber(scan, sheetID: "lookBack.sheetTop", headerID: "lookBack.back", screen: "scan-log")
+        scan.terminate()
+
+        let citation = launchApp(arguments: ["-screen", "citation-page", "-demoPhoto", "hilux"])
+        assertHeaderClearsGrabber(
+            citation,
+            sheetID: "citation.sheetTop",
+            headerID: "citation.close",
+            screen: "citation"
+        )
+    }
+
+    func testGarageEditsSurviveCloseAndRelaunch() throws {
+        let stamp = String(Int(Date().timeIntervalSince1970) % 100000)
+        let factLabel = "Spare \(stamp)"
+        let factValue = "FAKE-NOTE \(stamp)"
+        let photoCaption = "FAKE-PHOTO \(stamp)"
+        let partName = "FAKE-PART \(stamp)"
+        let todoTitle = "Check spare \(stamp)"
+        let arguments = [
+            "-sidekick.onboarding.completed", "YES",
+            "-garageTemporaryStore", "1",
+        ]
+
+        let app = launchApp(arguments: arguments)
+        addGarageRecords(
+            app,
+            factLabel: factLabel,
+            factValue: factValue,
+            photoCaption: photoCaption,
+            partName: partName,
+            todoTitle: todoTitle
+        )
+        element(app, "garage.done").tap()
+        let reopen = element(app, "chat.garage")
+        XCTAssertTrue(reopen.waitForExistence(timeout: 5))
+        reopen.tap()
+        assertGarageRecords(
+            app,
+            factLabel: factLabel,
+            factValue: factValue,
+            photoCaption: photoCaption,
+            partName: partName,
+            todoTitle: todoTitle
+        )
+        app.terminate()
+
+        let relaunched = launchApp(arguments: arguments)
+        let garage = element(relaunched, "chat.garage")
+        XCTAssertTrue(garage.waitForExistence(timeout: 8))
+        garage.tap()
+        assertGarageRecords(
+            relaunched,
+            factLabel: factLabel,
+            factValue: factValue,
+            photoCaption: photoCaption,
+            partName: partName,
+            todoTitle: todoTitle
+        )
+    }
+
+    func testScanLogChipsFilterTheGrid() throws {
+        let app = launchApp(arguments: ["-screen", "scan-log"])
+        XCTAssertTrue(element(app, "scanLog.grid").waitForExistence(timeout: 8))
+        let expected: [String: [String]] = [
+            "all": (0..<9).map { "scan-log-\($0)" },
+            "intake": ["scan-log-0", "scan-log-7"],
+            "cooling": ["scan-log-1"],
+            "ignition": ["scan-log-2"],
+            "electrical": ["scan-log-3", "scan-log-8"],
+            "fuel": ["scan-log-4"],
+            "inspected": ["scan-log-5"],
+            "watch": ["scan-log-6"],
+        ]
+        for chip in ["all", "intake", "cooling", "ignition", "electrical", "fuel", "inspected", "watch"] {
+            let control = element(app, "scanLog.chip.\(chip)")
+            XCTAssertTrue(control.waitForExistence(timeout: 3), "scanLog.chip.\(chip) is missing")
+            control.tap()
+            let shown = Set(expected[chip] ?? [])
+            for index in 0..<9 {
+                let id = "scan-log-\(index)"
+                let cell = element(app, "scanLog.cell.\(id)")
+                if shown.contains(id) {
+                    XCTAssertTrue(cell.waitForExistence(timeout: 2), "\(chip) should show \(id)")
+                } else {
+                    XCTAssertFalse(cell.exists, "\(chip) should hide \(id)")
+                }
+            }
+        }
+    }
+
     func testSkipOnboardingIfPresent() throws {
         let app = launchApp(arguments: [
             "-resetOnboarding",
@@ -701,6 +842,150 @@ final class DriveUITests: XCTestCase {
             try writeShot("taps-\(screen)-outcome.png")
             app.terminate()
         }
+    }
+
+    private func assertHeaderClearsGrabber(
+        _ app: XCUIApplication,
+        sheetID: String,
+        headerID: String,
+        screen: String
+    ) {
+        let sheet = element(app, sheetID)
+        XCTAssertTrue(sheet.waitForExistence(timeout: 8), "\(screen): \(sheetID) is missing")
+        let header = element(app, headerID)
+        XCTAssertTrue(header.waitForExistence(timeout: 5), "\(screen): \(headerID) is missing")
+        let gap = header.frame.minY - sheet.frame.minY
+        XCTAssertGreaterThanOrEqual(
+            gap,
+            sheetHeaderClearance,
+            "\(screen): \(headerID) is \(gap) pt below \(sheetID); need at least \(sheetHeaderClearance)"
+        )
+    }
+
+    private func addGarageRecords(
+        _ app: XCUIApplication,
+        factLabel: String,
+        factValue: String,
+        photoCaption: String,
+        partName: String,
+        todoTitle: String
+    ) {
+        let garage = element(app, "chat.garage")
+        XCTAssertTrue(garage.waitForExistence(timeout: 8))
+        garage.tap()
+        let edit = element(app, "garage.edit")
+        XCTAssertTrue(edit.waitForExistence(timeout: 5))
+        edit.tap()
+
+        element(app, "garage.addFact").tap()
+        let label = element(app, "garage.fact.label")
+        XCTAssertTrue(label.waitForExistence(timeout: 5))
+        label.tap()
+        label.typeText(factLabel)
+        let value = element(app, "garage.fact.value")
+        value.tap()
+        value.typeText(factValue)
+        tapSave(app, identifier: "garage.fact.save", fallback: value)
+
+        reveal(app, "garage.addPhoto").tap()
+        let sample = element(app, "garage.photo.sample")
+        XCTAssertTrue(sample.waitForExistence(timeout: 5), "garage.photo.sample is missing")
+        sample.tap()
+        let caption = element(app, "garage.photo.caption")
+        XCTAssertTrue(caption.waitForExistence(timeout: 3))
+        caption.tap()
+        caption.typeText(photoCaption)
+        tapSave(app, identifier: "garage.photo.save", fallback: caption)
+
+        reveal(app, "garage.addPart").tap()
+        let name = element(app, "garage.item.name")
+        XCTAssertTrue(name.waitForExistence(timeout: 5))
+        name.tap()
+        name.typeText(partName)
+        tapSave(app, identifier: "garage.item.save", fallback: name)
+
+        let todoField = reveal(app, "garage.todo.field")
+        todoField.tap()
+        todoField.typeText(todoTitle + "\n")
+        let toggle = app.descendants(matching: .any)
+            .matching(NSPredicate(
+                format: "identifier BEGINSWITH %@ AND label CONTAINS %@",
+                "garage.todo.toggle.",
+                todoTitle
+            ))
+            .firstMatch
+        XCTAssertTrue(toggle.waitForExistence(timeout: 5), "The new to-do should show a checkbox")
+        toggle.tap()
+        XCTAssertTrue(toggle.label.hasPrefix("Done,"), "Toggling should mark the to-do done")
+    }
+
+    private func assertGarageRecords(
+        _ app: XCUIApplication,
+        factLabel: String,
+        factValue: String,
+        photoCaption: String,
+        partName: String,
+        todoTitle: String
+    ) {
+        XCTAssertTrue(app.staticTexts[factLabel].waitForExistence(timeout: 5), "Missing fact \(factLabel)")
+        XCTAssertTrue(revealText(app, factValue).exists, "Missing fact value \(factValue)")
+        XCTAssertTrue(revealText(app, photoCaption).exists, "Missing photo \(photoCaption)")
+        XCTAssertTrue(revealText(app, partName).exists, "Missing part \(partName)")
+        XCTAssertTrue(revealText(app, todoTitle).exists, "Missing to-do \(todoTitle)")
+        let done = app.descendants(matching: .any)
+            .matching(NSPredicate(
+                format: "identifier BEGINSWITH %@ AND label BEGINSWITH %@",
+                "garage.todo.toggle.",
+                "Done, \(todoTitle)"
+            ))
+            .firstMatch
+        XCTAssertTrue(done.waitForExistence(timeout: 3), "To-do should still be done")
+    }
+
+    private func tapSave(_ app: XCUIApplication, identifier: String, fallback: XCUIElement) {
+        let save = element(app, identifier)
+        XCTAssertTrue(save.waitForExistence(timeout: 3), "\(identifier) is missing")
+        let enabled = NSPredicate(format: "isEnabled == true")
+        XCTAssertEqual(
+            XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: enabled, object: save)], timeout: 3),
+            .completed,
+            "\(identifier) stays off"
+        )
+        if save.isHittable {
+            save.tap()
+        } else {
+            fallback.typeText("\n")
+        }
+        let form = element(app, "garage.form.title")
+        let dismissed = NSPredicate(format: "exists == false")
+        XCTAssertEqual(
+            XCTWaiter().wait(for: [XCTNSPredicateExpectation(predicate: dismissed, object: form)], timeout: 3),
+            .completed,
+            "Saving should close the form"
+        )
+    }
+
+    private func reveal(_ app: XCUIApplication, _ identifier: String) -> XCUIElement {
+        var match = element(app, identifier)
+        var swipes = 0
+        while !match.isHittable && swipes < 6 {
+            app.swipeUp()
+            swipes += 1
+            match = element(app, identifier)
+        }
+        XCTAssertTrue(match.waitForExistence(timeout: 3), "\(identifier) is missing")
+        return match
+    }
+
+    private func revealText(_ app: XCUIApplication, _ label: String) -> XCUIElement {
+        var match = app.staticTexts[label]
+        var swipes = 0
+        while !match.exists && swipes < 6 {
+            app.swipeUp()
+            swipes += 1
+            match = app.staticTexts[label]
+        }
+        return match
     }
 
     /// First element with this identifier, any type. An identifier on a SwiftUI container without

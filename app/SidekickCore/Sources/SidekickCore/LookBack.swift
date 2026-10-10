@@ -18,7 +18,7 @@ public enum ScanLogCopy {
     public static let chips = [
         "all", "intake", "cooling", "ignition", "electrical", "fuel", "inspected", "watch",
     ]
-    public static let selectedChip = "intake"
+    public static let selectedChip = "all"
     /// Fits a grid cell. The highlight card keeps `HighlightViewerCopy.referenceBanner`.
     public static let thumbBanner = "Not your truck"
 }
@@ -147,25 +147,46 @@ public enum ScanLogScript {
         "flickr-robmarson-6763892857",
     ]
 
-    /// Outline / none pattern matches the Figma 3×3. Tags come from the catalog part.
+    /// Outline / none pattern matches the Figma 3×3.
     public static let cellStates: [HighlightViewerState] = [
         .confident, .confident, .notFound,
         .confident, .notFound, .confident,
         .reference, .confident, .notFound,
     ]
 
+    /// One category per cell, spread across every filter chip except "all".
+    /// Two chips match two cells. The rest match one. No two chips match the same set.
+    public static let filterTags = [
+        "intake",
+        "cooling",
+        "ignition",
+        "electrical",
+        "fuel",
+        "inspected",
+        "watch",
+        "intake",
+        "electrical",
+    ]
+
     public static var entries: [ScanLogEntry] {
         cellStates.enumerated().map { index, source in
             let photoID = photos[index % photos.count]
-            let shown = HighlightViewerPresentation.resolve(source: source, photoID: photoID)
             return ScanLogEntry(
                 id: "scan-log-\(index)",
                 photoID: photoID,
                 source: source,
-                tagLabel: shown.showsOutline
-                    ? DemoOutlineCatalog.shortTag(partID: shown.partID)
-                    : "—"
+                tagLabel: filterTags[index]
             )
         }
+    }
+}
+
+/// "all" shows every cell. Any other chip shows cells whose tag is that chip.
+public enum ScanLogFilter {
+    public static func shown(_ entries: [ScanLogEntry], chip: String) -> [ScanLogEntry] {
+        if chip == "all" {
+            return entries
+        }
+        return entries.filter { $0.tagLabel == chip }
     }
 }

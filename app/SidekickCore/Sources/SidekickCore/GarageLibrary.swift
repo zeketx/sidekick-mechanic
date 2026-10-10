@@ -31,6 +31,8 @@ public enum GarageCopy {
     public static let todosEmpty = "Nothing on the list yet."
     public static let todoPlaceholder = "Something to do on the truck"
     public static let add = "Add"
+    /// Shown only while `-garageTemporaryStore` is on, so a UI test can save a photo without the library picker.
+    public static let samplePhoto = "Use a sample photo"
     public static let addFact = "Add a fact"
     public static let change = "Change"
     public static let remove = "Remove"
@@ -214,6 +216,7 @@ public enum GarageScrim {
 }
 
 /// `-garageTemporaryStore 1` keeps UI-test edits out of Application Support.
+/// The folder survives closing the sheet and relaunching. It is not wiped on open.
 public enum GarageStoreLocation {
     public static let temporaryFlag = "-garageTemporaryStore"
     public static let temporaryEnvironmentKey = "SIDEKICK_GARAGE_TEMPORARY"
@@ -232,7 +235,15 @@ public enum GarageStoreLocation {
         return FeatureFlags.isEnabled(environment[temporaryEnvironmentKey])
     }
 
-    /// Wipes and recreates the sandbox temp folder so each flagged launch starts from the seed.
+    /// Creates the sandbox folder when it is missing. Does not delete saved notes.
+    public static func temporaryRoot(fileManager: FileManager = .default) throws -> URL {
+        let root = fileManager.temporaryDirectory
+            .appendingPathComponent(temporaryFolderName, isDirectory: true)
+        try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
+        return root
+    }
+
+    /// Deletes the sandbox folder. Tests call this when they want the seed. The app does not.
     public static func prepareTemporaryRoot(fileManager: FileManager = .default) throws -> URL {
         let root = fileManager.temporaryDirectory
             .appendingPathComponent(temporaryFolderName, isDirectory: true)
@@ -257,7 +268,7 @@ public struct GarageLibraryStore: Sendable {
         environment: [String: String] = ProcessInfo.processInfo.environment
     ) -> GarageLibraryStore {
         if GarageStoreLocation.usesTemporaryStore(arguments: arguments, environment: environment),
-           let root = try? GarageStoreLocation.prepareTemporaryRoot() {
+           let root = try? GarageStoreLocation.temporaryRoot() {
             return GarageLibraryStore(root: root)
         }
         if let root = try? defaultRoot() {
