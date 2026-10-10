@@ -16,14 +16,17 @@ from llm import (
     DEFAULT_MAX_RETRIES,
     DEFAULT_MODEL,
     DEFAULT_TIMEOUT_SECONDS,
+    DEFAULT_VISION_BASE_URL,
     GO_DEEPER_HEADER,
     ChatTurn,
     FakeLLMClient,
+    ImageInput,
     LLMError,
     LLMSettings,
     OpenAICompatibleClient,
     TokenUsage,
     build_llm_client,
+    build_vision_client,
     load_llm_settings,
 )
 from producer import LlmAnswerProducer, SYSTEM_PROMPT, UNAVAILABLE_ANSWER, default_producer
@@ -195,6 +198,61 @@ def test_openai_client_parses_completion_and_usage() -> None:
     }
 
 
+def test_openai_client_sends_images_as_content_parts_and_logs_lengths_only(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, json=_openai_body("FAKE-REPLY-TEXT"))
+
+    turn = ChatTurn(
+        role="user",
+        content="Describe both.",
+        images=(
+            ImageInput(media_type="image/png", data=b"FAKE-PNG"),
+            ImageInput(media_type="image/jpeg", data=b"FAKE-JPG"),
+        ),
+    )
+    with caplog.at_level(logging.INFO, logger="sidekick.vision"):
+        _openai_client(handler).complete([turn])
+
+    body = json.loads(seen[0].content)
+    assert body["messages"] == [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "Describe both."},
+                {"type": "image_url", "image_url": {"url": "data:image/png;base64,RkFLRS1QTkc="}},
+                {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,RkFLRS1KUEc="}},
+            ],
+        }
+    ]
+    assert "image_bytes=[8, 8]" in caplog.text
+    assert "reply_chars=15" in caplog.text
+    assert "FAKE-PNG" not in caplog.text
+    assert "RkFLRS1QTkc" not in caplog.text
+    assert "FAKE-REPLY-TEXT" not in caplog.text
+    assert "FAKE-PNG" not in repr(turn)
+
+
+def test_build_vision_client_needs_a_key_and_a_model() -> None:
+    assert build_vision_client({}) is None
+    assert build_vision_client({"SIDEKICK_VISION_API_KEY": "fake-test-key"}) is None
+    assert build_vision_client({"SIDEKICK_VISION_MODEL": "fake-vision-model"}) is None
+
+    client = build_vision_client(
+        {"SIDEKICK_VISION_API_KEY": "fake-test-key", "SIDEKICK_VISION_MODEL": "fake-vision-model"}
+    )
+    assert isinstance(client, OpenAICompatibleClient)
+    try:
+        assert client._settings.base_url == DEFAULT_VISION_BASE_URL
+        assert client._settings.model == "fake-vision-model"
+    finally:
+        client._http.close()
+
+
 def test_openai_client_retries_then_succeeds() -> None:
     statuses = [503, 200]
     sleeps: list[float] = []
@@ -310,9 +368,12 @@ def test_env_example_documents_keys_without_secrets() -> None:
     assert "SIDEKICK_LLM_MODEL=" in text
     assert "SIDEKICK_LLM_TIMEOUT_SECONDS=" in text
     assert "SIDEKICK_LLM_MAX_RETRIES=" in text
+    assert "SIDEKICK_VISION_BASE_URL=" in text
+    assert "SIDEKICK_VISION_MODEL=" in text
     for line in text.splitlines():
-        if line.startswith("SIDEKICK_LLM_API_KEY="):
+        if line.startswith(("SIDEKICK_LLM_API_KEY=", "SIDEKICK_VISION_API_KEY=")):
             assert line.split("=", 1)[1] == ""
+    assert "SIDEKICK_VISION_API_KEY=" in text
 
 
 def test_env_file_is_gitignored() -> None:

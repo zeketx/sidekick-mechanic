@@ -1,8 +1,9 @@
 """FastAPI app: POST /chat returns a contract-valid answer.
 
-The spec guard runs on the producer payload. Procedure answers then receive
-the safety note from safety.py. The note is not scanned. Refusals do not
-receive it.
+The spec guard runs on the producer payload, or on the page answer when the
+newest user turn names a manual page. A page answer is guarded against that
+page's server text only. Procedure answers then receive the safety note from
+safety.py. The note is not scanned. Refusals do not receive it.
 """
 
 from __future__ import annotations
@@ -16,7 +17,7 @@ from fastapi.responses import FileResponse, PlainTextResponse, Response
 from jsonschema.exceptions import ValidationError
 from pydantic import BaseModel, ConfigDict, Field
 
-from chat_models import Conversation
+from chat_models import Conversation, PageRef
 from contract import validate_answer
 from demo import (
     ATTRIBUTION_PATH,
@@ -25,9 +26,10 @@ from demo import (
     log_demo_feedback,
     photo_file,
 )
-from go_deeper import GoDeeperError, go_deeper
-from llm import LLMClient
-from manual_pages import ManualPageError, page_png
+from go_deeper import GoDeeperError, cited_page_text, go_deeper
+from llm import LLMClient, build_llm_client, build_vision_client
+from manual_pages import ManualPageError, is_servable_doc_id, page_png
+from page_chat import answer_about_page
 from producer import AnswerProducer, CitedChunkSource, default_producer
 from safety import apply_safety_preamble
 from spec_guard import guard_answer
@@ -49,8 +51,12 @@ def create_app(
     page_cache_dir: Path | None = None,
     go_deeper_client: LLMClient | None = None,
     manifest_path: Path | None = None,
+    page_client: LLMClient | None = None,
+    vision_client: LLMClient | None = None,
 ) -> FastAPI:
     answer_producer = producer if producer is not None else default_producer()
+    page_llm = page_client if page_client is not None else build_llm_client()
+    vision = vision_client if vision_client is not None else build_vision_client()
     application = FastAPI(
         title="Sidekick Mechanic",
         summary=(
@@ -124,16 +130,55 @@ def create_app(
             action=body.action,
         )
 
+    def page_image_or_none(doc_id: str, page: int) -> bytes | None:
+        try:
+            return page_png(
+                doc_id,
+                page,
+                manuals_dir=application.state.manuals_dir,
+                cache_dir=application.state.page_cache_dir,
+                manifest_path=application.state.manifest_path,
+            )
+        except ManualPageError:
+            return None
+
+    def answer_page_turn(
+        conversation: Conversation, page: PageRef
+    ) -> tuple[dict[str, Any], tuple[str, ...]]:
+        if not is_servable_doc_id(page.doc_id, manifest_path=application.state.manifest_path):
+            raise HTTPException(status_code=422, detail="unknown manual page")
+        # Loaded once. The prompt and the guard see the same string.
+        page_text = cited_page_text(
+            page.doc_id,
+            page.page,
+            chunks_path=application.state.chunks_path,
+            manuals_dir=application.state.manuals_dir,
+        )
+        payload = answer_about_page(
+            conversation,
+            page,
+            page_text,
+            llm=page_llm,
+            vision=vision,
+            page_image=lambda: page_image_or_none(page.doc_id, page.page),
+        )
+        evidence = (page_text,) if page_text and page_text.strip() else ()
+        return payload, evidence
+
     @application.post("/chat")
     def post_chat(conversation: Conversation) -> dict[str, Any]:
         if conversation.demo is not None and not has_photo(conversation.demo.photo_id):
             raise HTTPException(status_code=422, detail="unknown demo photo")
-        payload = answer_producer.produce(conversation)
-        # No CitedChunkSource means nothing was retrieved, so any spec is uncited.
-        if isinstance(answer_producer, CitedChunkSource):
-            chunk_texts = answer_producer.cited_chunk_texts(conversation)
+        page = conversation.page
+        if page is not None:
+            payload, chunk_texts = answer_page_turn(conversation, page)
         else:
-            chunk_texts = ()
+            payload = answer_producer.produce(conversation)
+            # No CitedChunkSource means nothing was retrieved, so any spec is uncited.
+            if isinstance(answer_producer, CitedChunkSource):
+                chunk_texts = answer_producer.cited_chunk_texts(conversation)
+            else:
+                chunk_texts = ()
         guarded = guard_answer(payload, chunk_texts)
         # After the guard so the safety note is never scanned for specs.
         noted = apply_safety_preamble(guarded.answer)
