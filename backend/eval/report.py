@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from eval.golden import RESULTS_DIR
+from eval.harness import retrieval_ran
 from eval.metrics import METRIC_DEFINITIONS
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -132,9 +133,20 @@ def render_job_summary(payload: dict[str, Any]) -> str:
     lines = [
         title,
         "",
-        "| Metric | Value |",
-        "| --- | --- |",
     ]
+    if not retrieval_ran(payload):
+        lines.extend(
+            [
+                "Smoke test: retrieval did not run. Exit 0 is not a quality result.",
+                "",
+            ]
+        )
+    lines.extend(
+        [
+            "| Metric | Value |",
+            "| --- | --- |",
+        ]
+    )
     for key, label, kind in METRIC_ROWS:
         lines.append(f"| {label} | {_format_value(metrics[key], kind)} |")
     lines.extend(

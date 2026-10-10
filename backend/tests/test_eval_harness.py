@@ -347,6 +347,7 @@ def test_job_summary_shows_not_available_for_null_recall(tmp_path: Path) -> None
     assert "| region IoU | 0.5000 |" in summary
     assert "| unmapped-highlight count | 0 |" in summary
     assert "ci subset" in summary
+    assert "Smoke test: retrieval did not run. Exit 0 is not a quality result." in summary
 
 
 def test_latest_results_follow_generated_at(tmp_path: Path) -> None:
@@ -508,6 +509,54 @@ def test_cli_exits_when_unmapped_highlight_count_is_not_zero(
         ]
     )
 
+    assert code == 1
+
+
+def test_eval_exits_nonzero_when_retrieved_citation_accuracy_is_zero(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from eval.__main__ import main
+
+    def fake_run(*args: object, **kwargs: object) -> dict[str, Any]:
+        del args, kwargs
+        return {
+            "date": FAKE_DATE,
+            "subset": "full",
+            "golden_path": "eval/golden.jsonl",
+            "runner": "scripted",
+            "case_count": 1,
+            "cases": [
+                {
+                    "id": "fake-retrieved",
+                    "retrieval_available": True,
+                    "citation_accurate": False,
+                }
+            ],
+            "metrics": {
+                "recall_at_5": 1.0,
+                "citation_accuracy": 0.0,
+                "refusal_correctness": None,
+                "uncited_number_count": 0,
+                "latency_p50_ms": 1.0,
+                "latency_p95_ms": 1.0,
+                "correct_part_rate": None,
+                "region_iou": None,
+                "unmapped_highlight_count": 0,
+            },
+        }
+
+    monkeypatch.setattr("eval.__main__.run_harness", fake_run)
+    code = main(
+        [
+            "--golden",
+            str(SAMPLE_PATH),
+            "--output-dir",
+            str(tmp_path),
+            "--date",
+            FAKE_DATE,
+        ]
+    )
     assert code == 1
 
 

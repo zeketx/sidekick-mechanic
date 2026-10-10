@@ -46,6 +46,10 @@ class UnmappedHighlightError(RuntimeError):
         super().__init__(f"unmapped-highlight count is {count}, expected 0")
 
 
+class CitationAccuracyError(RuntimeError):
+    """A run that retrieved pages cited none of the expected pages."""
+
+
 def run_harness(
     golden_path: Path | None = None,
     *,
@@ -97,6 +101,33 @@ def require_no_unmapped_highlights(payload: Mapping[str, Any]) -> None:
         raise UnmappedHighlightError(-1)
     if count != 0:
         raise UnmappedHighlightError(count)
+
+
+def retrieval_ran(payload: Mapping[str, Any]) -> bool:
+    cases = payload.get("cases")
+    if not isinstance(cases, list):
+        return False
+    return any(
+        isinstance(case, Mapping) and case.get("retrieval_available") is True
+        for case in cases
+    )
+
+
+def require_citation_accuracy_when_retrieved(payload: Mapping[str, Any]) -> None:
+    """Fail when a retrieval run's citation accuracy is zero.
+
+    A run with no retrieved hits is a smoke test. Exit 0 on that run is not
+    a quality result, and this function does not treat it as one.
+    """
+
+    if not retrieval_ran(payload):
+        return
+    metrics = payload.get("metrics")
+    accuracy = metrics.get("citation_accuracy") if isinstance(metrics, Mapping) else None
+    if accuracy == 0 or accuracy == 0.0:
+        raise CitationAccuracyError(
+            "citation accuracy is 0 on a run that retrieved pages"
+        )
 
 
 def _score_question(

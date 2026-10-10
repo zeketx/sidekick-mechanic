@@ -65,10 +65,11 @@ jobs:
         run: swift test
 
   eval-subset:
-    name: Eval subset
+    name: Eval smoke test
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    # Fast fake-LLM slice. Separate from Backend tests, which stay required.
+    # Fake-LLM smoke test. Exit 0 is not citation quality.
+    # A run that retrieved pages fails when citation accuracy is 0.
     if: github.event_name == 'pull_request'
     defaults:
       run:
@@ -87,5 +88,5 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
-      - name: Run fast eval subset
+      - name: Run smoke eval
         run: python -m eval --golden eval/golden.sample.jsonl --ci --summary-file "$GITHUB_STEP_SUMMARY"

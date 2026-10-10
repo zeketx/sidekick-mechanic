@@ -9,7 +9,9 @@ from pathlib import Path
 from bay_map import BayMapError
 from eval.golden import RESULTS_DIR, GoldenSetError
 from eval.harness import (
+    CitationAccuracyError,
     UnmappedHighlightError,
+    require_citation_accuracy_when_retrieved,
     require_no_unmapped_highlights,
     run_harness,
 )
@@ -78,7 +80,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Wrote {destination}")
     try:
         require_no_unmapped_highlights(payload)
-    except UnmappedHighlightError as exc:
+        require_citation_accuracy_when_retrieved(payload)
+    except (UnmappedHighlightError, CitationAccuracyError) as exc:
         print(f"eval failed: {exc}", file=sys.stderr)
         return 1
     return 0
