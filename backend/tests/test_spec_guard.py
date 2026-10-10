@@ -216,6 +216,75 @@ def test_kgf_cm_is_torque_not_length_or_kgf_m() -> None:
     )
     assert kilogram_meters.uncited == ("999 kgf·cm",)
 
+    squared = guard_answer(
+        _found("FAKE-SPEC pressure is 999 kgf·cm^2."),
+        ("FAKE-CHUNK: torque is 999 kgf·cm.",),
+    )
+    assert squared.uncited == ("999 kgf·cm^2",)
+
+    torque_against_pressure = guard_answer(
+        _found("FAKE-SPEC torque is 999 kgf·cm."),
+        ("FAKE-CHUNK: pressure is 999 kgf·cm^2.",),
+    )
+    assert torque_against_pressure.uncited == ("999 kgf·cm",)
+
+
+def test_broken_foot_pound_token_is_not_a_length() -> None:
+    footnote = guard_answer(
+        _found("FAKE-SPEC length is 999 feet."),
+        ("FAKE-CHUNK: torque is 999 ft·lbf\u00b9.",),
+    )
+    assert footnote.uncited == ("999 feet",)
+
+    extra_letters = guard_answer(
+        _found("FAKE-SPEC length is 999 ft."),
+        ("FAKE-CHUNK: torque is 999 ft·lbforce.",),
+    )
+    assert extra_letters.uncited == ("999 ft",)
+
+    unicode_hyphen = guard_answer(
+        _found("FAKE-SPEC length is 999 feet."),
+        ("FAKE-CHUNK: torque is 999 ft\u2010lbf.",),
+    )
+    assert unicode_hyphen.uncited == ("999 feet",)
+
+    hyphen_torque = guard_answer(
+        _found("FAKE-SPEC torque is 999 ft·lbf."),
+        ("FAKE-CHUNK: torque is 999 ft\u2010lbf.",),
+    )
+    assert hyphen_torque.uncited == ()
+
+    words = guard_answer(
+        _found("FAKE-SPEC torque is 999 ft·lbf."),
+        ("FAKE-CHUNK: 999 ft-pounds.",),
+    )
+    assert words.uncited == ()
+
+
+def test_sentence_period_does_not_join_a_torque_unit() -> None:
+    sentence = guard_answer(
+        _found("FAKE-SPEC torque is 999 ft·lbf."),
+        ("FAKE-CHUNK: length is 999 ft. lbf is listed later.",),
+    )
+    assert sentence.uncited == ("999 ft·lbf",)
+
+    abbreviation = guard_answer(
+        _found("FAKE-SPEC torque is 999 ft·lbf."),
+        ("FAKE-CHUNK: torque is 999 ft.lbf.",),
+    )
+    assert abbreviation.uncited == ()
+
+
+def test_inch_pound_lbf_is_torque() -> None:
+    missing = guard_answer(_found("FAKE-SPEC torque is 999 in·lbf."), ())
+    assert missing.uncited == ("999 in·lbf",)
+
+    same = guard_answer(
+        _found("FAKE-SPEC torque is 999 in·lbf."),
+        ("FAKE-CHUNK: torque is 999 in-lbf.",),
+    )
+    assert same.uncited == ()
+
 
 @pytest.mark.parametrize(
     ("text", "uncited"),

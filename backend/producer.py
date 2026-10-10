@@ -284,6 +284,8 @@ class LlmAnswerProducer:
             return resolve_demo_answer(
                 payload, _last_user_text(conversation), demo_photo_id
             )
+        if payload.get("kind") != "answer":
+            return payload
         bay_map = self._bay_map
         if bay_map is None or not bay_map.parts:
             return payload

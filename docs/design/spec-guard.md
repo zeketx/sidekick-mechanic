@@ -46,7 +46,7 @@ Allowed:
 - Unicode minus and dashes become `-`.
 - Spaces between digits removed (`9 999` matches `9999`).
 - Thousands-grouping commas removed (`9,999` matches `9999`). A comma followed by one or two digits stays, so `999,5` does not match `999.5`.
-- Unit spelling aliases, including `N·m` / `N-m` / `newton meters` → `nm`, `ft-lb` / `ft lb` / `ft·lbf` / `ft-lbf` / `ft·lb` → `ftlbf`, `kgf·cm` → `kgfcm`, `volts` → `v`, `ohms` / `Ω` → `ohm`. `ft·lbf` does not match `feet` or `ft`. `kgf·cm` does not match `cm` or `kgf·m`.
+- Unit spelling aliases, including `N·m` / `N-m` / `newton meters` → `nm`, `ft-lb` / `ft lb` / `ft·lbf` / `ft-lbf` / `ft·lb` / `ft-pounds` → `ftlbf`, `in·lbf` → `inlbf`, `kgf·cm` → `kgfcm`, `kgf·cm^2` / `kgf/cm2` → `kgfcm2`, `volts` → `v`, `ohms` / `Ω` → `ohm`. `ft·lbf` does not match `feet` or `ft`, including when a footnote digit, an extra letter, or a unicode hyphen follows the token. A period with a space after it is a sentence boundary, not a joiner (`999 ft. lbf` is not torque). `kgf·cm` does not match `cm`, `kgf·m`, or `kgf·cm^2`.
 - Ohm signs are spelled out before casefolding so `MΩ` (megohm) does not match `mΩ` (milliohm). The refusal quotes that spelled-out form.
 - The exponent marker `e` is casefolded (`9.99e2` matches `9.99E2`). The exponent text otherwise stays (`9.99e+2` does not match `9.99e2`).
 - Pin ids are casefolded (`FAKE-C9` matches `fake-c9`).

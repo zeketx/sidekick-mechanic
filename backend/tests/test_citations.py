@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 from app import create_app
 from chat_models import Conversation, Message
 from llm import FAKE_GROUNDED_TEXT, ChatTurn, FakeLLMClient, LLMError
+from part_resolver import BayMapView, BayPartView
 from producer import (
     SYSTEM_PROMPT,
     WIRING_NOT_INGESTED_REFUSAL,
@@ -411,13 +412,25 @@ def test_guard_checks_only_pages_that_survived_as_citations() -> None:
     assert body["kind"] == "refusal"
     assert "999 Nm" in body["text"]
 
+    spec_page_with_tail = "FAKE-HEAD. FAKE-SPEC torque is 999 N·m."
+    short_snippet = "FAKE-HEAD."
     kept_producer, _, _ = _producer(
-        _completion("Torque is 999 Nm.", [_cited(spec_page)]),
-        (_Hit(_DOC, _PAGE, spec_page), _Hit("FAKE-OTHER", 998, other_page)),
+        _completion("Torque is 999 Nm.", [_cited(short_snippet)]),
+        (
+            _Hit(_DOC, _PAGE, spec_page_with_tail),
+            _Hit("FAKE-OTHER", 998, other_page),
+        ),
     )
+    kept_conversation = _conversation("What is the FAKE-SPEC torque?")
+    kept_payload = kept_producer.produce(kept_conversation)
     kept = TestClient(create_app(producer=kept_producer)).post(
         "/chat",
         json={"messages": [{"role": "user", "text": "What is the FAKE-SPEC torque?"}]},
+    )
+    assert kept_payload["citations"] == [_cited(short_snippet)]
+    assert "999" not in short_snippet
+    assert kept_producer.cited_chunk_texts(kept_conversation, kept_payload) == (
+        spec_page_with_tail,
     )
     assert kept.status_code == 200
     assert kept.json()["kind"] == "answer"
@@ -453,6 +466,33 @@ def test_missing_index_file_refuses_without_calling_the_model(tmp_path: Path) ->
 
     assert payload == _REFUSAL
     assert fake.calls == []
+
+
+def test_missing_index_with_a_bay_map_does_not_call_the_model(tmp_path: Path) -> None:
+    fake = FakeLLMClient(text="Fixture prose with no manual page.")
+    bay_map = BayMapView(parts=(BayPartView(part_id="fake-part", regions=()),))
+    producer = LlmAnswerProducer(
+        fake,
+        bay_map=bay_map,
+        retriever=_IndexRetriever(tmp_path / "missing.sqlite"),
+    )
+
+    payload = producer.produce(_conversation())
+
+    assert payload == _REFUSAL
+    assert fake.calls == []
+
+    empty = FakeLLMClient(text="Fixture prose with no manual page.")
+    empty_producer = LlmAnswerProducer(
+        empty,
+        bay_map=bay_map,
+        retriever=_Retriever(()),
+    )
+    empty_payload = empty_producer.produce(_conversation())
+
+    assert empty_payload["kind"] == "refusal"
+    assert empty_payload["reason"] == "not_found_in_manual"
+    assert empty.calls == []
 
 
 def test_corrupt_index_file_is_unavailable(tmp_path: Path) -> None:
