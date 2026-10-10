@@ -168,13 +168,11 @@ public enum JobSheetLayout {
     /// Edge to edge. Side gutters made the sheet 386pt on a 402pt window.
     public static let horizontalInset: Double = 0
     public static let topCornerRadius: Double = 24
-    /// Header controls sit at least this far below the top edge of a grabber sheet.
     public static let headerTopClearance: Double = 32
     public static let grabberTopPadding: Double = 8
     public static let grabberHeight: Double = 5
     public static let grabberBottomPadding: Double = 6
 
-    /// Extra pad under the custom job-sheet capsule so the title row still clears `headerTopClearance`.
     public static var headerPaddingUnderGrabber: Double {
         max(0, headerTopClearance - grabberTopPadding - grabberHeight - grabberBottomPadding)
     }

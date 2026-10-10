@@ -42,8 +42,6 @@ extension View {
             .accessibilityLabel("Sheet top")
     }
 
-    /// Space from the top edge of a grabber sheet down to the header controls.
-    /// The job sheet draws its own capsule, so it only adds the remainder.
     func sheetHeaderClearance(underCustomGrabber: Bool = false) -> some View {
         padding(
             .top,

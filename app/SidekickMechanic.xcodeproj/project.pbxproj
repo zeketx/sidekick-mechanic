@@ -23,6 +23,7 @@
 		F8C31A07B4D25E91C0A6E2D4 /* OnboardingFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A2E91C4D0B38F15A6C4E9B1 /* OnboardingFlow.swift */; };
 		B8D4F02C3E15A7B9C6D2F158 /* GarageScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7C3E91B2D04F6A8B5C1E047 /* GarageScreen.swift */; };
 		A11F0C2E7B4D81A35E6C0D21 /* DriveUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11F0C2E7B4D81A35E6C0D20 /* DriveUITests.swift */; };
+		B7E1A04C2F10D8A91C6B4E22 /* SidekickCore in Frameworks */ = {isa = PBXBuildFile; productRef = C3A9D15E4B27F6A08D1C3E55 /* SidekickCore */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -70,6 +71,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B7E1A04C2F10D8A91C6B4E22 /* SidekickCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -169,6 +171,7 @@
 			);
 			name = SidekickMechanicUITests;
 			packageProductDependencies = (
+				C3A9D15E4B27F6A08D1C3E55 /* SidekickCore */,
 			);
 			productName = SidekickMechanicUITests;
 			productReference = A11F0C2E7B4D81A35E6C0D23 /* SidekickMechanicUITests.xctest */;
@@ -498,6 +501,10 @@
 
 /* Begin XCSwiftPackageProductDependency section */
 		969A2B719E26CFCC4865B1F2 /* SidekickCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SidekickCore;
+		};
+		C3A9D15E4B27F6A08D1C3E55 /* SidekickCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = SidekickCore;
 		};
