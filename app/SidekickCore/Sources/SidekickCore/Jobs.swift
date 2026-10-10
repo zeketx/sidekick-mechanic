@@ -12,7 +12,8 @@ public enum ChatTarget: Hashable, Sendable {
     }
 }
 
-/// What the owner asked. Both cases become a `UserMessage`. The `/chat` body stays slim.
+/// What the owner asked. Both cases become a `UserMessage`.
+/// A page turn keeps this text and also carries the page on the `/chat` body.
 public enum UserTurn: Equatable, Sendable {
     case typed(String)
     case page(PageAsk)
@@ -29,18 +30,40 @@ public enum UserTurn: Equatable, Sendable {
             return trimmed.isEmpty ? nil : trimmed
         }
     }
+
+    /// Page identity for the wire. Nil for a typed turn. Photo bytes ride only with a plug check.
+    var attachment: TurnAttachment? {
+        switch self {
+        case .typed:
+            return nil
+        case let .page(ask):
+            let page = ask.citation.pageRef
+            if let photo = ask.plugPhoto {
+                return .plugPhoto(photo, page: page)
+            }
+            return .page(page)
+        }
+    }
 }
 
 /// "Ask about this page". The caller mints `messageID` so a repeat tap is a no-op.
+/// `plugPhoto` is set only for the connector check. The stored text stays question plus page.
 public struct PageAsk: Equatable, Sendable {
     public var messageID: MessageID
     public var citation: Citation
     public var question: String
+    public var plugPhoto: PlugPhoto?
 
-    public init(messageID: MessageID, citation: Citation, question: String) {
+    public init(
+        messageID: MessageID,
+        citation: Citation,
+        question: String,
+        plugPhoto: PlugPhoto? = nil
+    ) {
         self.messageID = messageID
         self.citation = citation
         self.question = question
+        self.plugPhoto = plugPhoto
     }
 }
 
@@ -350,7 +373,7 @@ public final class JobsModel {
             }
         }
         guard let text = turn.messageText, canAppend(to: target) else { return nil }
-        guard let user = UserMessage(id: messageID, text: text) else { return nil }
+        guard let user = UserMessage(id: messageID, text: text, attachment: turn.attachment) else { return nil }
         let id: JobID
         switch target {
         case .newJob:
@@ -383,6 +406,11 @@ public final class JobsModel {
                 self.replyTasks[id]?.cancel()
             }
         }
+    }
+
+    /// Next id for a caller-minted page ask. Typed turns mint inside `append`.
+    public func makeMessageID() -> MessageID? {
+        MessageID(rawValue: makeID())
     }
 
     /// False when the job is unknown, the edit changes nothing, or the write failed.

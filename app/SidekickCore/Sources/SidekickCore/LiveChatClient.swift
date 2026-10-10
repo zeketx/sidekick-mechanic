@@ -26,9 +26,10 @@ struct URLSessionHTTP: HTTPPerforming {
     }
 }
 
-/// Body for `POST /chat`. Matches `backend/chat_models.py`: `{ messages: [{ role, text }] }`.
+/// Body for `POST /chat`. Matches `backend/chat_models.py`: `{ messages: [{ role, text, page?, photo? }] }`.
 /// Conversation and message IDs stay on the domain model; the backend forbids extras.
-/// `demo` is omitted on the normal path.
+/// A page is identity only. The server loads its text. Only the last item carries photo bytes.
+/// `demo` is omitted on the normal path and whenever the newest user turn is about a page.
 struct ChatHTTPBody: Encodable, Equatable {
     var messages: [Item]
     var demo: Demo?
@@ -36,6 +37,34 @@ struct ChatHTTPBody: Encodable, Equatable {
     struct Item: Encodable, Equatable {
         var role: String
         var text: String
+        var page: PageRef?
+        var photo: Photo?
+
+        enum CodingKeys: String, CodingKey {
+            case role
+            case text
+            case page
+            case photo
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(role, forKey: .role)
+            try container.encode(text, forKey: .text)
+            try container.encodeIfPresent(page, forKey: .page)
+            try container.encodeIfPresent(photo, forKey: .photo)
+        }
+    }
+
+    struct Photo: Encodable, Equatable {
+        var mediaType = "image/jpeg"
+        /// `JSONEncoder` writes `Data` as base64 by default.
+        var data: Data
+
+        enum CodingKeys: String, CodingKey {
+            case mediaType = "media_type"
+            case data
+        }
     }
 
     struct Demo: Encodable, Equatable {
@@ -47,15 +76,23 @@ struct ChatHTTPBody: Encodable, Equatable {
     }
 
     init(_ conversation: Conversation, demoPhotoID: String? = nil) {
-        messages = conversation.messages.map { message in
+        let lastIndex = conversation.messages.indices.last
+        messages = conversation.messages.enumerated().map { index, message in
             switch message {
             case let .user(user):
-                Item(role: "user", text: user.text)
+                let photo = index == lastIndex ? user.attachment?.plugPhoto : nil
+                return Item(
+                    role: "user",
+                    text: user.text,
+                    page: user.attachment?.page,
+                    photo: photo.map { Photo(data: $0.jpegData) }
+                )
             case let .assistant(assistant):
-                Item(role: "assistant", text: assistant.answer.text)
+                return Item(role: "assistant", text: assistant.answer.text)
             }
         }
-        if let demoPhotoID, !demoPhotoID.isEmpty {
+        let newestUser = messages.last(where: { $0.role == "user" })
+        if let demoPhotoID, !demoPhotoID.isEmpty, newestUser?.page == nil {
             demo = Demo(photoID: demoPhotoID)
         } else {
             demo = nil

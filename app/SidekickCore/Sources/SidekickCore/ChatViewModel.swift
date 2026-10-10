@@ -4,6 +4,7 @@ import Observation
 /// Which job is on screen, plus the composer and demo settings.
 ///
 /// Messages, loading, and errors are read from `JobsModel` for that job.
+/// `JobsModel` is the only caller of `ChatClient.send`.
 @MainActor
 @Observable
 public final class ChatViewModel {
@@ -13,6 +14,8 @@ public final class ChatViewModel {
     public var selectedDemoPhotoID: String?
     public var highlightStyle: DemoHighlightStyle
     public private(set) var confirmDecisions: [String: DemoConfirmDecision]
+    /// The page pinned to the composer, and a staged plug photo. The page stays pinned across sends.
+    public private(set) var draftAttachment: TurnAttachment?
 
     @ObservationIgnored private let jobs: JobsModel
 
@@ -54,6 +57,15 @@ public final class ChatViewModel {
         return nil
     }
 
+    /// Offered while a page is pinned, no photo is staged, the composer is empty, and a turn can be written.
+    public var starterQuestions: [StarterQuestion] {
+        guard case .page = draftAttachment,
+              jobs.canAppend(to: target),
+              composerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else { return [] }
+        return StarterQuestion.allCases
+    }
+
     public var activeDemoPhotoID: String? {
         isDemoMode ? selectedDemoPhotoID : nil
     }
@@ -65,25 +77,65 @@ public final class ChatViewModel {
     public var canSend: Bool {
         let trimmed = composerText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, jobs.canAppend(to: target) else { return false }
-        if isDemoMode { return selectedDemoPhotoID != nil }
+        if isDemoMode, draftAttachment == nil { return selectedDemoPhotoID != nil }
         return true
+    }
+
+    /// Pins `page` to the composer of the on-screen job. A staged photo moves with it.
+    public func askAbout(_ page: PageRef) {
+        if let photo = draftAttachment?.plugPhoto {
+            draftAttachment = .plugPhoto(photo, page: page)
+        } else {
+            draftAttachment = .page(page)
+        }
+    }
+
+    public func unpinPage() {
+        draftAttachment = nil
+    }
+
+    /// Needs a pinned page. Fills in the connector question when the composer is empty.
+    public func attachPlugPhoto(_ photo: PlugPhoto) {
+        guard let page = draftAttachment?.page else { return }
+        draftAttachment = .plugPhoto(photo, page: page)
+        if composerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            composerText = StarterQuestion.whichConnector.text
+        }
+    }
+
+    public func removePlugPhoto() {
+        guard let page = draftAttachment?.page else { return }
+        draftAttachment = .page(page)
+    }
+
+    /// Sends the starter's text with the pinned page. Ignored when the starter is not offered.
+    public func send(_ starter: StarterQuestion) async {
+        guard starterQuestions.contains(starter) else { return }
+        composerText = starter.text
+        await send()
     }
 
     /// Writes the trimmed composer into the on-screen job, or a new one, then waits for that reply.
     ///
+    /// A pinned page goes through `append(.page)`, including a staged plug photo.
+    /// Each of those turns carries the page. A sent photo is used up; the page stays pinned.
+    /// A typed turn with no pin goes through `append(.typed)`.
     /// The user turn is stored before the reply. A failed reply keeps it. An empty composer does not send.
     /// Cancelling this call cancels the reply and does not present a backend failure.
     public func send() async {
         let trimmed = composerText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard canSend else { return }
+        let attachment = draftAttachment
         let id: JobID
         do {
-            guard let written = try jobs.append(.typed(trimmed), to: target, options: replyOptions) else {
-                return
-            }
+            let written = try append(trimmed, attachment: attachment)
+            guard let written else { return }
             id = written
         } catch {
             return
+        }
+        if let attachment {
+            draftAttachment = .page(attachment.page)
         }
         target = .job(id)
         composerText = ""
@@ -115,6 +167,27 @@ public final class ChatViewModel {
             }
         }
         return highlight?.display ?? (highlight == nil ? nil : .outline)
+    }
+
+    /// Page turns omit the demo bay photo. The server answers from the page.
+    private func append(_ text: String, attachment: TurnAttachment?) throws -> JobID? {
+        guard let attachment else {
+            return try jobs.append(.typed(text), to: target, options: replyOptions)
+        }
+        guard let messageID = jobs.makeMessageID() else { return nil }
+        // PageAsk stores a citation. The wire sends doc id and page only, so the snippet is the chip.
+        guard let citation = Citation(
+            docID: attachment.page.docID,
+            page: attachment.page.page,
+            snippet: attachment.page.chipLabel
+        ) else { return nil }
+        let ask = PageAsk(
+            messageID: messageID,
+            citation: citation,
+            question: text,
+            plugPhoto: attachment.plugPhoto
+        )
+        return try jobs.append(.page(ask), to: target, options: .none)
     }
 
     static let unknownFailureMessage = "Something went wrong. Try again."
