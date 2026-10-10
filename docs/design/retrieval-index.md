@@ -49,7 +49,7 @@ The reference implementation is SQLite FTS5. The `Retriever` protocol is the sea
 
 Two stores were compared, matching the issue's examples: a SQLite index vs a flat-file index. Vector SQLite is recorded as a deferred third option, not a Phase 1 store.
 
-**Candidate A — SQLite FTS5 (chosen).** One `.sqlite` file. `doc_id` and `page` are unindexed columns; `labels` (headings and `NAME NO. N` component strings) and `text` are FTS5 `porter unicode61`. Query building drops stopwords and vehicle tokens (`2JZ-GE`, `IS300`), ANDs the rest, falls back to OR if that MATCH is empty, then reranks with label hits, phrase hits, IDF coverage, and Toyota heading cues (`Torque:`, `SERVICE DATA`). `bm25` weights `labels` above `text`. Stdlib `sqlite3` only.
+**Candidate A — SQLite FTS5 (chosen).** One `.sqlite` file. `doc_id` and `page` are unindexed columns; `labels` (headings and `NAME NO. N` component strings) and `text` are FTS5 `porter unicode61`. Query building drops stopwords and vehicle tokens (`2JZ-GE`, `IS300`), ANDs the rest, falls back to OR if that MATCH is empty, then reranks with label hits, phrase hits, IDF coverage, and Toyota heading cues (`Torque:`, `SERVICE DATA`). `bm25(chunks, 0, 0, 8, 1)` weights `labels` above `text`. The first two weights are zero because `doc_id` and `page` are the unindexed columns and `bm25` weights are positional. Stdlib `sqlite3` only.
 
 **Candidate B — JSONL plus an in-memory inverted index.** Load `chunks.jsonl` on process start, tokenize in Python, rank with a hand-rolled BM25. No extra file.
 
@@ -69,7 +69,7 @@ Do not start that port in this issue. Re-evaluate only if M2 eval shows lexical 
 
 - Lexical FTS5, not embeddings. Workshop queries are part names, symptoms, and procedure words. Exact tokens matter more than cosine similarity for page-anchored citations.
 - AND of content tokens first, OR fallback if that MATCH is empty. Stopwords and model tokens (`2JZ`, `GE`) are dropped so the identification page does not beat a spec page. Precision tuning stays lexical FTS5; no embeddings.
-- `score` is `-bm25(chunks)` so callers can sort descending. Raw FTS5 `bm25()` is lower-is-better; we do not expose that sign.
+- `score` is `-bm25(chunks, 0, 0, 8, 1)` so callers can sort descending. Raw FTS5 `bm25()` is lower-is-better; we do not expose that sign. The two leading zeros are the unindexed `doc_id` and `page` columns.
 - Full page text in `RetrievedChunk.text`. #20 snippets and the spec guard (#21) need the retrieved page, not a truncated preview.
 - Rebuild replaces the file. Manuals change as a whole; incremental upsert can wait.
 - No extra pip packages. `backend/requirements.txt` is unchanged.
@@ -93,7 +93,7 @@ Do not start that port in this issue. Re-evaluate only if M2 eval shows lexical 
 
 #20 calls `Retriever.search` before the model when the index file exists for that
 request. It keeps a citation only when `(doc_id, page)` was retrieved and the
-snippet matches that page after whitespace and token-bag normalize. An empty
+snippet is a contiguous span of that page, after whitespace is collapsed. A rearrangement of the page's tokens is not a quote. An empty
 search, or a JSON object with an empty citations array, returns the refusal
 shape. A completion that is not that JSON object, or a non-empty citation list
 that does not survive the check, returns the unavailable answer. The

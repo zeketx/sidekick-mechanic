@@ -225,7 +225,11 @@ def extract_labels(text: str) -> str:
 
 
 def snippet_matches_page(snippet: str, page_text: str) -> bool:
-    """True when snippet is on the page after whitespace / token-bag normalize."""
+    """True when snippet is a contiguous span of the page text.
+
+    Whitespace may collapse. Token order may not. A rearrangement of the
+    page's words is not a quote.
+    """
 
     if not snippet.strip() or not page_text:
         return False
@@ -233,20 +237,7 @@ def snippet_matches_page(snippet: str, page_text: str) -> bool:
         return True
     snip_ws = _WS.sub(" ", snippet).strip()
     page_ws = _WS.sub(" ", page_text).strip()
-    if snip_ws in page_ws:
-        return True
-    snip_tokens = _TOKEN.findall(snippet)
-    if not snip_tokens:
-        return False
-    page_counts: dict[str, int] = {}
-    for token in _TOKEN.findall(page_text):
-        page_counts[token] = page_counts.get(token, 0) + 1
-    for token in snip_tokens:
-        remaining = page_counts.get(token, 0)
-        if remaining < 1:
-            return False
-        page_counts[token] = remaining - 1
-    return True
+    return snip_ws in page_ws
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -379,14 +370,17 @@ def _match_rows(
 ) -> list[sqlite3.Row]:
     if match is None:
         return []
-    weights = (_LABEL_BM25_WEIGHT, _TEXT_BM25_WEIGHT)
+    # bm25 weights are positional and include UNINDEXED columns.
+    # doc_id and page are columns 0 and 1, so the label and text weights
+    # follow two zeros. Two weights would land on the unindexed columns.
+    weights = (0.0, 0.0, _LABEL_BM25_WEIGHT, _TEXT_BM25_WEIGHT)
     if doc_id is None:
         sql = """
         SELECT doc_id, page, labels, text,
-               -bm25(chunks, ?, ?) AS score
+               -bm25(chunks, ?, ?, ?, ?) AS score
         FROM chunks
         WHERE chunks MATCH ?
-        ORDER BY bm25(chunks, ?, ?)
+        ORDER BY bm25(chunks, ?, ?, ?, ?)
         LIMIT ?
         """
         params: tuple[object, ...] = (
@@ -398,10 +392,10 @@ def _match_rows(
     else:
         sql = """
         SELECT doc_id, page, labels, text,
-               -bm25(chunks, ?, ?) AS score
+               -bm25(chunks, ?, ?, ?, ?) AS score
         FROM chunks
         WHERE chunks MATCH ? AND doc_id = ?
-        ORDER BY bm25(chunks, ?, ?)
+        ORDER BY bm25(chunks, ?, ?, ?, ?)
         LIMIT ?
         """
         params = (*weights, match, doc_id, *weights, k)
