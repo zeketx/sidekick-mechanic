@@ -30,7 +30,7 @@ UI-test garage writes use a temporary folder when `-garageTemporaryStore` or `SI
 
 ### GarageLibrary
 
-Codable file. Fields at `GarageLibrary.swift:95-99`.
+Codable file. Fields at `GarageLibrary.swift:95-99`. There is no version field. `load` throws `GarageStoreError.unreadable` when the file exists and does not decode (`GarageLibrary.swift:291-300`). `GarageModel.init` catches that, shows the seed, and leaves writes enabled (`GarageLibrary.swift:412-418`). The next successful `commit` (`GarageLibrary.swift:544-553`) writes the seed over the unreadable file.
 
 | Field | Type |
 | --- | --- |
