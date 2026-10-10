@@ -115,6 +115,6 @@ An issue is done when all of these are true:
 
 ## Working style
 
-This repo is built with pstack's poteto mode. The plugin is enabled in `.cursor/settings.json`. See [docs/POTETO_PLAN.md](docs/POTETO_PLAN.md) for which playbook to use when, the cost policy, and when to use poteto-mode.
+This repo is built with pstack's poteto mode. The plugin is enabled in `.cursor/settings.json`. pstack keeps its original default models. Low-cost mode is opt-in: `/cheap`, or the phrases `low-cost mode`, `low cost`, or `grok-only`, or a launch line `Cost: LOW`. When one of those is present, read `.cursor/rules/pstack-models.mdc` and apply every role line for this session. Otherwise leave that rule unused. See [docs/POTETO_PLAN.md](docs/POTETO_PLAN.md) for which playbook to use when, and when to use poteto-mode.
 
 Every PR starts with `Mode: HARD (reason)` or `Mode: LIGHT (reason)`. HARD (multi-subsystem, answer/data/retrieval quality, a design decision, about five or more files, or verify failed twice) uses `/poteto-mode`. LIGHT is one agent and the smallest diff.
