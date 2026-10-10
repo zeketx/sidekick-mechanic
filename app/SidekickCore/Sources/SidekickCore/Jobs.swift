@@ -485,6 +485,10 @@ public final class JobsModel {
                 replies[id] = nil
                 return
             }
+            if case let .providerUnavailable(unavailable) = answer {
+                replies[id] = .failed(unavailable.text)
+                return
+            }
             guard let messageID = MessageID(rawValue: makeID()) else {
                 replies[id] = .failed(JobsCopy.replyNotSaved)
                 return

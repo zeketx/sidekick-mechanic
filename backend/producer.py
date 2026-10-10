@@ -67,9 +67,9 @@ _GROUNDED_INSTRUCTIONS = (
 )
 
 UNAVAILABLE_ANSWER: dict[str, Any] = {
-    "kind": "answer",
+    "kind": "error",
     "text": "The mechanic is unavailable right now. Try again in a moment.",
-    "citations": [],
+    "reason": "provider_unavailable",
 }
 
 NOT_FOUND_REFUSAL: dict[str, Any] = {
@@ -135,8 +135,10 @@ class _GroundedCompletion:
 class CitedChunkSource(Protocol):
     """Page text the spec guard may treat as evidence."""
 
-    def cited_chunk_texts(self, conversation: Conversation) -> Sequence[str]:
-        """Chunk texts retrieved for this conversation, one string per chunk."""
+    def cited_chunk_texts(
+        self, conversation: Conversation, answer: Mapping[str, Any]
+    ) -> Sequence[str]:
+        """Page text for citations that survived on this answer."""
 
 
 class FixtureAnswerProducer:
@@ -176,17 +178,17 @@ class LlmAnswerProducer:
         if retriever is None:
             return self._ungrounded(conversation)
 
-        query = _last_user_text(conversation)
+        query = _retrieval_query(conversation)
         if _chassis_wiring_blocked(query):
             return dict(WIRING_NOT_INGESTED_REFUSAL)
         try:
             hits = _search_hits(retriever, query)
         except _IndexMissing:
-            return self._ungrounded(conversation)
+            return self._with_part_highlight(dict(NOT_FOUND_REFUSAL), conversation)
         except (RetrievalError, sqlite3.Error):
             return dict(UNAVAILABLE_ANSWER)
         if not hits:
-            return _refusal_for_miss(query)
+            return self._with_part_highlight(_refusal_for_miss(query), conversation)
 
         text = self._complete(
             _chat_messages(conversation, _grounded_system_prompt(hits, conversation))
@@ -197,7 +199,7 @@ class LlmAnswerProducer:
         if parsed is None:
             return dict(UNAVAILABLE_ANSWER)
         if parsed.citation_count == 0:
-            return dict(NOT_FOUND_REFUSAL)
+            return self._with_part_highlight(dict(NOT_FOUND_REFUSAL), conversation)
         citations = _filter_citations(parsed.citations, hits)
         if not citations:
             return dict(UNAVAILABLE_ANSWER)
@@ -206,18 +208,34 @@ class LlmAnswerProducer:
             conversation,
         )
 
-    def cited_chunk_texts(self, conversation: Conversation) -> tuple[str, ...]:
+    def cited_chunk_texts(
+        self, conversation: Conversation, answer: Mapping[str, Any]
+    ) -> tuple[str, ...]:
+        if answer.get("kind") != "answer":
+            return ()
+        citations = answer.get("citations")
+        if not isinstance(citations, list):
+            return ()
+        cited_pages = {
+            (item.get("doc_id"), item.get("page"))
+            for item in citations
+            if isinstance(item, dict)
+        }
+        if not cited_pages:
+            return ()
         retriever = self._retriever
         if retriever is None:
             return ()
-        query = _last_user_text(conversation)
+        query = _retrieval_query(conversation)
         if _chassis_wiring_blocked(query):
             return ()
         try:
             hits = _search_hits(retriever, query)
         except (_IndexMissing, RetrievalError, sqlite3.Error):
             return ()
-        return tuple(hit.text for hit in hits)
+        return tuple(
+            hit.text for hit in hits if (hit.doc_id, hit.page) in cited_pages
+        )
 
     def _ungrounded(self, conversation: Conversation) -> dict[str, Any]:
         system = (
@@ -365,6 +383,22 @@ def _wiring_manual_blocked() -> bool:
         document.id == _CHASSIS_WIRING_DOC_ID and document.status == "blocked"
         for document in documents
     )
+
+
+def _retrieval_query(conversation: Conversation) -> str:
+    """Join the owner's questions. Assistant text is not a search term.
+
+    A follow-up such as "And the gap?" has to carry the earlier question.
+    Assistant turns include refusals and the safety note, which would
+    pull the index off the question.
+    """
+
+    parts = [
+        message.text.strip()
+        for message in conversation.messages
+        if message.role == "user" and message.text.strip()
+    ]
+    return " ".join(parts)
 
 
 def _last_user_text(conversation: Conversation) -> str:

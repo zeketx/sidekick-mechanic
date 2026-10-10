@@ -43,7 +43,7 @@ def test_chat_happy_path_returns_schema_valid_fixture() -> None:
     }
 
 
-def test_chat_default_without_api_key_uses_fake_llm(
+def test_chat_missing_index_refuses_without_calling_the_model(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     missing = tmp_path / "missing.sqlite"
@@ -53,11 +53,9 @@ def test_chat_default_without_api_key_uses_fake_llm(
     assert response.status_code == 200
     payload = response.json()
     validate_answer(payload)
-    assert payload == {
-        "kind": "answer",
-        "text": DEFAULT_FAKE_TEXT,
-        "citations": [],
-    }
+    assert payload["kind"] == "refusal"
+    assert payload["reason"] == "not_found_in_manual"
+    assert DEFAULT_FAKE_TEXT not in payload["text"]
 
 
 def test_chat_llm_error_returns_contract_valid_error_answer() -> None:
@@ -172,8 +170,10 @@ def test_chat_allows_spec_when_producer_supplies_the_chunk() -> None:
             del conversation
             return answer
 
-        def cited_chunk_texts(self, conversation: Conversation) -> tuple[str, ...]:
-            del conversation
+        def cited_chunk_texts(
+            self, conversation: Conversation, answer: dict[str, Any]
+        ) -> tuple[str, ...]:
+            del conversation, answer
             return ("FAKE-CHUNK: torque is 999 N·m.",)
 
     response = TestClient(create_app(producer=ChunkProducer())).post(

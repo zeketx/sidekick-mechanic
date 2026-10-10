@@ -86,7 +86,7 @@ Refusals that enter the guard are not checks and are not failures. `failures` co
 
 `POST /chat` calls `guard_answer` on the producer payload, then `apply_safety_preamble` on the guarded payload, then contract validation. The safety note is appended after the guard, so the note is never scanned.
 
-Chunk text comes from `CitedChunkSource.cited_chunk_texts` on the producer (`backend/producer.py`). `LlmAnswerProducer` does not implement that yet, so the chunk list is empty. Any spec in the answer is then uncited and the response is a refusal. A producer should implement `CitedChunkSource` once it has retrieved page text. Until then, failing closed is the safe default.
+Chunk text comes from `CitedChunkSource.cited_chunk_texts` on the producer (`backend/producer.py`). `LlmAnswerProducer` implements that method. It returns the page text of citations that survived the snippet check, not every retrieved hit. A spec that appears only on a hit the answer did not cite is refused. With no retriever, no index file, or no surviving citations, the chunk list is empty and any spec in the answer is refused.
 
 The guard does not retrieve pages and does not call a model.
 

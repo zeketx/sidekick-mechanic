@@ -139,7 +139,9 @@ def test_producer_llm_error_returns_unavailable_answer() -> None:
 
     validate_answer(payload)
     assert payload == UNAVAILABLE_ANSWER
-    assert payload["citations"] == []
+    assert payload["kind"] == "error"
+    assert payload["reason"] == "provider_unavailable"
+    assert "citations" not in payload
 
 
 def test_producer_empty_completion_returns_unavailable_answer() -> None:

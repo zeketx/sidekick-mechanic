@@ -82,8 +82,10 @@ class CitedSpecProducer:
             ],
         }
 
-    def cited_chunk_texts(self, conversation: Conversation) -> tuple[str, ...]:
-        del conversation
+    def cited_chunk_texts(
+        self, conversation: Conversation, answer: object
+    ) -> tuple[str, ...]:
+        del conversation, answer
         # U+00B7 in N·m matches the chunk in backend/tests/test_chat.py.
         return ("FAKE-CHUNK: torque is 999 N·m.",)
 

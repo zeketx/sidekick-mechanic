@@ -668,8 +668,8 @@ struct ChatScreen: View {
     private func demoContext(for message: Message) -> DemoAnswerContext? {
         guard model.isDemoMode else { return nil }
         let highlight: HighlightRef?
-        if case let .assistant(assistant) = message, case let .found(found) = assistant.answer {
-            highlight = found.highlight
+        if case let .assistant(assistant) = message {
+            highlight = assistant.answer.highlight
         } else {
             highlight = nil
         }

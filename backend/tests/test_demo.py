@@ -16,7 +16,6 @@ from demo import (
     DEMO_DIM_FACTOR,
     DEMO_LABEL,
     DEMO_SYSTEM_PROMPT,
-    DEMO_VEHICLE,
     apply_demo_resolution,
     bay_map_view_for_photo,
     catalog_public,
@@ -70,6 +69,19 @@ class _ScriptedLLM:
 
 def _result(text: str) -> LLMResult:
     return LLMResult(text=text, model="fake", usage=None)
+
+
+class _Page:
+    def __init__(self, doc_id: str, page: int, text: str) -> None:
+        self.doc_id = doc_id
+        self.page = page
+        self.text = text
+
+
+class _Pages:
+    def search(self, query: str, k: int = 5) -> tuple[_Page, ...]:
+        del query, k
+        return (_Page("FAKE-DOC", 999, "FAKE-CHUNK: no part location."),)
 
 
 def test_confirm_dim_is_in_the_visible_band() -> None:
@@ -130,9 +142,8 @@ def test_outline_state_returns_demo_geometry() -> None:
         "y": 0.46413,
     }
     assert DEMO_DIAGRAM_POINTER not in payload["text"]
-    assert payload["text"].startswith("Here it is.")
-    assert "throttle body" in payload["text"]
-    assert DEMO_VEHICLE in payload["text"]
+    assert payload["text"] == "Check the throttle body on the demo photo."
+    assert "1990 Toyota" not in payload["text"]
     assert payload["citations"][0]["page"] == 999
 
 
@@ -147,8 +158,8 @@ def test_confirm_state_returns_softer_display() -> None:
     assert payload["highlight"]["demo"] is True
     assert payload["highlight"]["part_id"] == "intake-plenum"
     assert payload["highlight"]["geometry"]["polygons"][0]["points"][0]["x"] == 0.53125
-    assert payload["text"].startswith("I think this is the intake plenum")
-    assert DEMO_VEHICLE in payload["text"]
+    assert payload["text"] == "The intake plenum is the large chamber."
+    assert "1990 Toyota" not in payload["text"]
 
 
 def test_not_found_state_omits_highlight_and_points_at_diagram() -> None:
@@ -182,7 +193,7 @@ def test_null_selection_leaves_text_and_omits_highlight() -> None:
     assert DEMO_DIAGRAM_POINTER not in payload["text"]
 
 
-def test_refusal_never_gains_demo_highlight() -> None:
+def test_refusal_keeps_its_text_and_gains_the_outline() -> None:
     refusal = {
         "kind": "refusal",
         "text": "Not found in the manual.",
@@ -203,11 +214,13 @@ def test_refusal_never_gains_demo_highlight() -> None:
         HRYMX,
     )
     validate_answer(payload)
-    assert payload == {
-        "kind": "refusal",
-        "text": "Not found in the manual.",
-        "reason": "not_found_in_manual",
-    }
+    assert payload["kind"] == "refusal"
+    assert payload["text"] == "Not found in the manual."
+    assert payload["reason"] == "not_found_in_manual"
+    assert "citations" not in payload
+    assert payload["highlight"]["part_id"] == "throttle-body"
+    assert payload["highlight"]["demo"] is True
+    assert "1990 Toyota" not in payload["text"]
 
 
 def test_multi_ring_confirm_keeps_both_polygons() -> None:
@@ -273,25 +286,20 @@ def _demo_body(text: str, photo_id: str = HRYMX) -> dict[str, Any]:
 
 
 @pytest.mark.parametrize(
-    ("question", "part_id", "display", "needle"),
+    ("question", "part_id", "display"),
     [
-        ("where's the throttle body?", "throttle-body", "outline", "Here it is."),
-        ("where is the throttle body", "throttle-body", "outline", "Here it is."),
-        (
-            "show me the intake plenum",
-            "intake-plenum",
-            "confirm",
-            "I think this is the intake plenum",
-        ),
+        ("where's the throttle body?", "throttle-body", "outline"),
+        ("where is the throttle body", "throttle-body", "outline"),
+        ("show me the intake plenum", "intake-plenum", "confirm"),
     ],
 )
 def test_scripted_chat_resolves_plain_question_not_reply(
     question: str,
     part_id: str,
     display: str,
-    needle: str,
 ) -> None:
-    fake = _ScriptedLLM([_result("I do not know the make or model of this engine.")])
+    model_text = "I do not know the make or model of this engine."
+    fake = _ScriptedLLM([_result(model_text)])
     client = _demo_client(LlmAnswerProducer(fake))
     response = client.post("/chat", json=_demo_body(question))
     assert response.status_code == 200
@@ -301,9 +309,8 @@ def test_scripted_chat_resolves_plain_question_not_reply(
     assert payload["highlight"]["part_id"] == part_id
     assert payload["highlight"]["demo"] is True
     assert payload["highlight"]["geometry"]["polygons"]
-    assert needle in payload["text"]
-    assert DEMO_VEHICLE in payload["text"]
-    assert "I do not know the make or model" not in payload["text"]
+    assert payload["text"] == model_text
+    assert "1990 Toyota" not in payload["text"]
     assert len(fake.calls) == 1
     assert fake.calls[0][0].content == DEMO_SYSTEM_PROMPT
 
@@ -389,9 +396,28 @@ def test_producer_resolves_from_question_without_a_second_llm_call() -> None:
     )
     validate_answer(payload)
     assert payload["highlight"]["part_id"] == "throttle-body"
-    assert payload["text"].startswith("Here it is.")
+    assert payload["text"] == "I do not know the make or model."
+    assert "1990 Toyota" not in payload["text"]
     assert len(scripted.calls) == 1
     assert scripted.calls[0][0].content == DEMO_SYSTEM_PROMPT
+
+
+def test_empty_citations_still_attach_the_demo_outline() -> None:
+    fake = _ScriptedLLM([_result('{"text":"no page","citations":[]}')])
+    response = _demo_client(LlmAnswerProducer(fake, retriever=_Pages())).post(
+        "/chat",
+        json=_demo_body("where's the throttle body?"),
+    )
+    assert response.status_code == 200
+    payload = response.json()
+    validate_answer(payload)
+    assert payload["kind"] == "refusal"
+    assert payload["reason"] == "not_found_in_manual"
+    assert payload["highlight"]["part_id"] == "throttle-body"
+    assert payload["highlight"]["display"] == "outline"
+    assert payload["text"].startswith("Not found in the manual")
+    assert "1990 Toyota" not in payload["text"]
+    assert len(fake.calls) == 1
 
 
 def test_unmatched_question_leaves_llm_text_and_omits_highlight() -> None:

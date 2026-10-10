@@ -8,10 +8,11 @@ Python 3.11+ and FastAPI. This is the RAG service for Sidekick Mechanic.
 `.ingest/index.sqlite` exists, the producer searches that FTS5 index and then
 calls the model. The model must reply with one JSON object. Each citation has
 `doc_id`, an integer `page`, and a `snippet` copied from that page. A citation
-stays only when that page was in the hits and the snippet matches that page:
-an exact span, the same span after collapsing whitespace, or the same tokens
-as a bag (order ignored, case preserved). An empty search, or a JSON object with an
-empty `citations` array, returns a refusal with reason `not_found_in_manual`.
+stays only when that page was in the hits and the snippet is a contiguous span
+of that page. Whitespace may collapse. A rearrangement of the page's tokens is
+not a quote. An empty search, a missing index file, or a JSON object with an
+empty `citations` array returns a refusal with reason `not_found_in_manual`.
+A missing index does not call the model.
 Engine-wiring questions (ECM, injectors, ignition coils, VVT, EFI, the 2JZ
 engine harness) search `is300-engine-wiring` and cite that EWD. While
 `lj78-wiring` is `blocked` in `docs/MANUALS.md`, a chassis or body wiring
@@ -20,10 +21,9 @@ says the wiring manual is not ingested yet, even if the IS300 EWD would have
 matched a fuse or relay. A generic wiring, harness, pinout, or EWD question
 that matches nothing uses that same miss. Those refusals have no citations.
 Non-JSON completions, citations that all fail that check, provider errors, and
-a blank completion return the unavailable answer (`kind: answer`). The
-unavailable answer means the producer could not return a cited reply. With no
-index file, the producer wraps the model text and sets `citations` to an empty
-array. With no API key, `FakeLLMClient` answers from the retrieved pages. Each
+a blank completion return a provider error (`kind: error`,
+`reason: provider_unavailable`). That payload is not a manual answer. With no
+API key, `FakeLLMClient` answers from the retrieved pages. Each
 citation is `doc_id`, `page`, and a snippet copied from that page, so the
 provenance check can keep it. The answer text is a local stand-in, not a model
 procedure. An empty search still returns `not_found_in_manual` and does not
@@ -298,8 +298,10 @@ Citation snippets are not evidence. `POST /chat` passes chunk text from
 `CitedChunkSource.cited_chunk_texts` when the producer implements it, and
 passes no chunks otherwise. With no chunks, any spec in the answer is refused.
 `LlmAnswerProducer` implements that protocol. `cited_chunk_texts` returns the
-page text from the same search as the citations. With no index file, or no
-hits, it returns no chunks.
+page text of citations that survived, from the same search as the answer.
+The search query is every user message in the conversation, not only the last
+one. With no index file, no hits, or no surviving citations, it returns no
+chunks.
 
 Failures log a warning on the `sidekick.spec_guard` logger.
 `SpecGuardUncitedCounter` (`name` is `spec_guard`) is the harness hook: its
@@ -330,8 +332,9 @@ the same `/v1/chat/completions` API).
 
 `LlmAnswerProducer` implements `AnswerProducer`. `/chat` stays the HTTP
 boundary. Provider failures (timeouts, exhausted retries, empty completions)
-return HTTP 200 with a contract-valid error answer (`kind: answer`, empty
-citations). Token usage and latency are logged on logger `sidekick.llm`.
+return HTTP 200 with `kind: error` and `reason: provider_unavailable`.
+That is not a found answer. Token usage and latency are logged on logger
+`sidekick.llm`.
 
 Environment variables (see `.env.example`):
 

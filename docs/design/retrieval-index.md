@@ -96,7 +96,8 @@ request. It keeps a citation only when `(doc_id, page)` was retrieved and the
 snippet is a contiguous span of that page, after whitespace is collapsed. A rearrangement of the page's tokens is not a quote. An empty
 search, or a JSON object with an empty citations array, returns the refusal
 shape. A completion that is not that JSON object, or a non-empty citation list
-that does not survive the check, returns the unavailable answer. The
-unavailable answer means the producer could not return a cited reply. #24 runs
+that does not survive the check, returns a provider error
+(`kind: error`, `reason: provider_unavailable`). That payload is not a
+manual answer. #24 runs
 `search(question, k=5)`
 and scores membership of the golden pages.

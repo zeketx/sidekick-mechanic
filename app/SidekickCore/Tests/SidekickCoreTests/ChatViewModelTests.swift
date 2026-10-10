@@ -76,6 +76,50 @@ final class ChatViewModelTests: XCTestCase {
         XCTAssertEqual(client.sent[0].id.rawValue, "msg-2")
     }
 
+    func testProviderErrorIsShownAsAnErrorNotAnAnswer() async throws {
+        let unavailable = ProviderUnavailable(
+            text: "The mechanic is unavailable right now. Try again in a moment."
+        )!
+        let highlight = HighlightRef(
+            bayPhotoID: try XCTUnwrap(BayPhotoID(rawValue: "hrymx-2jz-ge-25308847029")),
+            partID: try XCTUnwrap(PartID(rawValue: "intake-plenum")),
+            display: .outline,
+            isDemo: true
+        )
+        let refusal = try XCTUnwrap(
+            Refusal(text: "Not found in the cited manual text.", highlight: highlight)
+        )
+        let client = ScriptedChatClient(results: [
+            .success(.providerUnavailable(unavailable)),
+            .success(.refusal(refusal)),
+        ])
+        let model = makeModel(client: client, composerText: "where is the fake part")
+
+        await model.send()
+        let failedID = try XCTUnwrap(model.target.jobID)
+
+        XCTAssertFalse(model.isLoading)
+        XCTAssertEqual(model.messages.count, 1)
+        XCTAssertEqual(try userText(model.messages[0]), "where is the fake part")
+        XCTAssertEqual(model.errorMessage, unavailable.text)
+        XCTAssertNil(model.job?.highlight)
+
+        model.startNewJob()
+        model.composerText = "and the outline"
+        await model.send()
+
+        XCTAssertNotEqual(model.target.jobID, failedID)
+        XCTAssertNil(model.errorMessage)
+        XCTAssertEqual(model.messages.count, 2)
+        XCTAssertEqual(model.job?.answerText, refusal.text)
+        XCTAssertEqual(model.job?.highlight, highlight)
+
+        model.open(failedID)
+        XCTAssertEqual(model.errorMessage, unavailable.text)
+        XCTAssertEqual(model.messages.count, 1)
+        XCTAssertNil(model.job?.highlight)
+    }
+
     func testMockClientAppendsUserThenFixtureAnswer() async throws {
         let directory = try ContractFixtures.repositoryDirectory()
         let fixtures = try ContractFixtures.load(from: directory)

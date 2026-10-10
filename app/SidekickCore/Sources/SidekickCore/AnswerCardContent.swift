@@ -6,6 +6,7 @@ public struct AnswerCardContent: Hashable, Sendable {
     public enum Presentation: Hashable, Sendable {
         case found
         case notFoundInManual
+        case providerUnavailable
     }
 
     /// One citation chip. The label is the document id and page.
@@ -21,6 +22,7 @@ public struct AnswerCardContent: Hashable, Sendable {
 
     /// Stable heading for the refusal card. The body text stays the model's reply.
     public static let notFoundStatusTitle = "Not found in the manual"
+    public static let unavailableStatusTitle = "Mechanic unavailable"
 
     public let text: String
     public let presentation: Presentation
@@ -34,6 +36,8 @@ public struct AnswerCardContent: Hashable, Sendable {
             return nil
         case .notFoundInManual:
             return Self.notFoundStatusTitle
+        case .providerUnavailable:
+            return Self.unavailableStatusTitle
         }
     }
 
@@ -43,6 +47,8 @@ public struct AnswerCardContent: Hashable, Sendable {
             return "answerCard.found"
         case .notFoundInManual:
             return "answerCard.refusal"
+        case .providerUnavailable:
+            return "answerCard.unavailable"
         }
     }
 
@@ -66,8 +72,13 @@ public struct AnswerCardContent: Hashable, Sendable {
             }
             highlight = found.highlight
             showsHighlightSlot = found.highlight != nil
-        case .refusal:
+        case let .refusal(refusal):
             presentation = .notFoundInManual
+            chips = []
+            highlight = refusal.highlight
+            showsHighlightSlot = refusal.highlight != nil
+        case .providerUnavailable:
+            presentation = .providerUnavailable
             chips = []
             highlight = nil
             showsHighlightSlot = false
