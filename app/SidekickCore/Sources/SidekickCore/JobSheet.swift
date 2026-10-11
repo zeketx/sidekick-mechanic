@@ -617,7 +617,7 @@ public final class JobSheetViewModel {
     public func applyDrag(translationHeight: Double) {
         if translationHeight < -40 {
             expand()
-        } else         if translationHeight > 40 {
+        } else if translationHeight > 40 {
             collapseStep()
         }
     }
