@@ -70,6 +70,7 @@ struct JobHistoryView: View {
             LookBackPaperHeader(
                 title: JobHistoryCopy.title,
                 showScanLog: true,
+                visitGeneration: visitGeneration,
                 onBack: { dismiss() }
             )
         }
@@ -224,6 +225,7 @@ struct LookBackThumb: View {
 struct LookBackPaperHeader: View {
     var title: String
     var showScanLog: Bool
+    var visitGeneration: Int = 0
     var onBack: () -> Void
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
