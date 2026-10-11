@@ -46,6 +46,7 @@ struct GarageScreen: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            sheetTopMarker("garage.sheetTop")
             header
             ScrollViewReader { proxy in
                 ScrollView {
@@ -81,6 +82,8 @@ struct GarageScreen: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Color.white)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("garage.sheet")
         .background {
             GarageSheetPositionReader(coverage: $coverage)
         }
@@ -150,7 +153,7 @@ struct GarageScreen: View {
             }
         }
         .padding(.horizontal, 16)
-        .padding(.top, 8)
+        .sheetHeaderClearance()
         .padding(.bottom, 6)
     }
 
@@ -158,9 +161,13 @@ struct GarageScreen: View {
         VStack(alignment: .leading, spacing: 12) {
             sectionTitle(GarageCopy.about)
             if model.isEditing {
-                addButton(GarageCopy.addFact, identifier: "garage.addFact") {
+                Button(GarageCopy.addFact) {
                     present(.addFact)
                 }
+                .buttonStyle(.plain)
+                .font(.body)
+                .foregroundStyle(.primary)
+                .accessibilityIdentifier("garage.addFact")
             }
             if !confirmedFacts.isEmpty {
                 sectionTitle(GarageCopy.confirmed)
@@ -250,26 +257,21 @@ struct GarageScreen: View {
     }
 
     private var todoComposer: some View {
-        HStack(spacing: 12) {
+        VStack(alignment: .leading, spacing: 8) {
             TextField(GarageCopy.todoPlaceholder, text: $todoDraft)
                 .textFieldStyle(.plain)
                 .font(.body)
                 .submitLabel(.done)
                 .onSubmit(commitTodo)
                 .accessibilityIdentifier("garage.todo.field")
-            Button(GarageCopy.add, action: commitTodo)
-                .buttonStyle(.plain)
-                .font(.body)
-                .foregroundStyle(canAddTodo ? Color.primary : Color.secondary)
-                .disabled(!canAddTodo)
-                .accessibilityIdentifier("garage.addTodo")
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 12)
-        .background(JobSheetChrome.paper, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(Color.secondary.opacity(0.22))
+                .padding(.horizontal, 14)
+                .padding(.vertical, 12)
+                .background(Color.white, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .strokeBorder(Color.secondary.opacity(0.35))
+                }
+            addButton(GarageCopy.addTodo, identifier: "garage.addTodo", enabled: canAddTodo, action: commitTodo)
         }
     }
 
@@ -304,12 +306,35 @@ struct GarageScreen: View {
             .foregroundStyle(.secondary)
     }
 
-    private func addButton(_ title: String, identifier: String, action: @escaping () -> Void) -> some View {
-        Button(title, action: action)
-            .buttonStyle(.plain)
-            .font(.body)
-            .foregroundStyle(.primary)
-            .accessibilityIdentifier(identifier)
+    private func addButton(
+        _ title: String,
+        identifier: String,
+        enabled: Bool = true,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Image(systemName: "plus")
+                    .font(.body.weight(.semibold))
+                    .accessibilityHidden(true)
+                Text(title)
+                    .font(.body.weight(.semibold))
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(enabled ? Color.primary : Color.secondary)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(Color.white)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(Color.primary.opacity(enabled ? 0.55 : 0.22), lineWidth: 1.5)
+        }
+        .disabled(!enabled)
+        .accessibilityIdentifier(identifier)
     }
 
     private func factCard(_ fact: GarageFact) -> some View {
@@ -527,6 +552,7 @@ private struct GarageEditorSheet: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            sheetTopMarker("garage.formTop")
             sheetHeader
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
@@ -545,6 +571,8 @@ private struct GarageEditorSheet: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Color.white)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("garage.form")
         .background {
             GarageSheetPositionReader(coverage: $coverage)
         }
@@ -606,7 +634,7 @@ private struct GarageEditorSheet: View {
             }
         }
         .padding(.horizontal, 16)
-        .padding(.top, 12)
+        .sheetHeaderClearance()
         .padding(.bottom, 8)
     }
 
@@ -749,7 +777,37 @@ private struct GarageEditorSheet: View {
                     .foregroundStyle(.primary)
                     .accessibilityIdentifier(cameraIdentifier)
             }
+            if GarageStoreLocation.showsSamplePhoto() {
+                Button {
+                    imageData = Self.sampleJPEG()
+                    pickError = nil
+                } label: {
+                    Text(GarageCopy.samplePhoto)
+                        .font(.body.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.primary)
+                .background(Color.white, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .strokeBorder(Color.primary.opacity(0.55), lineWidth: 1.5)
+                }
+                .accessibilityIdentifier(
+                    libraryIdentifier == "garage.photo.library" ? "garage.photo.sample" : "garage.item.sample"
+                )
+            }
         }
+    }
+
+    private static func sampleJPEG() -> Data {
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 8, height: 8))
+        let image = renderer.image { context in
+            UIColor(white: 0.45, alpha: 1).setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 8, height: 8))
+        }
+        return image.jpegData(compressionQuality: 0.85) ?? Data([0xFF, 0xD8, 0xFF, 0xD9])
     }
 
     @ViewBuilder

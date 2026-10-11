@@ -97,21 +97,86 @@ final class GarageLibraryTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: store.jsonURL.path))
     }
 
-    func testCorruptFileStaysOnDiskUntilTheNextSave() async throws {
+    func testCorruptFileIsSetAsideAndTheOriginalBytesSurvive() async throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("garage-corrupt-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: root) }
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         let url = root.appendingPathComponent("garage.json")
         try Data("not-json".utf8).write(to: url)
+        let photo = root.appendingPathComponent("photos/keep.jpg")
+        try FileManager.default.createDirectory(at: photo.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data([9, 9, 9]).write(to: photo)
 
-        let model = GarageModel(store: GarageLibraryStore(root: root))
+        let store = GarageLibraryStore(root: root)
+        XCTAssertThrowsError(try store.save(.seeded())) { error in
+            XCTAssertEqual(error as? GarageStoreError, .unreadable)
+        }
+        XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), "not-json")
+
+        let model = GarageModel(store: store, makeID: { "kept-todo" })
         XCTAssertEqual(
             model.library.facts.map(\.id),
             ["chassis", "engine", "donor-ecu", "obd-type", "harness", "photo-angles"]
         )
         XCTAssertEqual(model.statusMessage, GarageCopy.readFailed)
-        XCTAssertEqual(try String(contentsOf: url, encoding: .utf8), "not-json")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
+        let aside = try FileManager.default.contentsOfDirectory(at: root, includingPropertiesForKeys: nil)
+            .filter { $0.lastPathComponent.hasPrefix("garage.unreadable-") }
+        XCTAssertEqual(aside.count, 1)
+        XCTAssertEqual(try String(contentsOf: aside[0], encoding: .utf8), "not-json")
+        XCTAssertEqual(try Data(contentsOf: photo), Data([9, 9, 9]))
+
+        XCTAssertTrue(model.addTodo(title: "FAKE-TODO"))
+        XCTAssertEqual(try String(contentsOf: aside[0], encoding: .utf8), "not-json")
+        XCTAssertEqual(try Data(contentsOf: photo), Data([9, 9, 9]))
+        let saved = try store.load()
+        XCTAssertEqual(saved.todos.map(\.title), ["FAKE-TODO"])
+        XCTAssertEqual(saved.version, GarageLibrary.currentVersion)
+        XCTAssertFalse(try String(contentsOf: url, encoding: .utf8).contains("not-json"))
+    }
+
+    func testMissingVersionAndOptionalListsStillDecode() throws {
+        let seeded = GarageLibrary.seeded()
+        var object = try JSONSerialization.jsonObject(with: JSONEncoder().encode(seeded)) as! [String: Any]
+        object.removeValue(forKey: "version")
+        object.removeValue(forKey: "photos")
+        object.removeValue(forKey: "items")
+        object.removeValue(forKey: "todos")
+        let data = try JSONSerialization.data(withJSONObject: object)
+        let decoded = try JSONDecoder().decode(GarageLibrary.self, from: data)
+        XCTAssertEqual(decoded.version, 1)
+        XCTAssertEqual(decoded.facts.map(\.id), seeded.facts.map(\.id))
+        XCTAssertTrue(decoded.photos.isEmpty)
+        XCTAssertTrue(decoded.items.isEmpty)
+        XCTAssertTrue(decoded.todos.isEmpty)
+
+        object["version"] = 99
+        let newer = try JSONSerialization.data(withJSONObject: object)
+        XCTAssertThrowsError(try JSONDecoder().decode(GarageLibrary.self, from: newer))
+    }
+
+    func testNamedDirectorySurvivesRelaunchAndIsNotApplicationSupport() throws {
+        let name = "sidekick-garage-\(UUID().uuidString)"
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(name, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try Data("KEEP".utf8).write(to: root.appendingPathComponent("garage.json"))
+
+        let environment = [GarageStoreLocation.directoryEnvironmentKey: name]
+        let store = GarageLibraryStore.live(arguments: ["SidekickMechanic"], environment: environment)
+        XCTAssertEqual(store.root.lastPathComponent, name)
+        XCTAssertEqual(try String(contentsOf: store.jsonURL, encoding: .utf8), "KEEP")
+        let again = GarageLibraryStore.live(arguments: ["SidekickMechanic"], environment: environment)
+        XCTAssertEqual(again.root.standardizedFileURL.path, store.root.standardizedFileURL.path)
+        XCTAssertEqual(try String(contentsOf: again.jsonURL, encoding: .utf8), "KEEP")
+        if let support = try? GarageLibraryStore.defaultRoot() {
+            XCTAssertNotEqual(store.root.standardizedFileURL.path, support.standardizedFileURL.path)
+        }
+        XCTAssertNil(GarageStoreLocation.directoryName(environment: [
+            GarageStoreLocation.directoryEnvironmentKey: "../escape",
+        ]))
+        XCTAssertTrue(GarageStoreLocation.showsSamplePhoto(arguments: ["SidekickMechanic"], environment: environment))
     }
 
     func testGaragePreviewLaunchArgumentsDoNotEnableDemo() {
@@ -145,7 +210,7 @@ final class GarageLibraryTests: XCTestCase {
         XCTAssertEqual(GarageScrim.opacity(coverage: 2), 0.75)
     }
 
-    func testTemporaryStoreFlagWipesTheSandboxFolder() async throws {
+    func testTemporaryStoreKeepsNotesAcrossANewLiveStore() async throws {
         XCTAssertFalse(
             GarageStoreLocation.usesTemporaryStore(arguments: ["SidekickMechanic"], environment: [:])
         )
@@ -168,18 +233,31 @@ final class GarageLibraryTests: XCTestCase {
             )
         )
 
-        let leftover = FileManager.default.temporaryDirectory
-            .appendingPathComponent(GarageStoreLocation.temporaryFolderName, isDirectory: true)
-        try FileManager.default.createDirectory(at: leftover, withIntermediateDirectories: true)
-        try Data("FAKE".utf8).write(to: leftover.appendingPathComponent("garage.json"))
+        let arguments = ["SidekickMechanic", "-garageTemporaryStore", "1"]
+        let clean = try GarageStoreLocation.wipeTemporaryRoot()
+        XCTAssertEqual(clean.lastPathComponent, GarageStoreLocation.temporaryFolderName)
 
-        let store = GarageLibraryStore.live(
-            arguments: ["SidekickMechanic", "-garageTemporaryStore", "1"],
-            environment: [:]
+        let model = GarageModel(
+            store: .live(arguments: arguments, environment: [:]),
+            makeID: { "fact-kept" }
         )
-        XCTAssertEqual(store.root.lastPathComponent, GarageStoreLocation.temporaryFolderName)
-        XCTAssertFalse(FileManager.default.fileExists(atPath: store.jsonURL.path))
-        XCTAssertEqual(try store.load().facts.map(\.id).count, 6)
+        XCTAssertTrue(model.addFact(label: "FAKE-LABEL", value: "FAKE-NOTE"))
+        XCTAssertTrue(model.addTodo(title: "FAKE-TODO"))
+        XCTAssertTrue(model.setTodoDone(id: "fact-kept", isDone: true))
+        XCTAssertTrue(model.addPhoto(caption: "FAKE-PHOTO", jpeg: Data([9, 9])))
+        XCTAssertTrue(model.addItem(name: "FAKE-PART", note: "FAKE-NOTE", jpeg: nil))
+
+        let again = GarageLibraryStore.live(arguments: arguments, environment: [:])
+        XCTAssertEqual(again.root.lastPathComponent, GarageStoreLocation.temporaryFolderName)
+        XCTAssertNotEqual(again.root.path, try GarageLibraryStore.defaultRoot().path)
+        let loaded = try again.load()
+        XCTAssertEqual(loaded.facts.first { $0.id == "fact-kept" }?.value, "FAKE-NOTE")
+        XCTAssertEqual(loaded.todos.map(\.title), ["FAKE-TODO"])
+        XCTAssertEqual(loaded.todos.map(\.isDone), [true])
+        XCTAssertEqual(loaded.photos.map(\.caption), ["FAKE-PHOTO"])
+        XCTAssertEqual(try again.readPhoto(fileName: "fact-kept.jpg"), Data([9, 9]))
+        XCTAssertEqual(loaded.items.map(\.name), ["FAKE-PART"])
+        try? FileManager.default.removeItem(at: again.root)
     }
 
     func testRejectedFileNameCannotEscapeThePhotoFolder() async throws {

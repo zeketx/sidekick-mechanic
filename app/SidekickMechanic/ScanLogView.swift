@@ -9,6 +9,7 @@ struct ScanLogView: View {
     var configuration: ChatClientConfiguration
     var flags: FeatureFlags = .v1
     var onOpenCell: (ScanLogEntry) -> Void
+    @State private var selectedChip = ScanLogCopy.selectedChip
 
     private let columns = [
         GridItem(.flexible(), spacing: 8, alignment: .top),
@@ -25,8 +26,15 @@ struct ScanLogView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("scanLog.subtitle")
                 chipRow
+                let rows = ScanLogFilter.shown(ScanLogScript.entries, chip: selectedChip)
+                if rows.isEmpty {
+                    Text(ScanLogCopy.empty)
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("scanLog.empty")
+                }
                 LazyVGrid(columns: columns, alignment: .leading, spacing: 16) {
-                    ForEach(ScanLogScript.entries) { entry in
+                    ForEach(rows) { entry in
                         Button {
                             onOpenCell(entry)
                         } label: {
@@ -66,24 +74,30 @@ struct ScanLogView: View {
     private var chipRow: some View {
         WrappingHStack(spacing: 6, lineSpacing: 6) {
             ForEach(ScanLogCopy.chips, id: \.self) { chip in
-                let selected = chip == ScanLogCopy.selectedChip
-                Text(chip)
-                    .font(.caption.weight(selected ? .semibold : .regular))
-                    .foregroundStyle(selected ? JobSheetChrome.paper : Color.primary)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(selected ? Color.primary : JobSheetChrome.paper, in: Capsule())
-                    .overlay {
-                        if !selected {
-                            Capsule().strokeBorder(Color.secondary.opacity(0.35))
+                let selected = chip == selectedChip
+                Button {
+                    selectedChip = chip
+                } label: {
+                    Text(chip)
+                        .font(.caption.weight(selected ? .semibold : .regular))
+                        .foregroundStyle(selected ? JobSheetChrome.paper : Color.primary)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(selected ? Color.primary : JobSheetChrome.paper, in: Capsule())
+                        .overlay {
+                            if !selected {
+                                Capsule().strokeBorder(Color.secondary.opacity(0.35))
+                            }
                         }
-                    }
-                    .fixedSize()
-                    .accessibilityIdentifier("scanLog.chip.\(chip)")
-                    .accessibilityAddTraits(selected ? .isSelected : [])
+                        .fixedSize()
+                }
+                .buttonStyle(.plain)
+                .accessibilityIdentifier("scanLog.chip.\(chip)")
+                .accessibilityAddTraits(selected ? .isSelected : [])
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("scanLog.chips")
     }
 

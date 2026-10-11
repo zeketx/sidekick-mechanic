@@ -18,7 +18,8 @@ public enum ScanLogCopy {
     public static let chips = [
         "all", "intake", "cooling", "ignition", "electrical", "fuel", "inspected", "watch",
     ]
-    public static let selectedChip = "intake"
+    public static let selectedChip = "all"
+    public static let empty = "Nothing matches."
     /// Fits a grid cell. The highlight card keeps `HighlightViewerCopy.referenceBanner`.
     public static let thumbBanner = "Not your truck"
 }
@@ -105,18 +106,23 @@ public struct ScanLogEntry: Equatable, Sendable, Identifiable {
     public var id: String
     public var photoID: String
     public var source: HighlightViewerState
+    /// Part caption under the photo. An outline uses the catalog short tag. A miss is an em dash.
     public var tagLabel: String
+    /// Filter chip this cell belongs to. Separate from `tagLabel`, so a filter does not rename the part.
+    public var filterTag: String
 
     public init(
         id: String,
         photoID: String,
         source: HighlightViewerState,
-        tagLabel: String
+        tagLabel: String,
+        filterTag: String
     ) {
         self.id = id
         self.photoID = photoID
         self.source = source
         self.tagLabel = tagLabel
+        self.filterTag = filterTag
     }
 
     public func presentation(flags: FeatureFlags = .v1) -> HighlightViewerPresentation {
@@ -147,11 +153,24 @@ public enum ScanLogScript {
         "flickr-robmarson-6763892857",
     ]
 
-    /// Outline / none pattern matches the Figma 3×3. Tags come from the catalog part.
+    /// Outline / none pattern matches the Figma 3×3.
     public static let cellStates: [HighlightViewerState] = [
         .confident, .confident, .notFound,
         .confident, .notFound, .confident,
         .reference, .confident, .notFound,
+    ]
+
+    /// One topic per cell. Independent of the part caption.
+    public static let filterTags = [
+        "intake",
+        "cooling",
+        "ignition",
+        "electrical",
+        "fuel",
+        "inspected",
+        "watch",
+        "intake",
+        "electrical",
     ]
 
     public static var entries: [ScanLogEntry] {
@@ -164,8 +183,18 @@ public enum ScanLogScript {
                 source: source,
                 tagLabel: shown.showsOutline
                     ? DemoOutlineCatalog.shortTag(partID: shown.partID)
-                    : "—"
+                    : "—",
+                filterTag: filterTags[index]
             )
         }
+    }
+}
+
+public enum ScanLogFilter {
+    public static func shown(_ entries: [ScanLogEntry], chip: String) -> [ScanLogEntry] {
+        if chip == "all" {
+            return entries
+        }
+        return entries.filter { $0.filterTag == chip }
     }
 }

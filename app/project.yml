@@ -46,6 +46,7 @@ targets:
       - path: SidekickMechanicUITests
     dependencies:
       - target: SidekickMechanic
+      - package: SidekickCore
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.zeketx.SidekickMechanicUITests

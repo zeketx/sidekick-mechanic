@@ -168,6 +168,14 @@ public enum JobSheetLayout {
     /// Edge to edge. Side gutters made the sheet 386pt on a 402pt window.
     public static let horizontalInset: Double = 0
     public static let topCornerRadius: Double = 24
+    public static let headerTopClearance: Double = 32
+    public static let grabberTopPadding: Double = 8
+    public static let grabberHeight: Double = 5
+    public static let grabberBottomPadding: Double = 6
+
+    public static var headerPaddingUnderGrabber: Double {
+        max(0, headerTopClearance - grabberTopPadding - grabberHeight - grabberBottomPadding)
+    }
     /// Space between the last half-sheet step and the Outcome row (Figma divider).
     public static let halfOutcomeTopSpacing: Double = 16
     /// Home-indicator pad inside the white sheet when the overlay ignores the container.

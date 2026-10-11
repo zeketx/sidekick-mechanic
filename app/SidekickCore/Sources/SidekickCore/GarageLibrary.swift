@@ -31,6 +31,9 @@ public enum GarageCopy {
     public static let todosEmpty = "Nothing on the list yet."
     public static let todoPlaceholder = "Something to do on the truck"
     public static let add = "Add"
+    public static let addTodo = "Add a to-do"
+    /// Shown only for a test garage folder, so a UI test can save a photo without the library picker.
+    public static let samplePhoto = "Use a sample photo"
     public static let addFact = "Add a fact"
     public static let change = "Change"
     public static let remove = "Remove"
@@ -45,7 +48,7 @@ public enum GarageCopy {
     public static let addPhotoTitle = "Add a photo"
     public static let addPartTitle = "Add a part or paper"
     public static let saveFailed = "Could not save these notes on this phone."
-    public static let readFailed = "Saved notes could not be read. Showing the starting list."
+    public static let readFailed = "Saved notes could not be read. They are still on this phone. Showing the starting list."
     public static let photoFailed = "Could not save that photo."
     public static let photoUnreadable = "That photo could not be read. Try another one."
 }
@@ -93,6 +96,9 @@ public struct GarageTodo: Codable, Equatable, Identifiable, Hashable, Sendable {
 
 /// Facts, photos, parts, and to-dos kept on the phone.
 public struct GarageLibrary: Codable, Equatable, Sendable {
+    public static let currentVersion = 1
+
+    public var version: Int
     public var facts: [GarageFact]
     public var photos: [GaragePhoto]
     public var items: [GarageItem]
@@ -102,12 +108,50 @@ public struct GarageLibrary: Codable, Equatable, Sendable {
         facts: [GarageFact],
         photos: [GaragePhoto] = [],
         items: [GarageItem] = [],
-        todos: [GarageTodo] = []
+        todos: [GarageTodo] = [],
+        version: Int = currentVersion
     ) {
+        self.version = version
         self.facts = facts
         self.photos = photos
         self.items = items
         self.todos = todos
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case version
+        case facts
+        case photos
+        case items
+        case todos
+    }
+
+    /// Missing `version` is 1. A newer version, or a file with no `facts` array, fails so the store can set it aside.
+    /// Missing photo, part, and to-do arrays become empty, so a future optional list does not throw away the file.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let version = try container.decodeIfPresent(Int.self, forKey: .version) ?? Self.currentVersion
+        guard version <= Self.currentVersion else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .version,
+                in: container,
+                debugDescription: "garage version \(version) is newer than \(Self.currentVersion)"
+            )
+        }
+        self.version = version
+        facts = try container.decode([GarageFact].self, forKey: .facts)
+        photos = try container.decodeIfPresent([GaragePhoto].self, forKey: .photos) ?? []
+        items = try container.decodeIfPresent([GarageItem].self, forKey: .items) ?? []
+        todos = try container.decodeIfPresent([GarageTodo].self, forKey: .todos) ?? []
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(version, forKey: .version)
+        try container.encode(facts, forKey: .facts)
+        try container.encode(photos, forKey: .photos)
+        try container.encode(items, forKey: .items)
+        try container.encode(todos, forKey: .todos)
     }
 
     /// First launch. Same rows as onboarding, so nothing disappears.
@@ -214,10 +258,41 @@ public enum GarageScrim {
 }
 
 /// `-garageTemporaryStore 1` keeps UI-test edits out of Application Support.
+/// `SIDEKICK_GARAGE_DIRECTORY` is a folder name under the app's temporary directory.
+/// The app creates that folder and never deletes it. The test picks a new name per run.
+/// Application Support is never wiped.
 public enum GarageStoreLocation {
     public static let temporaryFlag = "-garageTemporaryStore"
     public static let temporaryEnvironmentKey = "SIDEKICK_GARAGE_TEMPORARY"
+    public static let directoryEnvironmentKey = "SIDEKICK_GARAGE_DIRECTORY"
     public static let temporaryFolderName = "sidekick-garage-uitest"
+
+    /// A single path component. Slashes and `..` are rejected so the name cannot leave the temp directory.
+    public static func directoryName(
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> String? {
+        guard let raw = environment[directoryEnvironmentKey]?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+            !raw.isEmpty,
+            raw != ".",
+            raw != "..",
+            !raw.contains("/"),
+            !raw.contains("\\")
+        else {
+            return nil
+        }
+        let allowed = CharacterSet(charactersIn: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_")
+        guard raw.unicodeScalars.allSatisfy({ allowed.contains($0) }) else { return nil }
+        return raw
+    }
+
+    public static func showsSamplePhoto(
+        arguments: [String] = ProcessInfo.processInfo.arguments,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) -> Bool {
+        directoryName(environment: environment) != nil
+            || usesTemporaryStore(arguments: arguments, environment: environment)
+    }
 
     public static func usesTemporaryStore(
         arguments: [String] = ProcessInfo.processInfo.arguments,
@@ -232,8 +307,14 @@ public enum GarageStoreLocation {
         return FeatureFlags.isEnabled(environment[temporaryEnvironmentKey])
     }
 
-    /// Wipes and recreates the sandbox temp folder so each flagged launch starts from the seed.
-    public static func prepareTemporaryRoot(fileManager: FileManager = .default) throws -> URL {
+    public static func temporaryRoot(fileManager: FileManager = .default) throws -> URL {
+        let root = fileManager.temporaryDirectory
+            .appendingPathComponent(temporaryFolderName, isDirectory: true)
+        try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
+        return root
+    }
+
+    public static func wipeTemporaryRoot(fileManager: FileManager = .default) throws -> URL {
         let root = fileManager.temporaryDirectory
             .appendingPathComponent(temporaryFolderName, isDirectory: true)
         if fileManager.fileExists(atPath: root.path) {
@@ -256,8 +337,15 @@ public struct GarageLibraryStore: Sendable {
         arguments: [String] = ProcessInfo.processInfo.arguments,
         environment: [String: String] = ProcessInfo.processInfo.environment
     ) -> GarageLibraryStore {
+        if let name = GarageStoreLocation.directoryName(environment: environment) {
+            let root = FileManager.default.temporaryDirectory
+                .appendingPathComponent(name, isDirectory: true)
+            if (try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)) != nil {
+                return GarageLibraryStore(root: root)
+            }
+        }
         if GarageStoreLocation.usesTemporaryStore(arguments: arguments, environment: environment),
-           let root = try? GarageStoreLocation.prepareTemporaryRoot() {
+           let root = try? GarageStoreLocation.temporaryRoot() {
             return GarageLibraryStore(root: root)
         }
         if let root = try? defaultRoot() {
@@ -288,25 +376,52 @@ public struct GarageLibraryStore: Sendable {
         root.appendingPathComponent("photos", isDirectory: true)
     }
 
-    /// Missing file returns the seed and does not write. A broken file throws.
+    /// Missing file returns the seed and does not write.
+    /// A file that does not decode is moved to `garage.unreadable-<timestamp>.json` before this throws.
     public func load() throws -> GarageLibrary {
         guard FileManager.default.fileExists(atPath: jsonURL.path) else {
             return .seeded()
         }
-        guard let data = try? Data(contentsOf: jsonURL),
-              let library = try? JSONDecoder().decode(GarageLibrary.self, from: data)
-        else {
-            throw GarageStoreError.unreadable
+        if let data = try? Data(contentsOf: jsonURL),
+           let library = try? JSONDecoder().decode(GarageLibrary.self, from: data) {
+            return library
         }
-        return library
+        try quarantineUnreadableFile()
+        throw GarageStoreError.unreadable
     }
 
     public func save(_ library: GarageLibrary) throws {
+        if FileManager.default.fileExists(atPath: jsonURL.path) {
+            let existing = try Data(contentsOf: jsonURL)
+            guard (try? JSONDecoder().decode(GarageLibrary.self, from: existing)) != nil else {
+                throw GarageStoreError.unreadable
+            }
+        }
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let data = try encoder.encode(library)
         try data.write(to: jsonURL, options: .atomic)
+    }
+
+    /// Moves `garage.json` aside. Does not touch `photos/`. A name that is already taken gets `-2`, `-3`, and so on.
+    private func quarantineUnreadableFile() throws {
+        let source = jsonURL
+        guard FileManager.default.fileExists(atPath: source.path) else { return }
+        let stamp = Int(Date().timeIntervalSince1970)
+        var suffix = ""
+        var attempt = 1
+        while attempt < 100 {
+            let name = "garage.unreadable-\(stamp)\(suffix).json"
+            let destination = root.appendingPathComponent(name)
+            if !FileManager.default.fileExists(atPath: destination.path) {
+                try FileManager.default.moveItem(at: source, to: destination)
+                return
+            }
+            attempt += 1
+            suffix = "-\(attempt)"
+        }
+        throw GarageStoreError.unreadable
     }
 
     public func writePhoto(_ data: Data, fileName: String) throws {

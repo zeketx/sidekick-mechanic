@@ -199,6 +199,13 @@ struct LookBackPaperHeader: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     var body: some View {
+        VStack(spacing: 0) {
+            sheetTopMarker("lookBack.sheetTop")
+            headerRow
+        }
+    }
+
+    private var headerRow: some View {
         Group {
             if dynamicTypeSize.isAccessibilitySize {
                 VStack(alignment: .leading, spacing: 8) {
@@ -230,11 +237,13 @@ struct LookBackPaperHeader: View {
             }
         }
         .padding(.horizontal, 16)
-        .padding(.top, 4)
+        .sheetHeaderClearance()
         .padding(.bottom, 10)
         .frame(minHeight: 44)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(JobSheetChrome.screen)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("lookBack.header")
     }
 
     private var backButton: some View {

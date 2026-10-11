@@ -84,11 +84,12 @@ final class LookBackTests: XCTestCase {
         XCTAssertEqual(ScanLogCopy.chips, [
             "all", "intake", "cooling", "ignition", "electrical", "fuel", "inspected", "watch",
         ])
-        XCTAssertEqual(ScanLogCopy.selectedChip, "intake")
+        XCTAssertEqual(ScanLogCopy.selectedChip, "all")
         XCTAssertEqual(ScanLogCopy.thumbBanner, "Not your truck")
         XCTAssertLessThan(ScanLogCopy.thumbBanner.count, HighlightViewerCopy.referenceBanner.count)
         XCTAssertFalse(ScanLogCopy.thumbBanner.contains("Demo"))
 
+        XCTAssertEqual(entries.map(\.filterTag), ScanLogScript.filterTags)
         let outlined = entries.filter { $0.presentation().showsOutline }
         XCTAssertEqual(outlined.count, 6)
         for entry in outlined {
@@ -121,6 +122,36 @@ final class LookBackTests: XCTestCase {
             XCTAssertNil(entry.geometry())
             XCTAssertEqual(entry.presentation().kind, .notFound)
             XCTAssertEqual(entry.tagLabel, "—")
+            XCTAssertTrue(ScanLogCopy.chips.contains(entry.filterTag))
+        }
+    }
+
+    func testEachScanLogChipShowsADifferentSubset() {
+        let entries = ScanLogScript.entries
+        XCTAssertEqual(
+            ScanLogFilter.shown(entries, chip: "all").map(\.id),
+            [
+                "scan-log-0", "scan-log-1", "scan-log-2", "scan-log-3", "scan-log-4",
+                "scan-log-5", "scan-log-6", "scan-log-7", "scan-log-8",
+            ]
+        )
+        XCTAssertEqual(ScanLogFilter.shown(entries, chip: "intake").map(\.id), ["scan-log-0", "scan-log-7"])
+        XCTAssertEqual(ScanLogFilter.shown(entries, chip: "cooling").map(\.id), ["scan-log-1"])
+        XCTAssertEqual(ScanLogFilter.shown(entries, chip: "ignition").map(\.id), ["scan-log-2"])
+        XCTAssertEqual(ScanLogFilter.shown(entries, chip: "electrical").map(\.id), ["scan-log-3", "scan-log-8"])
+        XCTAssertEqual(ScanLogFilter.shown(entries, chip: "fuel").map(\.id), ["scan-log-4"])
+        XCTAssertEqual(ScanLogFilter.shown(entries, chip: "inspected").map(\.id), ["scan-log-5"])
+        XCTAssertEqual(ScanLogFilter.shown(entries, chip: "watch").map(\.id), ["scan-log-6"])
+        XCTAssertTrue(ScanLogFilter.shown(entries, chip: "not-a-chip").isEmpty)
+        XCTAssertEqual(ScanLogCopy.empty, "Nothing matches.")
+        let subsets = ScanLogCopy.chips.map { chip in
+            Set(ScanLogFilter.shown(entries, chip: chip).map(\.id))
+        }
+        XCTAssertEqual(Set(subsets).count, ScanLogCopy.chips.count)
+        for chip in ScanLogCopy.chips where chip != "all" {
+            let shown = ScanLogFilter.shown(entries, chip: chip)
+            XCTAssertFalse(shown.isEmpty, chip)
+            XCTAssertTrue(shown.allSatisfy { $0.filterTag == chip }, chip)
         }
     }
 
@@ -136,6 +167,7 @@ final class LookBackTests: XCTestCase {
         XCTAssertEqual(reference.cellBanner(), "Not your truck")
         XCTAssertEqual(shown.partID, "throttle-body")
         XCTAssertEqual(reference.tagLabel, "throttle")
+        XCTAssertEqual(reference.filterTag, "watch")
         XCTAssertNil(ScanLogScript.entries[0].cellBanner())
         XCTAssertEqual(
             reference.geometry(),
