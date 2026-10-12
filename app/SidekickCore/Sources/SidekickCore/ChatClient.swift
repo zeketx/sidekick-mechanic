@@ -33,7 +33,9 @@ public struct ChatClientConfiguration: Equatable, Sendable {
     public var baseURL: URL
     public var requestTimeout: TimeInterval
 
-    public init(baseURL: URL, requestTimeout: TimeInterval = 30) {
+    public static let serverRetryBudget: TimeInterval = 120
+
+    public init(baseURL: URL, requestTimeout: TimeInterval = ChatClientConfiguration.serverRetryBudget) {
         self.baseURL = baseURL
         self.requestTimeout = requestTimeout
     }
@@ -54,7 +56,8 @@ public struct ChatClientConfiguration: Equatable, Sendable {
         else {
             throw ChatClientError.missingBackendURL
         }
-        let timeout = environment["SIDEKICK_BACKEND_TIMEOUT"].flatMap(TimeInterval.init) ?? 30
+        let timeout = environment["SIDEKICK_BACKEND_TIMEOUT"].flatMap(TimeInterval.init)
+            ?? serverRetryBudget
         return ChatClientConfiguration(baseURL: url, requestTimeout: timeout)
     }
 }

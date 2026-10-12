@@ -139,7 +139,9 @@ def test_producer_llm_error_returns_unavailable_answer() -> None:
 
     validate_answer(payload)
     assert payload == UNAVAILABLE_ANSWER
-    assert payload["citations"] == []
+    assert payload["kind"] == "error"
+    assert payload["reason"] == "provider_unavailable"
+    assert "citations" not in payload
 
 
 def test_producer_empty_completion_returns_unavailable_answer() -> None:
@@ -374,6 +376,16 @@ def test_env_example_documents_keys_without_secrets() -> None:
         if line.startswith(("SIDEKICK_LLM_API_KEY=", "SIDEKICK_VISION_API_KEY=")):
             assert line.split("=", 1)[1] == ""
     assert "SIDEKICK_VISION_API_KEY=" in text
+
+
+def test_server_retry_budget_fits_in_the_phone_timeout() -> None:
+    attempts = DEFAULT_MAX_RETRIES + 1
+    backoff = sum(0.25 * (2**attempt) for attempt in range(DEFAULT_MAX_RETRIES))
+    budget = attempts * DEFAULT_TIMEOUT_SECONDS + backoff
+    assert attempts == 3
+    assert backoff == 0.75
+    assert budget == 90.75
+    assert budget < 120
 
 
 def test_env_file_is_gitignored() -> None:

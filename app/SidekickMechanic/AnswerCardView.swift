@@ -125,7 +125,7 @@ struct AnswerCardView: View {
         switch content.presentation {
         case .found:
             Color.secondary.opacity(0.15)
-        case .notFoundInManual:
+        case .notFoundInManual, .providerUnavailable:
             Color.secondary.opacity(0.22)
         }
     }

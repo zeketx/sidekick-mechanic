@@ -46,7 +46,7 @@ Allowed:
 - Unicode minus and dashes become `-`.
 - Spaces between digits removed (`9 999` matches `9999`).
 - Thousands-grouping commas removed (`9,999` matches `9999`). A comma followed by one or two digits stays, so `999,5` does not match `999.5`.
-- Unit spelling aliases, including `N·m` / `N-m` / `newton meters` → `nm`, `ft-lb` / `ft lb` → `ftlbf`, `volts` → `v`, `ohms` / `Ω` → `ohm`.
+- Unit spelling aliases, including `N·m` / `N-m` / `newton meters` → `nm`, `ft-lb` / `ft lb` / `ft·lbf` / `ft-lbf` / `ft·lb` / `ft-pounds` → `ftlbf`, `in·lbf` → `inlbf`, `kgf·cm` → `kgfcm`, `kgf·cm^2` / `kgf/cm2` → `kgfcm2`, `volts` → `v`, `ohms` / `Ω` → `ohm`. `ft·lbf` does not match `feet` or `ft`, including when a footnote digit, an extra letter, or a unicode hyphen follows the token. A period with a space after it is a sentence boundary, not a joiner (`999 ft. lbf` is not torque). `kgf·cm` does not match `cm`, `kgf·m`, or `kgf·cm^2`.
 - Ohm signs are spelled out before casefolding so `MΩ` (megohm) does not match `mΩ` (milliohm). The refusal quotes that spelled-out form.
 - The exponent marker `e` is casefolded (`9.99e2` matches `9.99E2`). The exponent text otherwise stays (`9.99e+2` does not match `9.99e2`).
 - Pin ids are casefolded (`FAKE-C9` matches `fake-c9`).
@@ -86,7 +86,7 @@ Refusals that enter the guard are not checks and are not failures. `failures` co
 
 `POST /chat` calls `guard_answer` on the producer payload, then `apply_safety_preamble` on the guarded payload, then contract validation. The safety note is appended after the guard, so the note is never scanned.
 
-Chunk text comes from `CitedChunkSource.cited_chunk_texts` on the producer (`backend/producer.py`). `LlmAnswerProducer` does not implement that yet, so the chunk list is empty. Any spec in the answer is then uncited and the response is a refusal. A producer should implement `CitedChunkSource` once it has retrieved page text. Until then, failing closed is the safe default.
+Chunk text comes from `CitedChunkSource.cited_chunk_texts` on the producer (`backend/producer.py`). `LlmAnswerProducer` implements that method. It returns the page text of citations that survived the snippet check, not every retrieved hit. A spec that appears only on a hit the answer did not cite is refused. With no retriever, no index file, or no surviving citations, the chunk list is empty and any spec in the answer is refused.
 
 The guard does not retrieve pages and does not call a model.
 

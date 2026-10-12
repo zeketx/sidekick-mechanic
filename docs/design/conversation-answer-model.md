@@ -28,7 +28,7 @@ The network client and eval decode the #10 fixtures with `JSONDecoder().decode(A
 
 ## Shape
 
-`Answer` is a sum type. `found` holds text, a citations array, and an optional `HighlightRef`. `refusal` holds text and `RefusalReason`. A refusal cannot carry a citation or a highlight.
+`Answer` is a sum type. `found` holds text, a citations array, and an optional `HighlightRef`. `refusal` holds text and `RefusalReason`, and may hold a demo highlight. A refusal cannot carry a citation. `providerUnavailable` is `kind: error` with `reason: provider_unavailable`. It is not a found answer and cannot carry citations or a highlight.
 
 `Citation` requires `DocumentID`, `PageNumber`, and a non-empty snippet. `PageNumber` rejects 0 and negative values. Empty document, photo, and part IDs fail at construction.
 

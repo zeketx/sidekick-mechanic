@@ -149,15 +149,6 @@ def test_refusal_fixture() -> None:
             "text": "Not found in the manual.",
         },
         {
-            "kind": "refusal",
-            "text": "Not found in the manual.",
-            "reason": "not_found_in_manual",
-            "highlight": {
-                "bay_photo_id": "fake-bay-photo-front",
-                "part_id": "fake-part-intake",
-            },
-        },
-        {
             "kind": "unknown",
             "text": "Not a valid kind.",
             "citations": [],
@@ -176,7 +167,6 @@ def test_refusal_fixture() -> None:
         "citation_page_zero",
         "highlight_missing_part_id",
         "refusal_missing_reason",
-        "refusal_with_highlight",
         "unknown_kind",
         "extra_property",
     ],
@@ -184,3 +174,30 @@ def test_refusal_fixture() -> None:
 def test_invalid_payloads_fail_schema(payload: dict[str, Any]) -> None:
     errors = list(_validator().iter_errors(payload))
     assert errors
+
+
+def test_refusal_may_carry_a_demo_highlight() -> None:
+    payload = {
+        "kind": "refusal",
+        "text": "Not found in the manual.",
+        "reason": "not_found_in_manual",
+        "highlight": {
+            "bay_photo_id": "fake-bay-photo-front",
+            "part_id": "fake-part-intake",
+        },
+    }
+    _validator().validate(payload)
+
+
+def test_provider_error_is_not_an_answer() -> None:
+    payload = {
+        "kind": "error",
+        "text": "The mechanic is unavailable right now. Try again in a moment.",
+        "reason": "provider_unavailable",
+    }
+    _validator().validate(payload)
+    with_citations = {
+        **payload,
+        "citations": [],
+    }
+    assert list(_validator().iter_errors(with_citations))

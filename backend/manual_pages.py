@@ -117,27 +117,42 @@ def is_png(data: bytes) -> bool:
     return data.startswith(_PNG_SIGNATURE)
 
 
+RASTER_TIMEOUT_SECONDS = 30
+
+
 def _rasterize(pdf_path: Path, page: int) -> bytes:
     with tempfile.TemporaryDirectory(prefix="sidekick-page-") as tmp:
         prefix = Path(tmp) / "page"
-        completed = subprocess.run(
-            [
-                "pdftoppm",
-                "-png",
-                "-r",
-                str(RASTER_DPI),
-                "-f",
-                str(page),
-                "-l",
-                str(page),
-                "-singlefile",
-                str(pdf_path),
-                str(prefix),
-            ],
-            check=False,
-            capture_output=True,
-            text=True,
-        )
+        try:
+            completed = subprocess.run(
+                [
+                    "pdftoppm",
+                    "-png",
+                    "-r",
+                    str(RASTER_DPI),
+                    "-f",
+                    str(page),
+                    "-l",
+                    str(page),
+                    "-singlefile",
+                    str(pdf_path),
+                    str(prefix),
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=RASTER_TIMEOUT_SECONDS,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise ManualPageError(
+                "This manual page took too long to render.",
+                status_code=504,
+            ) from exc
+        except FileNotFoundError as exc:
+            raise ManualPageError(
+                "This manual page is not available.",
+                status_code=404,
+            ) from exc
         if completed.returncode != 0:
             raise ManualPageError("This manual page is not available.", status_code=404)
         png_path = Path(str(prefix) + ".png")

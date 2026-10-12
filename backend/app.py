@@ -176,7 +176,7 @@ def create_app(
             payload = answer_producer.produce(conversation)
             # No CitedChunkSource means nothing was retrieved, so any spec is uncited.
             if isinstance(answer_producer, CitedChunkSource):
-                chunk_texts = answer_producer.cited_chunk_texts(conversation)
+                chunk_texts = answer_producer.cited_chunk_texts(conversation, payload)
             else:
                 chunk_texts = ()
         guarded = guard_answer(payload, chunk_texts)

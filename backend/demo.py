@@ -230,15 +230,15 @@ def apply_demo_resolution(
     """Copy the answer. Demo highlights are marked ``demo: true``.
 
     ``outline`` and ``confirm`` ride on ``display`` plus ``geometry``.
-    Abstain (not found, unknown id, or no usable region) omits ``highlight``
-    and appends the manual-diagram placeholder. A refusal is unchanged.
+    The cited answer text stays. The stand-in photo is not described as the
+    owner's truck. Abstain on a found answer omits ``highlight`` and appends
+    the manual-diagram placeholder. A refusal can gain the outline and keeps
+    its text.
     """
     kind = answer.get("kind")
     payload = dict(answer)
     payload.pop("highlight", None)
-    if kind == "refusal":
-        return payload
-    if kind != "answer":
+    if kind not in {"answer", "refusal"}:
         raise ValueError("answer kind must be 'answer' or 'refusal'")
 
     photo = load_catalog().photo(photo_id)
@@ -255,8 +255,10 @@ def apply_demo_resolution(
                 "geometry": _geometry_payload(part),
                 "demo": True,
             }
-            payload["text"] = _located_text(part)
             return payload
+
+    if kind == "refusal":
+        return payload
 
     if resolution.kind in {ResolutionKind.NOT_MAPPED, ResolutionKind.HIGHLIGHT}:
         payload["text"] = _not_visible_text(photo, resolution.part_id)
@@ -479,18 +481,6 @@ def _geometry_payload(part: DemoPart) -> dict[str, Any]:
             for polygon in part.polygons
         ]
     }
-
-
-def _located_text(part: DemoPart) -> str:
-    if part.demo_state == "confirm":
-        return (
-            f"I think this is the {part.display_name} on this demo photo "
-            f"of a {DEMO_VEHICLE}."
-        )
-    return (
-        f"Here it is. The {part.display_name} is marked on this demo photo "
-        f"of a {DEMO_VEHICLE}."
-    )
 
 
 def _not_visible_text(photo: DemoPhoto, part_id: str | None) -> str:

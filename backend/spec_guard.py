@@ -27,14 +27,21 @@ _UNIT_PATTERNS: tuple[tuple[str, str], ...] = (
     ("celsius", r"degrees?\s+celsius|°\s*c|deg(?:rees?)?\s+c"),
     ("fahrenheit", r"degrees?\s+fahrenheit|°\s*f|deg(?:rees?)?\s+f"),
     ("mmhg", r"mm\s*hg"),
-    ("kgfcm2", r"kgf?\s*/\s*cm\s*(?:\^?\s*2|²)"),
+    ("kgfcm2", r"kgf?\s*(?:[·⋅•.\-]\s*|/\s*)?cm\s*(?:\^?\s*2|²)"),
+    ("kgfcm", r"kgf\s*(?:[·⋅•\-]\s*|\.(?!\s))?\s*cm(?!\s*(?:\^|\d))"),
     ("nm", r"newton[\s-]+met(?:er|re)s?|n\s*[·⋅•.\-]?\s*m"),
     ("kgfm", r"kgf\s*[·⋅•.\-]?\s*m|kg\s*[·⋅•.\-]?\s*m"),
     (
         "ftlbf",
-        r"foot[\s-]+pounds?|ft\s*[·⋅•.\-]?\s*lbs?|lbs?\s*[·⋅•.\-]?\s*ft",
+        r"foot[\s-]+pounds?|ft[\s-]+pounds?|"
+        r"ft\s*(?:[·⋅•\-]\s*|\.(?!\s))?\s*lb(?:f|s)?|"
+        r"lb(?:f|s)?\s*(?:[·⋅•\-]\s*|\.(?!\s))?\s*ft",
     ),
-    ("inlbf", r"inch[\s-]+pounds?|in\s*[·⋅•.\-]?\s*lbs?"),
+    (
+        "inlbf",
+        r"inch[\s-]+pounds?|in[\s-]+pounds?|"
+        r"in\s*(?:[·⋅•\-]\s*|\.(?!\s))?\s*lb(?:f|s)?",
+    ),
     ("kohm", r"kilo[\s-]?ohms?|kohms?|k\s*ohms?"),
     ("megohm", r"meg[\s-]?ohms?"),
     ("milliohm", r"milli[\s-]?ohms?"),
@@ -54,7 +61,7 @@ _UNIT_PATTERNS: tuple[tuple[str, str], ...] = (
     ("bar", r"bar"),
     # "in." / inch, not the word "in" ("step 3 in the manual").
     ("in", r"inches|inch|in\."),
-    ("ft", r"feet|ft"),
+    ("ft", r"feet|ft(?!\s*[·⋅•.\-]?\s*(?:lb|pound))"),
     ("l", r"lit(?:er|re)s?|l"),
     # Capital A only. Lowercase "a" is ordinary prose ("999 a bit").
     ("a", r"amps?|amperes?|(?-i:A)"),
@@ -291,8 +298,13 @@ def _prepare(text: str) -> str:
     prepared = _INVISIBLE_RE.sub("", prepared)
     prepared = (
         prepared.replace("\u2212", "-")
+        .replace("\u2010", "-")
+        .replace("\u2011", "-")
+        .replace("\u2012", "-")
         .replace("\u2013", "-")
         .replace("\u2014", "-")
+        .replace("\u00ad", "-")
+        .replace("\u30fb", "·")
         .replace("*", "")
         .replace("`", "")
         .replace("_", "")

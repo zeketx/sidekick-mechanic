@@ -246,7 +246,7 @@ final class AnswerTests: XCTestCase {
         XCTAssertNil(Refusal(text: ""))
     }
 
-    func testRefusalWithHighlightFailsToDecode() {
+    func testRefusalCanCarryADemoHighlight() throws {
         let json = Data(
             #"""
             {
@@ -260,7 +260,42 @@ final class AnswerTests: XCTestCase {
             }
             """#.utf8
         )
-        XCTAssertThrowsError(try JSONDecoder().decode(Answer.self, from: json))
+        let answer = try JSONDecoder().decode(Answer.self, from: json)
+        guard case let .refusal(refusal) = answer else {
+            XCTFail("expected a refusal")
+            return
+        }
+        XCTAssertEqual(refusal.text, "Not found in the manual.")
+        XCTAssertEqual(refusal.highlight?.bayPhotoID.rawValue, "fake-bay-photo-front")
+        XCTAssertEqual(refusal.highlight?.partID.rawValue, "fake-part-intake")
+        XCTAssertNil(refusal.highlight?.display)
+    }
+
+    func testProviderErrorDecodesAndIsNotAFoundAnswer() throws {
+        let json = Data(
+            #"""
+            {
+              "kind": "error",
+              "text": "The mechanic is unavailable right now. Try again in a moment.",
+              "reason": "provider_unavailable"
+            }
+            """#.utf8
+        )
+        let answer = try JSONDecoder().decode(Answer.self, from: json)
+        guard case let .providerUnavailable(unavailable) = answer else {
+            XCTFail("expected a provider error")
+            return
+        }
+        XCTAssertEqual(
+            unavailable.text,
+            "The mechanic is unavailable right now. Try again in a moment."
+        )
+        let card = AnswerCardContent(answer: answer)
+        XCTAssertEqual(card.presentation, .providerUnavailable)
+        XCTAssertEqual(card.statusTitle, AnswerCardContent.unavailableStatusTitle)
+        XCTAssertEqual(card.accessibilityIdentifier, "answerCard.unavailable")
+        XCTAssertTrue(card.chips.isEmpty)
+        XCTAssertFalse(card.showsHighlightSlot)
     }
 
     func testUnknownKindFailsToDecode() {

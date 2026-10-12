@@ -1,10 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Answer payload",
-  "description": "Wire contract for a Sidekick Mechanic chat answer, shared by the backend and the app. A found answer carries text, citations, and an optional highlight. A refusal is a distinct shape used when nothing in the manuals supports the question.",
+  "description": "Wire contract for a Sidekick Mechanic chat answer, shared by the backend and the app. A found answer carries text, citations, and an optional highlight. A refusal is a distinct shape used when nothing in the manuals supports the question. It may carry a demo highlight and never citations. A provider error is a third shape and is not a manual answer.",
   "oneOf": [
     { "$ref": "#/$defs/found_answer" },
-    { "$ref": "#/$defs/refusal" }
+    { "$ref": "#/$defs/refusal" },
+    { "$ref": "#/$defs/provider_error" }
   ],
   "$defs": {
     "citation": {
@@ -115,6 +116,22 @@
         },
         "reason": {
           "const": "not_found_in_manual"
+        },
+        "highlight": { "$ref": "#/$defs/highlight_ref" }
+      }
+    },
+    "provider_error": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "text", "reason"],
+      "properties": {
+        "kind": { "const": "error" },
+        "text": {
+          "type": "string",
+          "minLength": 1
+        },
+        "reason": {
+          "const": "provider_unavailable"
         }
       }
     }

@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 from app import create_app
 from chat_models import Conversation, Message
 from llm import FAKE_GROUNDED_TEXT, ChatTurn, FakeLLMClient, LLMError
+from part_resolver import BayMapView, BayPartView
 from producer import (
     SYSTEM_PROMPT,
     WIRING_NOT_INGESTED_REFUSAL,
@@ -31,9 +32,9 @@ _REFUSAL = {
     "reason": "not_found_in_manual",
 }
 _UNAVAILABLE = {
-    "kind": "answer",
+    "kind": "error",
     "text": "The mechanic is unavailable right now. Try again in a moment.",
-    "citations": [],
+    "reason": "provider_unavailable",
 }
 
 
@@ -145,7 +146,7 @@ def test_whitespace_normalized_snippet_is_kept() -> None:
     assert snippet_matches_page("FAKE-SNIPPET: no real spec.", page_text)
 
 
-def test_token_bag_snippet_is_kept() -> None:
+def test_rearranged_snippet_is_not_a_citation() -> None:
     page_text = "spec. FAKE-SNIPPET: no real"
     producer, _, _ = _producer(
         _completion(_ANSWER, [_cited("FAKE-SNIPPET: no real spec.")]),
@@ -154,8 +155,7 @@ def test_token_bag_snippet_is_kept() -> None:
 
     payload = producer.produce(_conversation())
 
-    assert payload["kind"] == "answer"
-    assert payload["citations"][0]["doc_id"] == _DOC
+    assert payload == _UNAVAILABLE
 
 
 def test_invented_snippet_is_unavailable() -> None:
@@ -366,7 +366,7 @@ def test_long_snippet_cuts_back_from_a_mid_word_boundary() -> None:
     assert not stored.endswith("EXTRA-TAIL")
 
 
-def test_search_uses_the_last_user_message() -> None:
+def test_search_includes_earlier_user_messages() -> None:
     producer, _, retriever = _producer(
         _completion(_ANSWER, [_cited()]),
         (_Hit(_DOC, _PAGE, _SNIPPET),),
@@ -381,12 +381,60 @@ def test_search_uses_the_last_user_message() -> None:
 
     payload = producer.produce(conversation)
 
-    assert retriever.queries == [_QUESTION]
+    assert retriever.queries == [f"earlier fake question {_QUESTION}"]
+    assert "earlier reply" not in retriever.queries[0]
     assert payload == {
         "kind": "answer",
         "text": _ANSWER,
         "citations": [_cited()],
     }
+
+
+def test_guard_checks_only_pages_that_survived_as_citations() -> None:
+    spec_page = "FAKE-SPEC torque is 999 N·m."
+    other_page = "FAKE-CHUNK: no number here."
+    cited_other = _cited(other_page, page=998, doc_id="FAKE-OTHER")
+    producer, _, _ = _producer(
+        _completion("Torque is 999 Nm.", [cited_other]),
+        (_Hit(_DOC, _PAGE, spec_page), _Hit("FAKE-OTHER", 998, other_page)),
+    )
+    conversation = _conversation("What is the FAKE-SPEC torque?")
+    payload = producer.produce(conversation)
+    response = TestClient(create_app(producer=producer)).post(
+        "/chat",
+        json={"messages": [{"role": "user", "text": "What is the FAKE-SPEC torque?"}]},
+    )
+
+    assert payload["citations"] == [cited_other]
+    assert producer.cited_chunk_texts(conversation, payload) == (other_page,)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["kind"] == "refusal"
+    assert "999 Nm" in body["text"]
+
+    spec_page_with_tail = "FAKE-HEAD. FAKE-SPEC torque is 999 N·m."
+    short_snippet = "FAKE-HEAD."
+    kept_producer, _, _ = _producer(
+        _completion("Torque is 999 Nm.", [_cited(short_snippet)]),
+        (
+            _Hit(_DOC, _PAGE, spec_page_with_tail),
+            _Hit("FAKE-OTHER", 998, other_page),
+        ),
+    )
+    kept_conversation = _conversation("What is the FAKE-SPEC torque?")
+    kept_payload = kept_producer.produce(kept_conversation)
+    kept = TestClient(create_app(producer=kept_producer)).post(
+        "/chat",
+        json={"messages": [{"role": "user", "text": "What is the FAKE-SPEC torque?"}]},
+    )
+    assert kept_payload["citations"] == [_cited(short_snippet)]
+    assert "999" not in short_snippet
+    assert kept_producer.cited_chunk_texts(kept_conversation, kept_payload) == (
+        spec_page_with_tail,
+    )
+    assert kept.status_code == 200
+    assert kept.json()["kind"] == "answer"
+    assert kept.json()["text"] == "Torque is 999 Nm."
 
 
 def test_newline_in_page_text_round_trips_through_the_prompt() -> None:
@@ -408,17 +456,43 @@ def test_newline_in_page_text_round_trips_through_the_prompt() -> None:
     }
 
 
-def test_missing_index_file_wraps_prose(tmp_path: Path) -> None:
-    prose = "Fixture prose with no manual page."
-    fake = FakeLLMClient(text=prose)
+def test_missing_index_file_refuses_without_calling_the_model(tmp_path: Path) -> None:
+    fake = FakeLLMClient(text="Fixture prose with no manual page.")
     producer = LlmAnswerProducer(
         fake, retriever=_IndexRetriever(tmp_path / "missing.sqlite")
     )
 
     payload = producer.produce(_conversation())
 
-    assert payload == {"kind": "answer", "text": prose, "citations": []}
-    assert fake.calls[0][0] == ChatTurn(role="system", content=SYSTEM_PROMPT)
+    assert payload == _REFUSAL
+    assert fake.calls == []
+
+
+def test_missing_index_with_a_bay_map_does_not_call_the_model(tmp_path: Path) -> None:
+    fake = FakeLLMClient(text="Fixture prose with no manual page.")
+    bay_map = BayMapView(parts=(BayPartView(part_id="fake-part", regions=()),))
+    producer = LlmAnswerProducer(
+        fake,
+        bay_map=bay_map,
+        retriever=_IndexRetriever(tmp_path / "missing.sqlite"),
+    )
+
+    payload = producer.produce(_conversation())
+
+    assert payload == _REFUSAL
+    assert fake.calls == []
+
+    empty = FakeLLMClient(text="Fixture prose with no manual page.")
+    empty_producer = LlmAnswerProducer(
+        empty,
+        bay_map=bay_map,
+        retriever=_Retriever(()),
+    )
+    empty_payload = empty_producer.produce(_conversation())
+
+    assert empty_payload["kind"] == "refusal"
+    assert empty_payload["reason"] == "not_found_in_manual"
+    assert empty.calls == []
 
 
 def test_corrupt_index_file_is_unavailable(tmp_path: Path) -> None:

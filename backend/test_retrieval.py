@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 from pathlib import Path
 
 import pytest
@@ -11,6 +12,8 @@ from retrieval import (
     Chunk,
     Fts5Index,
     RetrievalError,
+    _SCHEMA_SQL,
+    _match_rows,
     build_index,
     extract_labels,
     load_chunks_jsonl,
@@ -55,10 +58,10 @@ def _build(tmp_path: Path) -> Path:
     return index_path
 
 
-def test_snippet_matches_page_normalizes_whitespace_and_token_bag() -> None:
+def test_snippet_matches_page_requires_a_contiguous_span() -> None:
     page = "FAKE-SNIPPET:\nno   real spec. extra"
     assert snippet_matches_page("FAKE-SNIPPET: no real spec.", page) is True
-    assert snippet_matches_page("spec. FAKE-SNIPPET: no real", page) is True
+    assert snippet_matches_page("spec. FAKE-SNIPPET: no real", page) is False
     assert snippet_matches_page("invented FAKE-TOKEN", page) is False
 
 
@@ -270,3 +273,20 @@ def test_missing_chunks_file_fails_build(tmp_path: Path) -> None:
 
     assert main(["build", "--chunks", str(missing), "--index", str(index_path)]) == 1
     assert not index_path.exists()
+
+
+def test_bm25_label_weight_beats_a_text_only_match() -> None:
+    connection = sqlite3.connect(":memory:")
+    connection.row_factory = sqlite3.Row
+    connection.executescript(_SCHEMA_SQL)
+    connection.execute(
+        "INSERT INTO chunks (doc_id, page, labels, text) VALUES (?, ?, ?, ?)",
+        ("FAKE-DOC", 1, "INJECTOR", "unrelated body words"),
+    )
+    connection.execute(
+        "INSERT INTO chunks (doc_id, page, labels, text) VALUES (?, ?, ?, ?)",
+        ("FAKE-DOC", 2, "", "INJECTOR sits in the body only"),
+    )
+    rows = _match_rows(connection, '"INJECTOR"', k=5, doc_id=None)
+    by_page = {int(row["page"]): float(row["score"]) for row in rows}
+    assert by_page[1] > by_page[2]

@@ -351,12 +351,9 @@ extension JobSheetState {
         return found.citations
     }
 
-    /// Latest found highlight. An attached photo does not invent an outline.
+    /// Latest answer highlight, including a refusal outline. An attached photo does not invent one.
     public var highlight: HighlightRef? {
-        guard let latestAssistant, case let .found(found) = latestAssistant.answer else {
-            return nil
-        }
-        return found.highlight
+        latestAssistant?.answer.highlight
     }
 
     public var hasPhoto: Bool { photoID != nil }
@@ -504,8 +501,7 @@ extension JobSheetState {
     }
 
     private static func foundHighlight(in message: AssistantMessage) -> HighlightRef? {
-        guard case let .found(found) = message.answer else { return nil }
-        return found.highlight
+        message.answer.highlight
     }
 }
 
