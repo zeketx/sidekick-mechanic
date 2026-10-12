@@ -188,7 +188,7 @@ Status: Shipped
 As a user, I can have the truck facts, the parts and papers, and the open to-dos go out with my question so that the reply can mention what I already wrote down. Photos and finished to-dos stay on the phone. A page it points at still has to come from a manual.
 
 Where: Send. No new screen.
-Status: In review — [#124](https://github.com/zeketx/sidekick-mechanic/pull/124) (draft)
+Status: In review — [#124](https://github.com/zeketx/sidekick-mechanic/pull/124)
 
 ## Your notes should still be there tomorrow
 
