@@ -9,6 +9,46 @@ private struct TopChromeHeightKey: PreferenceKey {
     }
 }
 
+/// Title stays on the screen center. Each side is as wide as the wider group
+/// plus `minGap`, so the right-hand buttons cannot sit on the title.
+private struct CenteredTitleBar: Layout {
+    var minGap: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let sizes = measured(subviews)
+        let height = sizes.map(\.height).max() ?? 0
+        let ideal = idealWidth(sizes)
+        let width = proposal.width ?? ideal
+        return CGSize(width: width < ideal ? ideal : width, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let sizes = measured(subviews)
+        guard sizes.count == 3 else { return }
+        let title = sizes[1]
+        place(subviews[1], size: title, x: bounds.midX - title.width / 2, bounds: bounds)
+        place(subviews[0], size: sizes[0], x: bounds.minX, bounds: bounds)
+        place(subviews[2], size: sizes[2], x: bounds.maxX - sizes[2].width, bounds: bounds)
+    }
+
+    private func measured(_ subviews: Subviews) -> [CGSize] {
+        subviews.map { $0.sizeThatFits(.unspecified) }
+    }
+
+    private func idealWidth(_ sizes: [CGSize]) -> CGFloat {
+        guard sizes.count == 3 else {
+            return sizes.reduce(0) { $0 + $1.width }
+        }
+        let side = max(sizes[0].width, sizes[2].width)
+        return side + minGap + sizes[1].width + minGap + side
+    }
+
+    private func place(_ subview: LayoutSubview, size: CGSize, x: CGFloat, bounds: CGRect) {
+        let y = bounds.midY - size.height / 2
+        subview.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
+    }
+}
+
 /// Message list and composer. Assistant replies use `AnswerCardView`.
 struct ChatScreen: View {
     @Bindable var jobs: JobsModel
@@ -299,29 +339,16 @@ struct ChatScreen: View {
                 HStack(alignment: .firstTextBaseline, spacing: 12) {
                     garageButton
                     Spacer(minLength: 0)
-                    newJobButton
+                    newJobButton()
                     jobsButton
                     scanLogButton
                     demoToggle
                 }
             } else {
-                ZStack {
-                    Text("Sidekick")
-                        .font(.headline)
-                        .foregroundStyle(.primary)
-                        .accessibilityIdentifier("chat.title")
-                    HStack {
-                        HStack(spacing: 12) {
-                            garageButton
-                            jobsButton
-                        }
-                        Spacer(minLength: 0)
-                        HStack(spacing: 12) {
-                            newJobButton
-                            scanLogButton
-                            demoToggle
-                        }
-                    }
+                // Text "New job" when the centered title still has 16pt of air. Otherwise the icon.
+                ViewThatFits(in: .horizontal) {
+                    centeredTitleHeader(compactNewJob: false)
+                    centeredTitleHeader(compactNewJob: true)
                 }
             }
         }
@@ -331,6 +358,24 @@ struct ChatScreen: View {
         .frame(minHeight: 44)
         .frame(maxWidth: .infinity)
         .background(JobSheetChrome.screen)
+    }
+
+    private func centeredTitleHeader(compactNewJob: Bool) -> some View {
+        CenteredTitleBar(minGap: 16) {
+            HStack(spacing: 12) {
+                garageButton
+                jobsButton
+            }
+            Text("Sidekick")
+                .font(.headline)
+                .foregroundStyle(.primary)
+                .accessibilityIdentifier("chat.title")
+            HStack(spacing: 12) {
+                newJobButton(compact: compactNewJob)
+                scanLogButton
+                demoToggle
+            }
+        }
     }
 
     @ViewBuilder
@@ -345,18 +390,25 @@ struct ChatScreen: View {
         }
     }
 
-    private var newJobButton: some View {
+    private func newJobButton(compact: Bool = false) -> some View {
         Button {
             model.startNewJob()
             jobSheet.setDetent(.collapsed)
         } label: {
-            Text(JobsCopy.newJob)
+            if compact {
+                Image(systemName: "square.and.pencil")
+                    .font(.body.weight(.medium))
+                    .accessibilityHidden(true)
+            } else {
+                Text(JobsCopy.newJob)
+            }
         }
         .buttonStyle(.plain)
         .font(.body)
         .foregroundStyle(.primary)
         .fixedSize()
         .disabled(model.target == .newJob)
+        .accessibilityLabel(JobsCopy.newJob)
         .accessibilityIdentifier("chat.newJob")
     }
 

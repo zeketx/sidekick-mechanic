@@ -653,6 +653,29 @@ final class DriveUITests: XCTestCase {
         try writeJSON("layout-composer-multiline.json", ["screens": ["chat-multiline": frames]])
     }
 
+    @MainActor
+    func testChatTitleClearsHeaderButtons() throws {
+        let app = launchApp(arguments: [
+            "-sidekick.onboarding.completed", "YES",
+        ])
+        let title = element(app, "chat.title")
+        XCTAssertTrue(title.waitForExistence(timeout: 8), "chat.title is missing")
+        for identifier in ["chat.garage", "chat.jobs", "chat.newJob", "chat.scanLog"] {
+            let button = element(app, identifier)
+            XCTAssertTrue(button.waitForExistence(timeout: 3), "\(identifier) is missing")
+            XCTAssertFalse(
+                title.frame.intersects(button.frame),
+                "\(identifier) overlaps Sidekick: \(button.frame) vs \(title.frame)"
+            )
+            let gap = horizontalGap(title.frame, button.frame)
+            XCTAssertGreaterThanOrEqual(
+                gap,
+                12,
+                "\(identifier) is \(gap)pt from Sidekick; need at least 12. \(button.frame) vs \(title.frame)"
+            )
+        }
+    }
+
     func testAccessibilityXXXLHeaderAndHalfSheet() throws {
         let chat = launchApp(arguments: [
             "-sidekick.onboarding.completed", "YES",
@@ -1081,6 +1104,16 @@ final class DriveUITests: XCTestCase {
             "chat.userMessage",
             "You said \(text)"
         )).firstMatch
+    }
+
+    private func horizontalGap(_ title: CGRect, _ button: CGRect) -> CGFloat {
+        if title.maxX <= button.minX {
+            return button.minX - title.maxX
+        }
+        if button.maxX <= title.minX {
+            return title.minX - button.maxX
+        }
+        return 0
     }
 
     private func element(_ app: XCUIApplication, _ identifier: String) -> XCUIElement {
