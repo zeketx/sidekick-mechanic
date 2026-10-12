@@ -93,7 +93,7 @@ As a user, I can see "Not found in the manual" when there is no page for the que
 Where: the reply, the line with the closed-book mark.
 Status: Shipped
 
-As a user, I can have more ways of writing a torque caught, a missing manual come back as "not found", and a dead answer show up as a failure instead of a normal reply so that none of those look like the book said it.
+As a user, I can have more ways of writing a torque caught, a missing manual come back as "not found", and "The mechanic is unavailable right now" show up as a failure instead of a normal reply so that none of those look like the book said it.
 
 Where: the reply.
 Status: In review — [#135](https://github.com/zeketx/sidekick-mechanic/pull/135)
@@ -212,9 +212,4 @@ Status: Shipped
 As a user, I can see a plain error if the phone is offline, the answer takes too long, the reply can't be read, or the request fails, and then send again, so that a dead connection doesn't look like an answer. The words on screen are "No network connection…", "The backend took too long to respond.", "The backend sent a reply this app could not read.", or "The backend could not complete this request."
 
 Where: the red bar above the text box.
-Status: Shipped
-
-As a user, I can be told "The mechanic is unavailable right now" when a reply can't be made so that I know to try again in a moment. Today that shows up as a normal answer.
-
-Where: the reply.
 Status: Shipped
