@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import base64
 import json
+import logging
 import os
 import time
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol
 
 import httpx
@@ -14,6 +16,7 @@ import httpx
 ChatRole = Literal["system", "user", "assistant"]
 
 DEFAULT_BASE_URL = "https://api.openai.com/v1"
+DEFAULT_VISION_BASE_URL = "https://openrouter.ai/api/v1"
 DEFAULT_MODEL = "gpt-4o-mini"
 DEFAULT_TIMEOUT_SECONDS = 30.0
 DEFAULT_MAX_RETRIES = 2
@@ -27,15 +30,24 @@ RETRIEVED_PAGES_HEADER = "Retrieved pages:\n"
 GO_DEEPER_HEADER = "Go deeper for one cited page:\n"
 RETRYABLE_STATUS = frozenset({429, 500, 502, 503, 504})
 
+logger = logging.getLogger("sidekick.vision")
+
 
 class LLMError(Exception):
     """Provider failed. Callers map this to a contract-valid error answer."""
 
 
 @dataclass(frozen=True)
+class ImageInput:
+    media_type: Literal["image/jpeg", "image/png"]
+    data: bytes = field(repr=False)
+
+
+@dataclass(frozen=True)
 class ChatTurn:
     role: ChatRole
     content: str
+    images: tuple[ImageInput, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -116,6 +128,7 @@ class OpenAICompatibleClient:
     def complete(self, messages: list[ChatTurn]) -> LLMResult:
         last_error: Exception | None = None
         attempts = self._settings.max_retries + 1
+        started = time.monotonic()
         for attempt in range(attempts):
             try:
                 response = self._post(messages)
@@ -129,7 +142,9 @@ class OpenAICompatibleClient:
                 elif response.status_code >= 400:
                     raise LLMError(f"provider returned HTTP {response.status_code}")
                 else:
-                    return _parse_completion(response, fallback_model=self._settings.model)
+                    result = _parse_completion(response, fallback_model=self._settings.model)
+                    _log_vision_call(messages, result, started)
+                    return result
             if attempt + 1 < attempts:
                 self._sleep(0.25 * (2**attempt))
         raise LLMError("provider failed after retries") from last_error
@@ -143,11 +158,38 @@ class OpenAICompatibleClient:
         body = {
             "model": self._settings.model,
             "temperature": 0,
-            "messages": [
-                {"role": turn.role, "content": turn.content} for turn in messages
-            ],
+            "messages": [_message_body(turn) for turn in messages],
         }
         return self._http.post(url, headers=headers, json=body)
+
+
+def _message_body(turn: ChatTurn) -> dict[str, Any]:
+    if not turn.images:
+        return {"role": turn.role, "content": turn.content}
+    parts: list[dict[str, Any]] = [{"type": "text", "text": turn.content}]
+    for image in turn.images:
+        encoded = base64.b64encode(image.data).decode("ascii")
+        parts.append(
+            {
+                "type": "image_url",
+                "image_url": {"url": f"data:{image.media_type};base64,{encoded}"},
+            }
+        )
+    return {"role": turn.role, "content": parts}
+
+
+def _log_vision_call(messages: list[ChatTurn], result: LLMResult, started: float) -> None:
+    """Lengths only. Image bytes and reply text can show a real plug label."""
+    sizes = [len(image.data) for turn in messages for image in turn.images]
+    if not sizes:
+        return
+    logger.info(
+        "vision model=%s image_bytes=%s reply_chars=%d latency_ms=%d",
+        result.model,
+        sizes,
+        len(result.text),
+        round((time.monotonic() - started) * 1000),
+    )
 
 
 def load_llm_settings(environ: Mapping[str, str] | None = None) -> LLMSettings:
@@ -176,6 +218,26 @@ def build_llm_client(settings: LLMSettings | None = None) -> LLMClient:
     if resolved.api_key:
         return OpenAICompatibleClient(resolved)
     return FakeLLMClient()
+
+
+def build_vision_client(environ: Mapping[str, str] | None = None) -> LLMClient | None:
+    """None without a key and a model, so a plug check says it cannot tell.
+
+    The model is not chosen yet, so there is no default to fall back on.
+    """
+    env = os.environ if environ is None else environ
+    api_key = _optional_str(env.get("SIDEKICK_VISION_API_KEY"))
+    model = _optional_str(env.get("SIDEKICK_VISION_MODEL"))
+    if not api_key or not model:
+        return None
+    settings = LLMSettings(
+        api_key=api_key,
+        base_url=_optional_str(env.get("SIDEKICK_VISION_BASE_URL")) or DEFAULT_VISION_BASE_URL,
+        model=model,
+        timeout_seconds=DEFAULT_TIMEOUT_SECONDS,
+        max_retries=DEFAULT_MAX_RETRIES,
+    )
+    return OpenAICompatibleClient(settings)
 
 
 def _optional_str(raw: str | None) -> str | None:

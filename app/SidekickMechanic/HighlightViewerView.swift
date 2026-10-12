@@ -19,6 +19,7 @@ struct HighlightViewerView: View {
     var shareAlike: Bool
     var onYes: (() -> Void)?
     var onNotThis: (() -> Void)?
+    var onAsk: ((PageRef) -> Void)?
 
     init(
         presentation: HighlightViewerPresentation,
@@ -28,7 +29,8 @@ struct HighlightViewerView: View {
         attribution: String,
         shareAlike: Bool,
         onYes: (() -> Void)? = nil,
-        onNotThis: (() -> Void)? = nil
+        onNotThis: (() -> Void)? = nil,
+        onAsk: ((PageRef) -> Void)? = nil
     ) {
         _presentation = State(initialValue: presentation)
         self.image = image
@@ -38,6 +40,7 @@ struct HighlightViewerView: View {
         self.shareAlike = shareAlike
         self.onYes = onYes
         self.onNotThis = onNotThis
+        self.onAsk = onAsk
     }
 
     private var cardFill: Color {
@@ -61,7 +64,7 @@ struct HighlightViewerView: View {
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("highlightViewer")
         }
-        .citationSheet($presentedCitation)
+        .citationSheet($presentedCitation, onAsk: onAsk)
     }
 
     private var chromeHeader: some View {

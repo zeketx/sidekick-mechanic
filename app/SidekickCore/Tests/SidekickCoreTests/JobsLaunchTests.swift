@@ -167,6 +167,41 @@ final class JobsLaunchTests: XCTestCase {
         )
     }
 
+    func testScreenPlusFreshInstallsTheScriptedJobInTheTempFile() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(JobsLaunch.temporaryFolderName, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let beforeSupport = applicationSupportJobsURL().flatMap { try? Data(contentsOf: $0) }
+        let launch = JobsLaunch.resolve(
+            demo: DemoLaunchOptions(),
+            arguments: ["SidekickMechanic", "-screen", "job-sheet-half", "-jobsStore", "fresh"],
+            environment: [:],
+            now: jobLaunchNow
+        )
+        XCTAssertEqual(launch.source, .file(.temporary(.fresh)))
+        XCTAssertEqual(launch.opening, .job(JobSheetScript.jobID))
+        XCTAssertEqual(launch.sheetDetent, .half)
+        XCTAssertEqual(launch.installed.map(\.id), [JobSheetScript.jobID])
+
+        let jobs = JobsModel(
+            source: launch.source,
+            client: LaunchIdleClient(),
+            installing: launch.installed,
+            now: { jobLaunchNow }
+        )
+        XCTAssertEqual(jobs.storage, .saving)
+        XCTAssertEqual(jobs.jobs.map(\.id), [JobSheetScript.jobID])
+        XCTAssertEqual(jobs.job(JobSheetScript.jobID)?.title, "Cold idle")
+
+        let url = root.appendingPathComponent("jobs.json")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: url.path))
+        let kept = JobsModel(source: .file(.temporary(.keep)), client: LaunchIdleClient(), now: { jobLaunchNow })
+        XCTAssertEqual(kept.jobs.map(\.id), [JobSheetScript.jobID])
+        if let support = applicationSupportJobsURL() {
+            XCTAssertEqual(try? Data(contentsOf: support), beforeSupport)
+        }
+    }
+
     func testScreenAndDemoStoreDoNotCreateJobsFile() throws {
         let screen = JobsLaunch.resolve(
             demo: DemoLaunchOptions(),

@@ -2,11 +2,14 @@
 public struct UserMessage: Hashable, Sendable, Identifiable {
     public let id: MessageID
     public let text: String
+    /// The manual page this turn is about, and the plug photo when there is one.
+    public let attachment: TurnAttachment?
 
-    public init?(id: MessageID, text: String) {
+    public init?(id: MessageID, text: String, attachment: TurnAttachment? = nil) {
         guard !text.isEmpty else { return nil }
         self.id = id
         self.text = text
+        self.attachment = attachment
     }
 }
 
