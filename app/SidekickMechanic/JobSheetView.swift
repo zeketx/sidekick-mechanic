@@ -793,9 +793,14 @@ private struct JobSheetPreview: View {
 }
 
 private struct JobSheetPreviewClient: ChatClient {
-    func send(_ conversation: Conversation, demoPhotoID: String?) async throws -> Answer {
+    func send(
+        _ conversation: Conversation,
+        demoPhotoID: String?,
+        garage: GarageChatContext?
+    ) async throws -> Answer {
         _ = conversation
         _ = demoPhotoID
+        _ = garage
         throw ChatClientError.offline
     }
 }

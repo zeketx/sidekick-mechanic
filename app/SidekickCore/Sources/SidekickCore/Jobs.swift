@@ -290,6 +290,7 @@ public final class JobsModel {
     @ObservationIgnored private let client: any ChatClient
     @ObservationIgnored private let makeID: @Sendable () -> String
     @ObservationIgnored private let now: @Sendable () -> Date
+    @ObservationIgnored private let garageContext: @Sendable () -> GarageChatContext?
 
     /// A file writer and a memory list cannot be combined. The enum is the only way to hold a writer.
     private enum Backing {
@@ -309,11 +310,13 @@ public final class JobsModel {
         client: any ChatClient,
         installing: [JobSheetState] = [],
         makeID: @escaping @Sendable () -> String = { UUID().uuidString },
-        now: @escaping @Sendable () -> Date = { Date() }
+        now: @escaping @Sendable () -> Date = { Date() },
+        garageContext: @escaping @Sendable () -> GarageChatContext? = { nil }
     ) {
         self.client = client
         self.makeID = makeID
         self.now = now
+        self.garageContext = garageContext
         switch source {
         case let .memory(seed):
             jobs = seed
@@ -466,10 +469,14 @@ public final class JobsModel {
         guard let outgoing = job(id)?.conversation else { return }
         replies[id] = .waiting
         let client = self.client
+        // A page turn passes `.none`. Garage notes still go with that question.
+        let garage = garageContext()
         replyTasks[id] = Task { [client] in
             let result: Result<Answer, any Error>
             do {
-                result = .success(try await client.send(outgoing, demoPhotoID: options.demoPhotoID))
+                result = .success(
+                    try await client.send(outgoing, demoPhotoID: options.demoPhotoID, garage: garage)
+                )
             } catch {
                 result = .failure(error)
             }

@@ -311,9 +311,14 @@ final class JobsModelTests: XCTestCase {
 private struct JobsModelTestFailure: Error {}
 
 private struct IdleJobClient: ChatClient {
-    func send(_ conversation: Conversation, demoPhotoID: String?) async throws -> Answer {
+    func send(
+        _ conversation: Conversation,
+        demoPhotoID: String?,
+        garage: GarageChatContext?
+    ) async throws -> Answer {
         _ = conversation
         _ = demoPhotoID
+        _ = garage
         throw ChatClientError.offline
     }
 }
@@ -340,8 +345,13 @@ private final class GateJobClient: ChatClient, @unchecked Sendable {
     private var waiters: [CheckedContinuation<Answer, Error>] = []
     private(set) var sent: [Conversation] = []
 
-    func send(_ conversation: Conversation, demoPhotoID: String?) async throws -> Answer {
+    func send(
+        _ conversation: Conversation,
+        demoPhotoID: String?,
+        garage: GarageChatContext?
+    ) async throws -> Answer {
         _ = demoPhotoID
+        _ = garage
         return try await withCheckedThrowingContinuation { continuation in
             lock.lock()
             sent.append(conversation)

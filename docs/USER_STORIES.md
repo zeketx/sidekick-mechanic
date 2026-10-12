@@ -4,7 +4,7 @@ Sidekick is a mechanic you text from your phone, for one truck. The demo truck i
 
 You describe a problem. It answers from the real manuals, shows the page, and can draw a line around a part on a photo.
 
-This file lists what the app can do. Each section starts with the annoying part, then the stories that help. Checked against `main` at `62d4813` (12 Oct 2026), which includes a saved chat on each job ([#138](https://github.com/zeketx/sidekick-mechanic/pull/138)) and zooming a manual page plus Ask about this page ([#137](https://github.com/zeketx/sidekick-mechanic/pull/137)).
+This file lists what the app can do. Each section starts with the annoying part, then the stories that help. Checked against `main` at `b1d3952` (12 Oct 2026), which includes the safety-gap fixes ([#135](https://github.com/zeketx/sidekick-mechanic/pull/135)) on top of a saved chat on each job ([#138](https://github.com/zeketx/sidekick-mechanic/pull/138)) and zooming a manual page plus Ask about this page ([#137](https://github.com/zeketx/sidekick-mechanic/pull/137)).
 
 **Keep it current.** If a pull request changes something a person can do in the app, update this file in that same pull request.
 
@@ -96,7 +96,7 @@ Status: Shipped
 As a user, I can have more ways of writing a torque caught, a missing manual come back as "not found", and "The mechanic is unavailable right now" show up as a failure instead of a normal reply so that none of those look like the book said it.
 
 Where: the reply.
-Status: In review — [#135](https://github.com/zeketx/sidekick-mechanic/pull/135)
+Status: Shipped. [#135](https://github.com/zeketx/sidekick-mechanic/pull/135) is on `main` at `b1d3952`.
 
 ## The repair takes all week
 

@@ -1,8 +1,9 @@
 """Answer the newest user turn about one manual page.
 
-The server loads the page text. That one string is the prompt's only source of
-truck facts and the spec guard's only evidence. The client never sends page
-text. A page answer never carries a highlight.
+The server loads the page text. That string is the spec guard's only evidence
+and the only source a citation may copy. Garage notes may be mentioned. They
+are not a manual page. The client never sends page text. A page answer never
+carries a highlight.
 """
 
 from __future__ import annotations
@@ -10,7 +11,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from chat_models import Conversation, PageRef
+from chat_models import Conversation, PageRef, garage_prompt_block
 from go_deeper import excerpt_around_snippet
 from llm import ChatTurn, LLMClient, LLMError
 from plug_check import check_plug, render_verdict
@@ -73,7 +74,12 @@ def answer_about_page(
 
 
 def _explain(conversation: Conversation, page_text: str, llm: LLMClient) -> str | None:
-    system = f"{PAGE_EXPLAIN_INSTRUCTIONS}\n\n{PAGE_TEXT_HEADER}{page_text}"
+    parts = [PAGE_EXPLAIN_INSTRUCTIONS]
+    block = garage_prompt_block(conversation.garage)
+    if block:
+        parts.append(block)
+    parts.append(f"{PAGE_TEXT_HEADER}{page_text}")
+    system = "\n\n".join(parts)
     turns = [ChatTurn(role="system", content=system)]
     turns.extend(ChatTurn(role=m.role, content=m.text) for m in conversation.messages)
     try:

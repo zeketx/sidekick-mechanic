@@ -57,6 +57,11 @@ curl -sS http://127.0.0.1:8000/chat \
   -d '{"messages":[{"role":"user","text":"Why is it hard to start?"}]}'
 ```
 
+The app may also send a compact `garage` object (truck facts, part notes, and
+open to-dos). That text is added to the system prompt so the model can mention
+what the owner already wrote down. It is not a manual citation. Omit `garage`
+when there is nothing to send. Long notes are trimmed.
+
 With no `SIDEKICK_LLM_API_KEY`, the default producer uses `FakeLLMClient` (no
 network). After ingestion has written `.ingest/chunks.jsonl`, build the index
 with `python3 retrieval.py build`. A question that matches indexed pages then

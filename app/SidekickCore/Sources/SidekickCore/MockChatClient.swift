@@ -29,8 +29,13 @@ public struct MockChatClient: ChatClient, Sendable {
         )
     }
 
-    public func send(_ conversation: Conversation, demoPhotoID: String? = nil) async throws -> Answer {
+    public func send(
+        _ conversation: Conversation,
+        demoPhotoID: String? = nil,
+        garage: GarageChatContext? = nil
+    ) async throws -> Answer {
         _ = demoPhotoID
+        _ = garage
         if delay > .zero {
             try await Task.sleep(for: delay)
         }

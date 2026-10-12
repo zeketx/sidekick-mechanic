@@ -271,6 +271,34 @@ final class ChatViewModelTests: XCTestCase {
         )
         await model.send()
         XCTAssertEqual(client.sentDemoPhotoIDs, ["hrymx-2jz-ge-25308847029"])
+        XCTAssertEqual(client.sentGarages, [nil])
+    }
+
+    func testSendPassesCompactGarageContext() async throws {
+        let client = ScriptedChatClient(results: [.success(plainAnswer())])
+        var library = GarageLibrary.seeded()
+        _ = library.addItem(
+            id: "item-1",
+            name: "Wiring harness",
+            note: "already replaced",
+            photoFileName: nil
+        )
+        _ = library.addTodo(id: "todo-1", title: "Check the spare")
+        _ = library.addTodo(id: "todo-2", title: "Wash the truck")
+        _ = library.setTodoDone(id: "todo-2", isDone: true)
+        let garage = GarageChatContext.compact(from: library)
+        let model = makeModel(
+            client: client,
+            composerText: "Should I replace the wiring harness?",
+            garageContext: { garage }
+        )
+        await model.send()
+        XCTAssertEqual(client.sentGarages, [garage])
+        XCTAssertEqual(
+            garage?.notes,
+            [GarageChatContext.Note(name: "Wiring harness", note: "already replaced")]
+        )
+        XCTAssertEqual(garage?.openTodos, [GarageChatContext.Todo(title: "Check the spare")])
     }
 
     func testConfirmYesPromotesToOutline() throws {
@@ -295,6 +323,7 @@ final class ChatViewModelTests: XCTestCase {
         composerText: String = "",
         isDemoMode: Bool = false,
         selectedDemoPhotoID: String? = nil,
+        garageContext: @escaping @Sendable () -> GarageChatContext? = { nil },
         makeMessageID: (@Sendable () -> MessageID)? = nil
     ) -> ChatViewModel {
         let ids = SequentialMessageIDs(values: ["msg-1", "msg-2", "msg-3", "msg-4", "msg-5"])
@@ -303,7 +332,8 @@ final class ChatViewModelTests: XCTestCase {
         let jobs = JobsModel(
             source: .memory(seeded),
             client: client,
-            makeID: { makeID().rawValue }
+            makeID: { makeID().rawValue },
+            garageContext: garageContext
         )
         let target: ChatTarget = seeded.isEmpty ? .newJob : .job(seeded[0].id)
         return ChatViewModel(
@@ -353,8 +383,13 @@ final class ChatViewModelTests: XCTestCase {
 private struct SampleFailure: Error {}
 
 private struct SleepingChatClient: ChatClient {
-    func send(_ conversation: Conversation, demoPhotoID: String?) async throws -> Answer {
+    func send(
+        _ conversation: Conversation,
+        demoPhotoID: String?,
+        garage: GarageChatContext?
+    ) async throws -> Answer {
         _ = demoPhotoID
+        _ = garage
         try await Task.sleep(for: .seconds(30))
         throw ChatClientError.timeout
     }
@@ -380,17 +415,23 @@ private final class ScriptedChatClient: ChatClient, @unchecked Sendable {
     private var results: [Result<Answer, Error>]
     private(set) var sent: [Conversation] = []
     private(set) var sentDemoPhotoIDs: [String?] = []
+    private(set) var sentGarages: [GarageChatContext?] = []
 
     init(results: [Result<Answer, Error>]) {
         self.results = results
     }
 
-    func send(_ conversation: Conversation, demoPhotoID: String?) async throws -> Answer {
+    func send(
+        _ conversation: Conversation,
+        demoPhotoID: String?,
+        garage: GarageChatContext?
+    ) async throws -> Answer {
         let result: Result<Answer, Error> = {
             lock.lock()
             defer { lock.unlock() }
             sent.append(conversation)
             sentDemoPhotoIDs.append(demoPhotoID)
+            sentGarages.append(garage)
             return results.removeFirst()
         }()
         return try result.get()
@@ -402,8 +443,13 @@ private final class GateChatClient: ChatClient, @unchecked Sendable {
     private var waiter: CheckedContinuation<Answer, Error>?
     private(set) var sent: [Conversation] = []
 
-    func send(_ conversation: Conversation, demoPhotoID: String?) async throws -> Answer {
+    func send(
+        _ conversation: Conversation,
+        demoPhotoID: String?,
+        garage: GarageChatContext?
+    ) async throws -> Answer {
         _ = demoPhotoID
+        _ = garage
         return try await withCheckedThrowingContinuation { continuation in
             lock.lock()
             sent.append(conversation)

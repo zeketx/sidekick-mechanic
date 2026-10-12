@@ -9,7 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app import create_app
-from chat_models import Conversation, Message
+from chat_models import Conversation, GarageContext, GarageNoteContext, Message
 from llm import FAKE_GROUNDED_TEXT, ChatTurn, FakeLLMClient, LLMError
 from part_resolver import BayMapView, BayPartView
 from producer import (
@@ -112,6 +112,34 @@ def test_cited_answer_keeps_retrieved_snippet() -> None:
     assert '"rank"' not in system.content
     assert "N·m" not in system.content
     assert fake.calls[0][1] == ChatTurn(role="user", content=_QUESTION)
+
+
+def test_cited_answer_keeps_pages_when_garage_notes_are_present() -> None:
+    producer, fake, retriever = _producer(
+        _completion(_ANSWER, [_cited()]),
+        (_Hit(_DOC, _PAGE, _SNIPPET),),
+    )
+    conversation = Conversation(
+        messages=[Message(role="user", text=_QUESTION)],
+        garage=GarageContext(
+            notes=[GarageNoteContext(name="Wiring harness", note="already replaced")]
+        ),
+    )
+
+    payload = producer.produce(conversation)
+
+    assert payload == {
+        "kind": "answer",
+        "text": _ANSWER,
+        "citations": [_cited()],
+    }
+    assert retriever.queries == [_QUESTION]
+    system = fake.calls[0][0].content
+    assert "already replaced" in system
+    assert "Retrieved pages:" in system
+    pages = system.split("Retrieved pages:\n", 1)[1]
+    assert _SNIPPET in pages
+    assert "already replaced" not in pages
 
 
 def test_mixed_citations_keep_only_retrieved_page() -> None:

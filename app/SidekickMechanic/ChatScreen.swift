@@ -1023,17 +1023,27 @@ private struct ChatPreviewHost: View {
 }
 
 private struct IdleChatClient: ChatClient {
-    func send(_ conversation: Conversation, demoPhotoID: String?) async throws -> Answer {
+    func send(
+        _ conversation: Conversation,
+        demoPhotoID: String?,
+        garage: GarageChatContext?
+    ) async throws -> Answer {
         _ = conversation
         _ = demoPhotoID
+        _ = garage
         throw ChatClientError.offline
     }
 }
 
 private struct HangingChatClient: ChatClient {
-    func send(_ conversation: Conversation, demoPhotoID: String?) async throws -> Answer {
+    func send(
+        _ conversation: Conversation,
+        demoPhotoID: String?,
+        garage: GarageChatContext?
+    ) async throws -> Answer {
         _ = conversation
         _ = demoPhotoID
+        _ = garage
         try await Task.sleep(for: .seconds(3_600))
         throw ChatClientError.offline
     }
