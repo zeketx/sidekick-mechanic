@@ -1,99 +1,104 @@
 import Foundation
 import Observation
 
-/// Screen state for the chat message list and composer.
+/// Which job is on screen, plus the composer and demo settings.
 ///
-/// Send stays disabled until the trimmed composer text is non-empty and no reply is loading.
+/// Messages, loading, and errors are read from `JobsModel` for that job.
 @MainActor
 @Observable
 public final class ChatViewModel {
-    public private(set) var conversation: Conversation
+    public private(set) var target: ChatTarget
     public var composerText: String
-    public private(set) var isLoading: Bool
-    public private(set) var errorMessage: String?
     public var isDemoMode: Bool
     public var selectedDemoPhotoID: String?
     public var highlightStyle: DemoHighlightStyle
     public private(set) var confirmDecisions: [String: DemoConfirmDecision]
 
-    @ObservationIgnored private let client: any ChatClient
-    @ObservationIgnored private let makeMessageID: @Sendable () -> MessageID
+    @ObservationIgnored private let jobs: JobsModel
 
-    public var messages: [Message] { conversation.messages }
+    public init(
+        jobs: JobsModel,
+        target: ChatTarget = .newJob,
+        composerText: String = "",
+        isDemoMode: Bool = false,
+        selectedDemoPhotoID: String? = nil,
+        highlightStyle: DemoHighlightStyle = .outline
+    ) {
+        self.jobs = jobs
+        self.target = target
+        self.composerText = composerText
+        self.isDemoMode = isDemoMode
+        self.selectedDemoPhotoID = selectedDemoPhotoID
+        self.highlightStyle = highlightStyle
+        self.confirmDecisions = [:]
+    }
 
-    public var canSend: Bool {
-        let hasText = !isLoading && !composerText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        if isDemoMode {
-            return hasText && selectedDemoPhotoID != nil
-        }
-        return hasText
+    /// The on-screen job, or nil for a new job or a target that no longer exists.
+    public var job: JobSheetState? { target.jobID.flatMap(jobs.job) }
+
+    /// The on-screen job when it has an answer to show on the sheet.
+    public var sheetJob: JobSheetState? { job.flatMap { $0.showsSheet ? $0 : nil } }
+
+    public var messages: [Message] { job?.conversation.messages ?? [] }
+
+    public var isLoading: Bool {
+        guard let id = target.jobID else { return false }
+        return jobs.reply(in: id) == .waiting
+    }
+
+    /// A failed save first, then this job's failed reply.
+    public var errorMessage: String? {
+        if let saveFailure = jobs.saveFailure { return saveFailure }
+        guard let id = target.jobID else { return nil }
+        if case let .failed(message) = jobs.reply(in: id) { return message }
+        return nil
     }
 
     public var activeDemoPhotoID: String? {
         isDemoMode ? selectedDemoPhotoID : nil
     }
 
-    public init(
-        conversationID: ConversationID,
-        messages: [Message] = [],
-        composerText: String = "",
-        isLoading: Bool = false,
-        errorMessage: String? = nil,
-        isDemoMode: Bool = false,
-        selectedDemoPhotoID: String? = nil,
-        highlightStyle: DemoHighlightStyle = .outline,
-        client: any ChatClient,
-        makeMessageID: @escaping @Sendable () -> MessageID = ChatViewModel.makeUUIDMessageID
-    ) {
-        self.conversation = Conversation(id: conversationID, messages: messages)
-        self.composerText = composerText
-        self.isLoading = isLoading
-        self.errorMessage = errorMessage
-        self.isDemoMode = isDemoMode
-        self.selectedDemoPhotoID = selectedDemoPhotoID
-        self.highlightStyle = highlightStyle
-        self.confirmDecisions = [:]
-        self.client = client
-        self.makeMessageID = makeMessageID
+    public var replyOptions: ReplyOptions {
+        ReplyOptions(demoPhotoID: activeDemoPhotoID)
     }
 
-    public nonisolated static func makeUUIDMessageID() -> MessageID {
-        let raw = UUID().uuidString
-        guard let id = MessageID(rawValue: raw) else {
-            preconditionFailure("UUID string is non-empty")
-        }
-        return id
+    public var canSend: Bool {
+        let trimmed = composerText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, jobs.canAppend(to: target) else { return false }
+        if isDemoMode { return selectedDemoPhotoID != nil }
+        return true
     }
 
-    /// Appends the trimmed composer text, then the assistant answer from `ChatClient`.
+    /// Writes the trimmed composer into the on-screen job, or a new one, then waits for that reply.
     ///
-    /// A `ChatClientError` is shown as `userMessage`. The user turn stays in the list.
-    /// Cancellation leaves that turn in place and does not present a backend failure.
+    /// The user turn is stored before the reply. A failed reply keeps it. An empty composer does not send.
+    /// Cancelling this call cancels the reply and does not present a backend failure.
     public func send() async {
         let trimmed = composerText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !isLoading, !trimmed.isEmpty else { return }
-        guard let user = UserMessage(id: makeMessageID(), text: trimmed) else { return }
-
-        conversation = conversation.appending(.user(user))
-        composerText = ""
-        errorMessage = nil
-        isLoading = true
-        let outgoing = conversation
-
+        guard canSend else { return }
+        let id: JobID
         do {
-            let answer = try await client.send(outgoing, demoPhotoID: activeDemoPhotoID)
-            let assistant = AssistantMessage(id: makeMessageID(), answer: answer)
-            conversation = conversation.appending(.assistant(assistant))
-            isLoading = false
-        } catch is CancellationError {
-            isLoading = false
-        } catch let error as ChatClientError {
-            errorMessage = error.userMessage
-            isLoading = false
+            guard let written = try jobs.append(.typed(trimmed), to: target, options: replyOptions) else {
+                return
+            }
+            id = written
         } catch {
-            errorMessage = Self.unknownFailureMessage
-            isLoading = false
+            return
         }
+        target = .job(id)
+        composerText = ""
+        await jobs.waitForReply(in: id)
+    }
+
+    /// Blank chat. The next send creates a job. Keeps any text already in the composer.
+    public func startNewJob() {
+        target = .newJob
+    }
+
+    /// Shows that job's chat. Ignores an unknown id.
+    public func open(_ id: JobID) {
+        guard jobs.job(id) != nil else { return }
+        target = .job(id)
     }
 
     public func applyDemoConfirm(messageID: MessageID, decision: DemoConfirmDecision) {

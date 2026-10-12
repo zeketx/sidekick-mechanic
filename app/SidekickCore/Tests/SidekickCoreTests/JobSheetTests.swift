@@ -4,7 +4,7 @@ import XCTest
 final class JobSheetTests: XCTestCase {
     func testCollapsedAndHalfMoveWithOpenAndClose() async {
         await MainActor.run {
-            let model = JobSheetViewModel(job: JobSheetScript.makeJob(detent: .collapsed, photoID: nil))
+            let model = JobSheetViewModel(detent: .collapsed)
             XCTAssertEqual(model.detent, .collapsed)
             XCTAssertFalse(model.blocksChat)
 
@@ -20,7 +20,7 @@ final class JobSheetTests: XCTestCase {
 
     func testDragMovesCollapsedHalfAndFull() async {
         await MainActor.run {
-            let model = JobSheetViewModel(job: JobSheetScript.makeJob(detent: .collapsed, photoID: nil))
+            let model = JobSheetViewModel(detent: .collapsed)
             model.applyDrag(translationHeight: -80)
             XCTAssertEqual(model.detent, .half)
             model.applyDrag(translationHeight: -80)
@@ -34,123 +34,26 @@ final class JobSheetTests: XCTestCase {
         }
     }
 
-    func testOutcomeIsExclusiveAndNeedsNoPartName() async {
-        await MainActor.run {
-            let model = JobSheetViewModel(job: JobSheetScript.makeJob(detent: .half, photoID: nil))
-            XCTAssertNil(model.job?.outcome)
-            XCTAssertEqual(JobOutcome.allCases.map(\.label), ["Worked", "Partly", "Didn't"])
-
-            model.selectOutcome(.partly)
-            XCTAssertEqual(model.job?.outcome, .partly)
-            model.selectOutcome(.didnt)
-            XCTAssertEqual(model.job?.outcome, .didnt)
-            model.selectOutcome(.worked)
-            XCTAssertEqual(model.job?.outcome, .worked)
-            XCTAssertEqual(JobSheetCopy.howDidItGo, "How did it go?")
-            XCTAssertEqual(JobSheetCopy.whatFixedPlaceholder, "What fixed it? (optional)")
-            XCTAssertEqual(JobSheetCopy.answer.contains("FAKE-DOC-2JZ"), true)
-            XCTAssertFalse(JobSheetCopy.answer.contains("FAKE-SPEC"))
-            XCTAssertFalse(JobSheetCopy.answer.contains("air box"))
-            XCTAssertTrue(JobSheetCopy.answer.contains("fuse/relay box"))
-        }
+    func testOutcomeLabelsNeedNoPartName() {
+        XCTAssertEqual(JobOutcome.allCases.map(\.label), ["Worked", "Partly", "Didn't"])
+        XCTAssertEqual(JobSheetCopy.howDidItGo, "How did it go?")
+        XCTAssertEqual(JobSheetCopy.whatFixedPlaceholder, "What fixed it? (optional)")
+        XCTAssertEqual(JobSheetCopy.answer.contains("FAKE-DOC-2JZ"), true)
+        XCTAssertFalse(JobSheetCopy.answer.contains("FAKE-SPEC"))
+        XCTAssertFalse(JobSheetCopy.answer.contains("air box"))
+        XCTAssertTrue(JobSheetCopy.answer.contains("fuse/relay box"))
     }
 
-    func testAttachBindsPhotoToThisJobNotABayMap() async {
-        await MainActor.run {
-            let model = JobSheetViewModel(job: JobSheetScript.makeJob(detent: .half, photoID: nil))
-            XCTAssertFalse(model.job?.hasPhoto == true)
-
-            model.attachPhoto(photoID: "commons-hilux-2jz")
-            XCTAssertEqual(model.job?.photoID, "commons-hilux-2jz")
-            XCTAssertTrue(model.job?.hasPhoto == true)
-            XCTAssertEqual(model.job?.tags, ["fuse/relay", "inspected"])
-            XCTAssertEqual(model.job?.highlight?.bayPhotoID.rawValue, "commons-hilux-2jz")
-            XCTAssertEqual(model.job?.highlight?.partID.rawValue, "fuse-relay-box")
-            XCTAssertEqual(model.job?.highlight?.isDemo, true)
-            XCTAssertEqual(
-                model.job?.highlight?.geometry,
-                HighlightViewerScript.geometry(
-                    photoID: "commons-hilux-2jz",
-                    partID: "fuse-relay-box",
-                    showingOutline: true
-                )
-            )
-            XCTAssertTrue(model.job?.answerText.contains("fuse/relay box") == true)
-            XCTAssertFalse(model.job?.answerText.contains("air box") == true)
-            XCTAssertGreaterThanOrEqual(model.job?.highlight?.geometry?.polygons[0].points.count ?? 0, 5)
-
-            model.attachPhoto(photoID: "hrymx-2jz-ge-25308847029")
-            XCTAssertEqual(model.job?.highlight?.partID.rawValue, "throttle-body")
-            XCTAssertEqual(model.job?.tags, ["throttle", "inspected"])
-            XCTAssertTrue(model.job?.answerText.contains("throttle body") == true)
-            XCTAssertEqual(
-                model.job?.highlight?.geometry,
-                HighlightViewerScript.geometry(
-                    photoID: "hrymx-2jz-ge-25308847029",
-                    partID: "throttle-body",
-                    showingOutline: true
-                )
-            )
-        }
+    func testNotesAndTagCopyStayFixtureOnly() {
+        XCTAssertEqual(JobSheetCopy.notesHeading, "Notes")
+        XCTAssertEqual(JobSheetCopy.tagsHeading, "Tags")
+        XCTAssertEqual(JobSheetCopy.addTag, "+ add")
+        XCTAssertEqual(JobSheetCopy.notesPlaceholder, "Hoses look dry. No numbers guessed.")
+        XCTAssertFalse(JobSheetCopy.notesPlaceholder.contains("FAKE-SPEC"))
+        XCTAssertFalse(JobSheetCopy.whatFixedPlaceholder.contains("FAKE-SPEC"))
     }
 
-    func testSyncTakesLatestAssistantAndKeepsExistingJob() async {
-        await MainActor.run {
-            let model = JobSheetViewModel()
-            model.sync(from: JobSheetScript.messages, photoID: DemoLaunchOptions.defaultPhotoID)
-            XCTAssertEqual(model.job?.sourceMessageID, JobSheetScript.assistantMessageID)
-            XCTAssertEqual(model.job?.title, JobSheetCopy.title)
-            XCTAssertEqual(model.job?.detent, .collapsed)
-            XCTAssertEqual(model.job?.citations.first?.docID.rawValue, "FAKE-DOC-2JZ")
-            XCTAssertEqual(model.job?.citations.first?.page.rawValue, 999)
-
-            model.open()
-            model.selectOutcome(.worked)
-            model.sync(from: JobSheetScript.messages, photoID: "other-photo")
-            XCTAssertEqual(model.detent, .half)
-            XCTAssertEqual(model.job?.outcome, .worked)
-            XCTAssertEqual(model.job?.photoID, DemoLaunchOptions.defaultPhotoID)
-            XCTAssertEqual(model.job?.notes, "")
-            XCTAssertEqual(model.job?.whatFixed, "")
-        }
-    }
-
-    func testNotesTagsAndWhatFixedStayOnTheJob() async {
-        await MainActor.run {
-            let model = JobSheetViewModel(
-                job: JobSheetScript.makeJob(detent: .full, photoID: DemoLaunchOptions.defaultPhotoID)
-            )
-            XCTAssertEqual(model.job?.tags, ["fuse/relay", "inspected"])
-            XCTAssertEqual(model.job?.notes, "")
-            XCTAssertEqual(model.job?.whatFixed, "")
-            XCTAssertEqual(JobSheetCopy.notesHeading, "Notes")
-            XCTAssertEqual(JobSheetCopy.tagsHeading, "Tags")
-            XCTAssertEqual(JobSheetCopy.addTag, "+ add")
-            XCTAssertEqual(JobSheetCopy.notesPlaceholder, "Hoses look dry. No numbers guessed.")
-            XCTAssertFalse(JobSheetCopy.notesPlaceholder.contains("FAKE-SPEC"))
-            XCTAssertFalse(JobSheetCopy.whatFixedPlaceholder.contains("FAKE-SPEC"))
-
-            model.setNotes("Hoses look dry. No numbers guessed.")
-            model.setWhatFixed("Cleaned the connector.")
-            model.addTag("cooling")
-            model.addTag("cooling")
-            model.addTag("  ")
-            XCTAssertEqual(model.job?.notes, "Hoses look dry. No numbers guessed.")
-            XCTAssertEqual(model.job?.whatFixed, "Cleaned the connector.")
-            XCTAssertEqual(model.job?.tags, ["fuse/relay", "inspected", "cooling"])
-
-            model.removeTag("inspected")
-            XCTAssertEqual(model.job?.tags, ["fuse/relay", "cooling"])
-
-            model.sync(from: JobSheetScript.messages, photoID: "other-photo")
-            XCTAssertEqual(model.job?.notes, "Hoses look dry. No numbers guessed.")
-            XCTAssertEqual(model.job?.whatFixed, "Cleaned the connector.")
-            XCTAssertEqual(model.job?.tags, ["fuse/relay", "cooling"])
-            XCTAssertEqual(model.detent, .full)
-        }
-    }
-
-    func testLaunchScreensOpenEachDetentAndCloseout() async {
+    func testLaunchScreensOpenEachDetentAndCloseout() {
         let collapsed = DemoLaunchOptions.parse(
             arguments: ["SidekickMechanic", "-screen", "job-sheet-collapsed"],
             environment: [:]
@@ -195,23 +98,23 @@ final class JobSheetTests: XCTestCase {
         XCTAssertNil(citation.jobSheetScreen)
         XCTAssertTrue(citation.enablesDemoMode)
 
-        await MainActor.run {
-            let model = JobSheetViewModel()
-            model.applyLaunch(.closeout, photoID: DemoLaunchOptions.defaultPhotoID)
-            XCTAssertEqual(model.detent, .half)
-            XCTAssertEqual(model.job?.outcome, .worked)
-            XCTAssertTrue(JobSheetLayout.fillsSelectedOutcome(detent: .half, outcome: .worked))
-            model.applyLaunch(.full, photoID: DemoLaunchOptions.defaultPhotoID)
-            XCTAssertEqual(model.detent, .full)
-            XCTAssertEqual(model.job?.outcome, .worked)
-            XCTAssertTrue(JobSheetLayout.fillsSelectedOutcome(detent: .full, outcome: .worked))
-            XCTAssertEqual(model.job?.photoID, DemoLaunchOptions.defaultPhotoID)
-            XCTAssertEqual(model.job?.headerTitle, "Job · Cold idle")
-            XCTAssertEqual(model.job?.tags, ["fuse/relay", "inspected"])
-            XCTAssertEqual(model.job?.highlight?.partID.rawValue, "fuse-relay-box")
-            XCTAssertTrue(model.job?.answerText.contains("fuse/relay box") == true)
-            XCTAssertFalse(model.job?.answerText.contains("air box") == true)
-        }
+        let job = JobSheetScript.job(
+            photoID: DemoLaunchOptions.defaultPhotoID,
+            outcome: .worked,
+            now: Date(timeIntervalSince1970: 1_760_000_000)
+        )
+        XCTAssertEqual(job.outcome, .worked)
+        XCTAssertTrue(JobSheetLayout.fillsSelectedOutcome(detent: .half, outcome: .worked))
+        XCTAssertTrue(JobSheetLayout.fillsSelectedOutcome(detent: .full, outcome: .worked))
+        XCTAssertEqual(job.photoID, DemoLaunchOptions.defaultPhotoID)
+        XCTAssertEqual(job.headerTitle, "Job · Cold idle")
+        XCTAssertEqual(job.tags, ["fuse/relay", "inspected"])
+        XCTAssertEqual(job.highlight?.partID.rawValue, "fuse-relay-box")
+        XCTAssertEqual(job.answerText.contains("fuse/relay box"), true)
+        XCTAssertEqual(job.answerText.contains("air box"), false)
+        XCTAssertEqual(job.citations.first?.docID.rawValue, "FAKE-DOC-2JZ")
+        XCTAssertEqual(job.citations.first?.page.rawValue, 999)
+        XCTAssertEqual(job.conversation.messages.count, 2)
     }
 
     func testV1SheetHasNoLaterBacklogFields() {

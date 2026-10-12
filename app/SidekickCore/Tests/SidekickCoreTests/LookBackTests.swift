@@ -1,7 +1,14 @@
 import XCTest
 @testable import SidekickCore
 
+@MainActor
 final class LookBackTests: XCTestCase {
+    private var utcCalendar: Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        calendar.locale = Locale(identifier: "en_US_POSIX")
+        return calendar
+    }
     func testLaunchScreensMapJobHistoryAndScanLog() {
         let jobs = DemoLaunchOptions.parse(
             arguments: ["SidekickMechanic", "-screen", "job-history"],
@@ -26,12 +33,23 @@ final class LookBackTests: XCTestCase {
     }
 
     func testJobHistoryRowsMatchFigmaAndReuseJobSheet() throws {
-        let rows = JobHistoryScript.rows
-        XCTAssertEqual(rows.map(\.job.title), ["Cold idle", "Hard start", "Battery light", "Hose check"])
-        XCTAssertEqual(rows.map(\.dateLabel), ["Today", "Yesterday", "Sep 28", "Sep 20"])
-        XCTAssertEqual(rows.map(\.job.outcome), [.worked, .partly, .didnt, .worked])
+        let now = try XCTUnwrap(utcCalendar.date(from: DateComponents(
+            year: 2026, month: 10, day: 10, hour: 15
+        )))
+        let rows = JobHistoryScript.jobs(now: now, calendar: utcCalendar)
+        XCTAssertEqual(rows.map(\.title), ["Cold idle", "Hard start", "Battery light", "Hose check"])
+        XCTAssertEqual(rows.map { $0.dateLabel(now: now, calendar: utcCalendar) }, [
+            "Today", "Yesterday", "Sep 28", "Sep 20",
+        ])
+        XCTAssertEqual(rows.map(\.outcome), [.worked, .partly, .didnt, .worked])
+        XCTAssertEqual(rows.map(\.rowIdentifier), [
+            "jobHistory.row.cold-idle",
+            "jobHistory.row.hard-start",
+            "jobHistory.row.battery-light",
+            "jobHistory.row.hose-check",
+        ])
         XCTAssertEqual(JobHistoryCopy.title, "Jobs")
-        XCTAssertEqual(JobHistoryCopy.subtitle, "One row per ask")
+        XCTAssertEqual(JobHistoryCopy.subtitle, "Each one keeps its own chat.")
         XCTAssertEqual(JobHistoryCopy.back, "Back")
         XCTAssertEqual(JobOutcome.allCases.map(\.label), ["Worked", "Partly", "Didn't"])
 
@@ -41,39 +59,70 @@ final class LookBackTests: XCTestCase {
             "throttle-body",
             "throttle-body",
         ]
-        for (row, partID) in zip(rows, expectedParts) {
-            let photoID = try XCTUnwrap(row.job.photoID)
-            XCTAssertEqual(row.job.answerText, JobSheetCopy.answer(photoID: photoID))
-            XCTAssertEqual(row.job.citations.first?.docID.rawValue, "FAKE-DOC-2JZ")
-            XCTAssertEqual(row.job.citations.first?.page.rawValue, 999)
-            XCTAssertEqual(row.job.highlight?.isDemo, true)
-            XCTAssertEqual(row.job.highlight?.partID.rawValue, partID)
+        let expectedAsks = [
+            "Rough idle after a cold start",
+            "Hard start",
+            "Battery light",
+            "Hose check",
+        ]
+        for index in rows.indices {
+            let row = rows[index]
+            let partID = expectedParts[index]
+            let ask = expectedAsks[index]
+            let photoID = try XCTUnwrap(row.photoID)
+            XCTAssertEqual(row.answerText, JobSheetCopy.answer(photoID: photoID))
+            XCTAssertEqual(row.citations.first?.docID.rawValue, "FAKE-DOC-2JZ")
+            XCTAssertEqual(row.citations.first?.page.rawValue, 999)
+            XCTAssertEqual(row.highlight?.isDemo, true)
+            XCTAssertEqual(row.highlight?.partID.rawValue, partID)
             XCTAssertEqual(
-                row.job.highlight?.geometry,
+                row.highlight?.geometry,
                 HighlightViewerScript.geometry(
                     photoID: photoID,
                     partID: partID,
                     showingOutline: true
                 )
             )
-            XCTAssertGreaterThanOrEqual(row.job.highlight?.geometry?.polygons[0].points.count ?? 0, 5)
-            XCTAssertFalse(row.job.answerText.contains("air box"))
-            XCTAssertEqual(row.job.detent, .collapsed)
+            XCTAssertGreaterThanOrEqual(row.highlight?.geometry?.polygons[0].points.count ?? 0, 5)
+            XCTAssertFalse(row.answerText.contains("air box"))
+            XCTAssertEqual(try userText(row.conversation.messages[0]), ask)
         }
+
+        let older = JobSheetState(
+            id: JobID(rawValue: "older-year")!,
+            title: "Older",
+            createdAt: try XCTUnwrap(utcCalendar.date(from: DateComponents(
+                year: 2025, month: 9, day: 28, hour: 12
+            ))),
+            conversation: Conversation(id: ConversationID(rawValue: "older-year")!)
+        )
+        XCTAssertEqual(older.dateLabel(now: now, calendar: utcCalendar), "Sep 28, 2025")
     }
 
-    func testOpeningAHistoryRowReturnsThatJobSheetAtHalf() {
-        let row = JobHistoryScript.rows[1]
-        let opened = row.openedSheet()
-        XCTAssertEqual(opened.title, "Hard start")
-        XCTAssertEqual(opened.outcome, .partly)
-        XCTAssertEqual(opened.detent, .half)
-        XCTAssertEqual(opened.photoID, "commons-supra-n5abh")
-        XCTAssertEqual(opened.highlight?.bayPhotoID.rawValue, "commons-supra-n5abh")
-        XCTAssertEqual(opened.highlight?.partID.rawValue, "fuse-relay-box")
-        XCTAssertEqual(opened.answerText, JobSheetCopy.answer(photoID: "commons-supra-n5abh"))
-        XCTAssertFalse(opened.answerText.contains("air box"))
-        XCTAssertEqual(row.job.detent, .collapsed)
+    func testOpeningAHistoryRowShowsThatJobsChatAtTheCallersDetent() async throws {
+        let now = try XCTUnwrap(utcCalendar.date(from: DateComponents(
+            year: 2026, month: 10, day: 10, hour: 15
+        )))
+        let rows = JobHistoryScript.jobs(now: now, calendar: utcCalendar)
+        let hardStart = rows[1]
+        let jobs = JobsModel(source: .memory(rows), client: LookBackIdleClient())
+        let chat = ChatViewModel(jobs: jobs)
+        chat.open(hardStart.id)
+        XCTAssertEqual(chat.messages.count, 2)
+        XCTAssertEqual(try userText(chat.messages[0]), "Hard start")
+        XCTAssertEqual(chat.job?.title, "Hard start")
+        XCTAssertEqual(chat.job?.outcome, .partly)
+        XCTAssertEqual(chat.job?.photoID, "commons-supra-n5abh")
+        XCTAssertEqual(chat.job?.highlight?.bayPhotoID.rawValue, "commons-supra-n5abh")
+        XCTAssertEqual(chat.job?.highlight?.partID.rawValue, "fuse-relay-box")
+        XCTAssertEqual(chat.job?.answerText, JobSheetCopy.answer(photoID: "commons-supra-n5abh"))
+        XCTAssertFalse(chat.job?.answerText.contains("air box") == true)
+        XCTAssertEqual(chat.messages.count, 2)
+        XCTAssertNotEqual(try userText(chat.messages[0]), "Rough idle after a cold start")
+        let sheet = JobSheetViewModel()
+        sheet.setDetent(.half)
+        XCTAssertEqual(sheet.detent, .half)
+        XCTAssertEqual(rows[1].title, "Hard start")
     }
 
     func testScanLogGridNamesTheSamePartAsTheOutline() {
@@ -249,11 +298,29 @@ final class LookBackTests: XCTestCase {
     }
 
     func testV1LookBackOmitsLaterBacklog() {
-        XCTAssertFalse(JobHistoryCopy.subtitle.contains("chat"))
+        XCTAssertEqual(JobHistoryCopy.subtitle, "Each one keeps its own chat.")
         XCTAssertFalse(ScanLogCopy.chips.contains("user"))
-        XCTAssertEqual(JobHistoryScript.rows.count, 4)
+        XCTAssertEqual(JobHistoryScript.jobs(now: Date(timeIntervalSince1970: 1_760_000_000)).count, 4)
         XCTAssertFalse(JobSheetCopy.answer.contains("FAKE-SPEC"))
         XCTAssertFalse(JobSheetCopy.answer.contains("air box"))
         XCTAssertTrue(JobSheetCopy.answer.contains("FAKE-DOC-2JZ"))
+    }
+
+    private func userText(_ message: Message) throws -> String {
+        guard case let .user(user) = message else {
+            XCTFail("expected a user message")
+            throw LookBackIdleFailure()
+        }
+        return user.text
+    }
+}
+
+private struct LookBackIdleFailure: Error {}
+
+private struct LookBackIdleClient: ChatClient {
+    func send(_ conversation: Conversation, demoPhotoID: String?) async throws -> Answer {
+        _ = conversation
+        _ = demoPhotoID
+        throw ChatClientError.offline
     }
 }

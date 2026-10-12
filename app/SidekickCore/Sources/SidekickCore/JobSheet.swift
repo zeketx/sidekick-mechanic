@@ -27,7 +27,7 @@ public enum JobSheetDetent: String, CaseIterable, Hashable, Sendable {
 }
 
 /// Close-out. Exactly one value once Zeke picks.
-public enum JobOutcome: String, CaseIterable, Hashable, Sendable {
+public enum JobOutcome: String, CaseIterable, Hashable, Sendable, Codable {
     case worked
     case partly
     case didnt
@@ -70,7 +70,7 @@ public enum CitationPageScreen: String, Hashable, Sendable {
 }
 
 /// One scripted checkbox on the half sheet. Not the later #97 editor.
-public struct JobSheetStep: Equatable, Sendable, Identifiable {
+public struct JobSheetStep: Equatable, Sendable, Identifiable, Codable {
     public var id: Int
     public var title: String
     public var isComplete: Bool
@@ -278,52 +278,234 @@ public enum JobSheetLayout {
     }
 }
 
-/// One job. Photo is this job's attach, not a bay-map frame.
-public struct JobSheetState: Equatable, Sendable, Identifiable {
-    public var id: MessageID { sourceMessageID }
-    public var sourceMessageID: MessageID
-    public var title: String
-    public var answerText: String
-    public var citations: [Citation]
-    public var photoID: String?
-    public var highlight: HighlightRef?
-    public var detent: JobSheetDetent
-    public var outcome: JobOutcome?
-    /// Owner's words. Not a manual citation. Never auto-filled with specs.
-    public var notes: String
-    /// Same chip set as the highlight card (HL-6), plus user-defined tags.
-    public var tags: [String]
-    /// Optional close-out line under "How did it go?".
-    public var whatFixed: String
-
-    public var hasPhoto: Bool { photoID != nil }
-    public var headerTitle: String { JobSheetCopy.titlePrefix + title }
-    public var blocksChat: Bool { detent.blocksChat }
+/// One job: its Jobs row, its sheet, and its chat. The persisted root in jobs.json.
+///
+/// The app can read a job. It cannot change a copy and believe it was saved.
+/// Every change goes through `JobsModel.append` or `JobsModel.edit`.
+public struct JobSheetState: Equatable, Sendable, Identifiable, Codable {
+    public let id: JobID
+    public internal(set) var title: String
+    /// When the first turn was written. `dateLabel(now:)` turns this into a row label.
+    public let createdAt: Date
+    /// The only copy of this job's chat. `conversation.id` is `ConversationID(id.rawValue)`.
+    public internal(set) var conversation: Conversation
+    /// Seeded when the first answer lands. Not regenerated after that.
+    public internal(set) var steps: [JobSheetStep]
+    public internal(set) var outcome: JobOutcome?
+    /// Demo catalog `photo_id`. Not a `GaragePhoto.id`.
+    public internal(set) var photoID: String?
+    /// `GaragePhoto.id` of a real attached photo. Stored now; nothing sets it in #128.
+    public internal(set) var garagePhotoID: String?
+    /// Owner's words. Never auto-filled with specs.
+    public internal(set) var notes: String
+    public internal(set) var tags: [String]
+    public internal(set) var whatFixed: String
 
     public init(
-        sourceMessageID: MessageID,
+        id: JobID,
         title: String,
-        answerText: String,
-        citations: [Citation] = [],
-        photoID: String? = nil,
-        highlight: HighlightRef? = nil,
-        detent: JobSheetDetent = .collapsed,
+        createdAt: Date,
+        conversation: Conversation,
+        steps: [JobSheetStep] = [],
         outcome: JobOutcome? = nil,
+        photoID: String? = nil,
+        garagePhotoID: String? = nil,
         notes: String = "",
         tags: [String] = [],
         whatFixed: String = ""
     ) {
-        self.sourceMessageID = sourceMessageID
+        self.id = id
         self.title = title
-        self.answerText = answerText
-        self.citations = citations
-        self.photoID = photoID
-        self.highlight = highlight
-        self.detent = detent
+        self.createdAt = createdAt
+        self.conversation = conversation
+        self.steps = steps
         self.outcome = outcome
+        self.photoID = photoID
+        self.garagePhotoID = garagePhotoID
         self.notes = notes
         self.tags = tags
         self.whatFixed = whatFixed
+    }
+}
+
+extension JobSheetState {
+    public var latestAssistant: AssistantMessage? {
+        for message in conversation.messages.reversed() {
+            if case let .assistant(assistant) = message {
+                return assistant
+            }
+        }
+        return nil
+    }
+
+    /// The sheet is shown once this job has an answer. A job that has only the
+    /// owner's turn shows its chat and no sheet.
+    public var showsSheet: Bool { latestAssistant != nil }
+
+    public var answerText: String { latestAssistant?.answer.text ?? "" }
+
+    public var citations: [Citation] {
+        guard let latestAssistant, case let .found(found) = latestAssistant.answer else {
+            return []
+        }
+        return found.citations
+    }
+
+    /// Latest found highlight. An attached photo does not invent an outline.
+    public var highlight: HighlightRef? {
+        guard let latestAssistant, case let .found(found) = latestAssistant.answer else {
+            return nil
+        }
+        return found.highlight
+    }
+
+    public var hasPhoto: Bool { photoID != nil }
+    public var headerTitle: String { JobSheetCopy.titlePrefix + title }
+
+    /// "Today", "Yesterday", "Sep 28" (same year), or "Sep 28, 2025".
+    /// en_US_POSIX month names so Linux and iOS agree.
+    public func dateLabel(now: Date, calendar: Calendar = .current) -> String {
+        if calendar.isDate(createdAt, inSameDayAs: now) {
+            return "Today"
+        }
+        if let yesterday = calendar.date(byAdding: .day, value: -1, to: now),
+           calendar.isDate(createdAt, inSameDayAs: yesterday) {
+            return "Yesterday"
+        }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = calendar
+        formatter.timeZone = calendar.timeZone
+        let createdYear = calendar.component(.year, from: createdAt)
+        let nowYear = calendar.component(.year, from: now)
+        formatter.dateFormat = createdYear == nowYear ? "MMM d" : "MMM d, yyyy"
+        return formatter.string(from: createdAt)
+    }
+
+    /// `jobHistory.row.<slug>`. Lowercase, and each run of non-alphanumerics becomes one "-".
+    public var rowIdentifier: String {
+        "jobHistory.row.\(Self.slug(title))"
+    }
+
+    static func slug(_ title: String) -> String {
+        var slug = ""
+        var pendingSeparator = false
+        let alphanumerics = CharacterSet.alphanumerics
+        for character in title {
+            let isAlphaNumeric = character.unicodeScalars.allSatisfy { alphanumerics.contains($0) }
+            if isAlphaNumeric {
+                if pendingSeparator, !slug.isEmpty {
+                    slug.append("-")
+                }
+                pendingSeparator = false
+                slug.append(contentsOf: character.lowercased())
+            } else {
+                pendingSeparator = true
+            }
+        }
+        return slug
+    }
+}
+
+/// Every change the sheet can make to a saved job.
+public enum JobEdit: Equatable, Sendable {
+    case outcome(JobOutcome)
+    case notes(String)
+    case whatFixed(String)
+    case addTag(String)
+    case removeTag(String)
+    /// Sets `photoID` only. Tags, steps, and the answer stay as they are.
+    case attachDemoPhoto(photoID: String)
+    /// #129 calls this. No step-toggle UI in #128.
+    case step(id: Int, isComplete: Bool)
+}
+
+extension JobSheetState {
+    static func started(id: JobID, firstAsk: UserMessage, createdAt: Date) -> JobSheetState {
+        JobSheetState(
+            id: id,
+            title: title(forFirstAsk: firstAsk.text),
+            createdAt: createdAt,
+            conversation: Conversation(
+                id: ConversationID(rawValue: id.rawValue)!,
+                messages: [.user(firstAsk)]
+            )
+        )
+    }
+
+    func appendingAsk(_ ask: UserMessage) -> JobSheetState {
+        var next = self
+        next.conversation = conversation.appending(.user(ask))
+        return next
+    }
+
+    /// Appends the reply. On the first answer only, seeds empty steps, an empty photo, and empty tags.
+    func receiving(_ reply: AssistantMessage, demoPhotoID: String?) -> JobSheetState {
+        let firstAnswer = latestAssistant == nil
+        var next = self
+        next.conversation = conversation.appending(.assistant(reply))
+        guard firstAnswer else { return next }
+        if next.photoID == nil {
+            next.photoID = demoPhotoID ?? Self.foundHighlight(in: reply)?.bayPhotoID.rawValue
+        }
+        if next.steps.isEmpty {
+            let photo = next.photoID ?? DemoLaunchOptions.defaultPhotoID
+            next.steps = JobSheetCopy.steps(
+                photoID: photo,
+                partID: Self.foundHighlight(in: reply)?.partID.rawValue
+            )
+        }
+        if next.tags.isEmpty, let partID = Self.foundHighlight(in: reply)?.partID.rawValue {
+            let hasOutline = Self.foundHighlight(in: reply)?.geometry != nil
+            next.tags = DemoOutlineCatalog.tags(partID: partID, hasOutline: hasOutline)
+        }
+        return next
+    }
+
+    /// Nil when the edit changes nothing. The caller then skips the write.
+    func applying(_ edit: JobEdit) -> JobSheetState? {
+        var next = self
+        switch edit {
+        case let .outcome(outcome):
+            guard self.outcome != outcome else { return nil }
+            next.outcome = outcome
+        case let .notes(notes):
+            guard self.notes != notes else { return nil }
+            next.notes = notes
+        case let .whatFixed(whatFixed):
+            guard self.whatFixed != whatFixed else { return nil }
+            next.whatFixed = whatFixed
+        case let .addTag(tag):
+            let trimmed = tag.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, !tags.contains(trimmed) else { return nil }
+            next.tags.append(trimmed)
+        case let .removeTag(tag):
+            guard let index = tags.firstIndex(of: tag) else { return nil }
+            next.tags.remove(at: index)
+        case let .attachDemoPhoto(photoID):
+            guard self.photoID != photoID else { return nil }
+            next.photoID = photoID
+        case let .step(id, isComplete):
+            guard let index = steps.firstIndex(where: { $0.id == id }) else { return nil }
+            guard steps[index].isComplete != isComplete else { return nil }
+            next.steps[index].isComplete = isComplete
+        }
+        return next
+    }
+
+    /// First three words of the first ask. `JobSheetCopy.question` maps to "Cold idle".
+    static func title(forFirstAsk text: String) -> String {
+        if text == JobSheetCopy.question {
+            return JobSheetCopy.title
+        }
+        let words = text.split(whereSeparator: \.isWhitespace).prefix(3)
+        let title = words.joined(separator: " ")
+        return title.isEmpty ? JobSheetCopy.title : title
+    }
+
+    private static func foundHighlight(in message: AssistantMessage) -> HighlightRef? {
+        guard case let .found(found) = message.answer else { return nil }
+        return found.highlight
     }
 }
 
@@ -368,66 +550,48 @@ public enum JobSheetScript {
         )
     }
 
-    public static func makeJob(
-        detent: JobSheetDetent,
-        photoID: String?,
-        outcome: JobOutcome? = nil
-    ) -> JobSheetState {
+    public static let jobID = JobID(rawValue: "job-sheet-cold-idle")!
+
+    /// Conversation holds the scripted ask and answer. Detent is not on the job.
+    public static func job(photoID: String?, outcome: JobOutcome?, now: Date) -> JobSheetState {
         let resolvedPhoto = photoID ?? DemoLaunchOptions.defaultPhotoID
         let pick = selection(photoID: resolvedPhoto)
-        return JobSheetState(
-            sourceMessageID: assistantMessageID,
-            title: JobSheetCopy.title,
-            answerText: JobSheetCopy.answer(photoID: resolvedPhoto),
+        let shown = highlight(photoID: resolvedPhoto)
+        let found = FoundAnswer(
+            text: JobSheetCopy.answer(photoID: resolvedPhoto),
             citations: [HighlightViewerScript.fixtureCitation],
-            photoID: photoID,
-            highlight: photoID.map { highlight(photoID: $0) },
-            detent: detent,
+            highlight: shown
+        )
+        let conversation = Conversation(
+            id: ConversationID(rawValue: jobID.rawValue)!,
+            messages: [
+                .user(UserMessage(id: userMessageID, text: JobSheetCopy.question)!),
+                .assistant(AssistantMessage(id: assistantMessageID, answer: .found(found!))),
+            ]
+        )
+        return JobSheetState(
+            id: jobID,
+            title: JobSheetCopy.title,
+            createdAt: now,
+            conversation: conversation,
+            steps: JobSheetCopy.steps(photoID: resolvedPhoto),
             outcome: outcome,
+            photoID: photoID,
             tags: DemoOutlineCatalog.tags(partID: pick.partID, hasOutline: photoID != nil)
         )
     }
 }
 
-/// Session-only job sheet. Not persisted.
+/// Sheet height only. The job lives on `JobsModel`.
 @MainActor
 @Observable
 public final class JobSheetViewModel {
-    public var job: JobSheetState?
+    public private(set) var detent: JobSheetDetent
 
-    public var detent: JobSheetDetent { job?.detent ?? .collapsed }
-    public var blocksChat: Bool { job?.blocksChat ?? false }
-    public var hasJob: Bool { job != nil }
+    public var blocksChat: Bool { detent.blocksChat }
 
-    public init(job: JobSheetState? = nil) {
-        self.job = job
-    }
-
-    public func applyLaunch(_ screen: JobSheetScreen, photoID: String) {
-        job = JobSheetScript.makeJob(
-            detent: screen.detent,
-            photoID: photoID,
-            outcome: screen.outcome
-        )
-    }
-
-    public func sync(from messages: [Message], photoID: String?) {
-        guard let assistant = Self.latestAssistant(in: messages) else { return }
-        if job?.sourceMessageID == assistant.id { return }
-        let highlight = Self.highlight(from: assistant.answer)
-            ?? photoID.map { JobSheetScript.highlight(photoID: $0) }
-        let partID = highlight?.partID.rawValue
-        job = JobSheetState(
-            sourceMessageID: assistant.id,
-            title: Self.title(from: messages),
-            answerText: assistant.answer.text,
-            citations: Self.citations(from: assistant.answer),
-            photoID: photoID ?? highlight?.bayPhotoID.rawValue,
-            highlight: highlight,
-            detent: .collapsed,
-            outcome: nil,
-            tags: partID.map { DemoOutlineCatalog.tags(partID: $0, hasOutline: highlight?.geometry != nil) } ?? []
-        )
+    public init(detent: JobSheetDetent = .collapsed) {
+        self.detent = detent
     }
 
     public func open() {
@@ -439,7 +603,7 @@ public final class JobSheetViewModel {
     }
 
     public func setDetent(_ detent: JobSheetDetent) {
-        update { $0.detent = detent }
+        self.detent = detent
     }
 
     public func expand() {
@@ -456,82 +620,5 @@ public final class JobSheetViewModel {
         } else if translationHeight > 40 {
             collapseStep()
         }
-    }
-
-    public func selectOutcome(_ outcome: JobOutcome) {
-        update { $0.outcome = outcome }
-    }
-
-    public func setNotes(_ notes: String) {
-        update { $0.notes = notes }
-    }
-
-    public func setWhatFixed(_ whatFixed: String) {
-        update { $0.whatFixed = whatFixed }
-    }
-
-    public func addTag(_ tag: String) {
-        let trimmed = tag.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        update { job in
-            if !job.tags.contains(trimmed) {
-                job.tags.append(trimmed)
-            }
-        }
-    }
-
-    public func removeTag(_ tag: String) {
-        update { $0.tags.removeAll { $0 == tag } }
-    }
-
-    /// Binds a photo to this job only. Does not write a bay-map frame.
-    public func attachPhoto(photoID: String) {
-        update { job in
-            job.photoID = photoID
-            job.highlight = JobSheetScript.highlight(photoID: photoID)
-            job.answerText = JobSheetCopy.answer(photoID: photoID)
-            let pick = JobSheetScript.selection(photoID: photoID)
-            job.tags = DemoOutlineCatalog.tags(partID: pick.partID, hasOutline: true)
-        }
-    }
-
-    private func update(_ body: (inout JobSheetState) -> Void) {
-        guard var job else { return }
-        body(&job)
-        self.job = job
-    }
-
-    public static func latestAssistant(in messages: [Message]) -> AssistantMessage? {
-        for message in messages.reversed() {
-            if case let .assistant(assistant) = message {
-                return assistant
-            }
-        }
-        return nil
-    }
-
-    public static func title(from messages: [Message]) -> String {
-        for message in messages.reversed() {
-            if case let .user(user) = message {
-                if user.text == JobSheetCopy.question { return JobSheetCopy.title }
-                let words = user.text.split(whereSeparator: \.isWhitespace)
-                return words.prefix(3).joined(separator: " ")
-            }
-        }
-        return JobSheetCopy.title
-    }
-
-    public static func citations(from answer: Answer) -> [Citation] {
-        if case let .found(found) = answer {
-            return found.citations
-        }
-        return []
-    }
-
-    public static func highlight(from answer: Answer) -> HighlightRef? {
-        if case let .found(found) = answer {
-            return found.highlight
-        }
-        return nil
     }
 }

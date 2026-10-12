@@ -68,6 +68,16 @@ public struct ConversationID: Hashable, Sendable, RawRepresentable {
     }
 }
 
+/// Stable job identity. Non-empty. Encodes as a JSON string.
+public struct JobID: Hashable, Sendable, RawRepresentable {
+    public let rawValue: String
+
+    public init?(rawValue: String) {
+        guard !rawValue.isEmpty else { return nil }
+        self.rawValue = rawValue
+    }
+}
+
 /// Stable message identity for SwiftUI lists.
 public struct MessageID: Hashable, Sendable, RawRepresentable {
     public let rawValue: String
@@ -153,6 +163,17 @@ extension ConfirmerID: Codable {
 }
 
 extension ConversationID: Codable {
+    public init(from decoder: Decoder) throws {
+        rawValue = try decodeNonEmptyString(from: decoder, label: "id")
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(rawValue)
+    }
+}
+
+extension JobID: Codable {
     public init(from decoder: Decoder) throws {
         rawValue = try decodeNonEmptyString(from: decoder, label: "id")
     }

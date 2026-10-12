@@ -2,16 +2,31 @@ import SidekickCore
 import SwiftUI
 import UIKit
 
+/// One look-back push. `generation` makes a second visit a new destination.
+///
+/// NavigationStack keeps the destination for an equal `LookBackScreen`. After
+/// opening a job and coming back, Jobs reused that screen: the scroll offset
+/// from the previous visit stayed, and the newest row was above the viewport
+/// so its identifier was not in the accessibility tree.
+struct LookBackVisit: Hashable {
+    var screen: LookBackScreen
+    var generation: Int
+}
+
 /// Jobs list from the approved Figma frame. Peeks use #112's public outline renderer.
 struct JobHistoryView: View {
+    var jobs: [JobSheetState]
+    var now: Date
     @Environment(\.dismiss) private var dismiss
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Bindable var store: DemoImageStore
     var configuration: ChatClientConfiguration
     var flags: FeatureFlags = .v1
-    var onOpenJob: (JobHistoryRow) -> Void
+    var visitGeneration: Int = 0
+    var onOpenJob: (JobID) -> Void
 
     var body: some View {
+        ScrollViewReader { proxy in
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 Text(JobHistoryCopy.subtitle)
@@ -19,21 +34,33 @@ struct JobHistoryView: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityIdentifier("jobHistory.subtitle")
-                ForEach(JobHistoryScript.rows) { row in
+                if jobs.isEmpty {
+                    Text(JobsCopy.emptyList)
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("jobHistory.empty")
+                }
+                ForEach(jobs) { job in
                     Button {
-                        onOpenJob(row)
+                        onOpenJob(job.id)
                     } label: {
-                        rowCard(row)
+                        rowCard(job)
                     }
                     .buttonStyle(.plain)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .clipped()
                     .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    .accessibilityIdentifier("jobHistory.row.\(row.job.title.lowercased().replacingOccurrences(of: " ", with: "-"))")
+                    .accessibilityIdentifier(job.rowIdentifier)
                     .accessibilityHint("Opens this job sheet")
+                    .id(job.id)
                 }
             }
             .padding(16)
+        }
+        .onAppear {
+            guard let top = jobs.first?.id else { return }
+            proxy.scrollTo(top, anchor: .top)
         }
         .background(JobSheetChrome.screen)
         .toolbar(.hidden, for: .tabBar)
@@ -43,6 +70,7 @@ struct JobHistoryView: View {
             LookBackPaperHeader(
                 title: JobHistoryCopy.title,
                 showScanLog: true,
+                visitGeneration: visitGeneration,
                 onBack: { dismiss() }
             )
         }
@@ -53,46 +81,48 @@ struct JobHistoryView: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("jobHistory.list")
+        }
     }
 
-    private func rowCard(_ row: JobHistoryRow) -> some View {
+    private func rowCard(_ job: JobSheetState) -> some View {
         let presentation = HighlightViewerPresentation.resolve(
             source: HighlightViewerState.fromDemo(
-                display: row.job.highlight?.display,
-                highlight: row.job.highlight
+                display: job.highlight?.display,
+                highlight: job.highlight
             ),
             flags: flags,
-            photoID: row.job.photoID ?? DemoLaunchOptions.defaultPhotoID,
-            partID: row.job.highlight?.partID.rawValue
+            photoID: job.photoID ?? DemoLaunchOptions.defaultPhotoID,
+            partID: job.highlight?.partID.rawValue
         )
         let geometry = presentation.showsOutline
-            ? (row.job.highlight?.geometry ?? HighlightViewerScript.geometry(
+            ? (job.highlight?.geometry ?? HighlightViewerScript.geometry(
                 photoID: presentation.outlinePhotoID,
                 partID: presentation.partID,
                 showingOutline: true
             ))
             : nil
         let thumbSize: CGFloat = dynamicTypeSize.isAccessibilitySize ? 72 : 44
+        let dateLabel = job.dateLabel(now: now)
         return Group {
             if dynamicTypeSize.isAccessibilitySize {
                 VStack(alignment: .leading, spacing: 8) {
                     LookBackThumb(
-                        image: store.images[row.job.photoID ?? ""] ?? HighlightPlaceholderImage.make(),
+                        image: store.images[job.photoID ?? ""] ?? HighlightPlaceholderImage.make(),
                         geometry: geometry,
                         confirm: presentation.outlineStroke == .dashed,
                         notFound: !presentation.showsOutline,
                         cornerRadius: 8,
                         renderedWidth: thumbSize
                     )
-                    wrappingText(row.job.title, font: .headline, color: .primary)
-                    wrappingText(row.dateLabel, font: .subheadline, color: .secondary)
-                    outcomeBadge(row.job.outcome)
+                    wrappingText(job.title, font: .headline, color: .primary)
+                    wrappingText(dateLabel, font: .subheadline, color: .secondary)
+                    outcomeBadge(job.outcome)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 HStack(alignment: .center, spacing: 12) {
                     LookBackThumb(
-                        image: store.images[row.job.photoID ?? ""] ?? HighlightPlaceholderImage.make(),
+                        image: store.images[job.photoID ?? ""] ?? HighlightPlaceholderImage.make(),
                         geometry: geometry,
                         confirm: presentation.outlineStroke == .dashed,
                         notFound: !presentation.showsOutline,
@@ -100,17 +130,17 @@ struct JobHistoryView: View {
                         renderedWidth: thumbSize
                     )
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(row.job.title)
+                        Text(job.title)
                             .font(.headline)
                             .foregroundStyle(.primary)
                             .lineLimit(1)
-                        Text(row.dateLabel)
+                        Text(dateLabel)
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
                     }
                     Spacer(minLength: 8)
-                    outcomeBadge(row.job.outcome)
+                    outcomeBadge(job.outcome)
                 }
             }
         }
@@ -195,6 +225,7 @@ struct LookBackThumb: View {
 struct LookBackPaperHeader: View {
     var title: String
     var showScanLog: Bool
+    var visitGeneration: Int = 0
     var onBack: () -> Void
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
@@ -258,7 +289,7 @@ struct LookBackPaperHeader: View {
     @ViewBuilder
     private var scanLogLink: some View {
         if showScanLog {
-            NavigationLink(value: LookBackScreen.scanLog) {
+            NavigationLink(value: LookBackVisit(screen: .scanLog, generation: visitGeneration)) {
                 if dynamicTypeSize.isAccessibilitySize {
                     Image(systemName: "square.grid.2x2")
                         .font(.body.weight(.medium))
@@ -282,6 +313,8 @@ struct LookBackPaperHeader: View {
 #Preview("Jobs") {
     NavigationStack {
         JobHistoryView(
+            jobs: JobHistoryScript.jobs(now: Date()),
+            now: Date(),
             store: DemoImageStore(),
             configuration: ChatClientConfiguration(baseURL: URL(string: "http://localhost:8000")!),
             onOpenJob: { _ in }
@@ -292,6 +325,8 @@ struct LookBackPaperHeader: View {
 #Preview("Jobs Dark") {
     NavigationStack {
         JobHistoryView(
+            jobs: JobHistoryScript.jobs(now: Date()),
+            now: Date(),
             store: DemoImageStore(),
             configuration: ChatClientConfiguration(baseURL: URL(string: "http://localhost:8000")!),
             onOpenJob: { _ in }
@@ -303,6 +338,8 @@ struct LookBackPaperHeader: View {
 #Preview("Jobs Large Dynamic Type") {
     NavigationStack {
         JobHistoryView(
+            jobs: JobHistoryScript.jobs(now: Date()),
+            now: Date(),
             store: DemoImageStore(),
             configuration: ChatClientConfiguration(baseURL: URL(string: "http://localhost:8000")!),
             onOpenJob: { _ in }

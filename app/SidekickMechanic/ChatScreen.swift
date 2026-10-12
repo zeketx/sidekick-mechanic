@@ -2,21 +2,103 @@ import SidekickCore
 import SwiftUI
 import UIKit
 
+private struct TopChromeHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
+/// Title stays on the screen center. Each side is as wide as the wider group
+/// plus `minGap`, so the right-hand buttons cannot sit on the title.
+private struct CenteredTitleBar: Layout {
+    var minGap: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let sizes = measured(subviews)
+        let height = sizes.map(\.height).max() ?? 0
+        let ideal = idealWidth(sizes)
+        let width = proposal.width ?? ideal
+        return CGSize(width: width < ideal ? ideal : width, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let sizes = measured(subviews)
+        guard sizes.count == 3 else { return }
+        let title = sizes[1]
+        place(subviews[1], size: title, x: bounds.midX - title.width / 2, bounds: bounds)
+        place(subviews[0], size: sizes[0], x: bounds.minX, bounds: bounds)
+        place(subviews[2], size: sizes[2], x: bounds.maxX - sizes[2].width, bounds: bounds)
+    }
+
+    private func measured(_ subviews: Subviews) -> [CGSize] {
+        subviews.map { $0.sizeThatFits(.unspecified) }
+    }
+
+    private func idealWidth(_ sizes: [CGSize]) -> CGFloat {
+        guard sizes.count == 3 else {
+            return sizes.reduce(0) { $0 + $1.width }
+        }
+        let side = max(sizes[0].width, sizes[2].width)
+        return side + minGap + sizes[1].width + minGap + side
+    }
+
+    private func place(_ subview: LayoutSubview, size: CGSize, x: CGFloat, bounds: CGRect) {
+        let y = bounds.midY - size.height / 2
+        subview.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
+    }
+}
+
 /// Message list and composer. Assistant replies use `AnswerCardView`.
 struct ChatScreen: View {
+    @Bindable var jobs: JobsModel
     @Bindable var model: ChatViewModel
-    var backendURL: URL = AppConfig.backendURL
-    var launch: DemoLaunchOptions = DemoLaunchOptions.parse()
+    var backendURL: URL
+    var launch: DemoLaunchOptions
     var onOpenGarage: (() -> Void)?
-    @State private var demoImages = DemoImageStore()
+    @State private var demoImages: DemoImageStore
     @State private var presentedViewer: HighlightViewerSession?
     @State private var presentedCitation: Citation?
-    @State private var jobSheet = JobSheetViewModel()
-    @State private var lookBackPath: [LookBackScreen] = []
-    @State private var windowHeight: CGFloat = 0
-    @State private var topSafeArea: CGFloat = 0
-    @State private var bottomSafeArea: CGFloat = 0
+    @State private var jobSheet: JobSheetViewModel
+    @State private var lookBackPath: [LookBackVisit]
+    @State private var lookBackGeneration: Int
+    @State private var topChromeHeight: CGFloat
+    @State private var windowHeight: CGFloat
+    @State private var topSafeArea: CGFloat
+    @State private var bottomSafeArea: CGFloat
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    init(
+        jobs: JobsModel,
+        model: ChatViewModel,
+        backendURL: URL = AppConfig.backendURL,
+        launch: DemoLaunchOptions = DemoLaunchOptions.parse(),
+        onOpenGarage: (() -> Void)? = nil
+    ) {
+        self.jobs = jobs
+        self.model = model
+        self.backendURL = backendURL
+        self.launch = launch
+        self.onOpenGarage = onOpenGarage
+        let detent: JobSheetDetent
+        if let screen = launch.jobSheetScreen {
+            detent = screen.detent
+        } else if launch.opensCitationPage {
+            detent = .half
+        } else {
+            detent = .collapsed
+        }
+        _demoImages = State(initialValue: DemoImageStore())
+        _presentedViewer = State(initialValue: nil)
+        _presentedCitation = State(initialValue: nil)
+        _jobSheet = State(initialValue: JobSheetViewModel(detent: detent))
+        _lookBackPath = State(initialValue: [])
+        _lookBackGeneration = State(initialValue: 0)
+        _topChromeHeight = State(initialValue: 0)
+        _windowHeight = State(initialValue: 0)
+        _topSafeArea = State(initialValue: 0)
+        _bottomSafeArea = State(initialValue: 0)
+    }
 
     private var configuration: ChatClientConfiguration {
         ChatClientConfiguration(baseURL: backendURL)
@@ -30,12 +112,26 @@ struct ChatScreen: View {
                         if showPaperHeader {
                             paperHeader
                         }
+                        if let notice = jobs.notice {
+                            Text(notice)
+                                .font(.footnote)
+                                .foregroundStyle(.primary)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .accessibilityIdentifier("jobs.storageNotice")
+                        }
                         if launch.showDemoChrome, model.isDemoMode {
                             DemoModeChrome(
                                 model: model,
                                 store: demoImages,
                                 configuration: configuration
                             )
+                        }
+                    }
+                    .background {
+                        GeometryReader { proxy in
+                            Color.clear.preference(key: TopChromeHeightKey.self, value: proxy.size.height)
                         }
                     }
                 }
@@ -51,10 +147,12 @@ struct ChatScreen: View {
                 // and opaque UINavigationBarAppearance. Garage is plain text here.
                 .toolbar(.hidden, for: .navigationBar)
                 .background(JobSheetChrome.screen)
-                .navigationDestination(for: LookBackScreen.self) { screen in
-                    lookBackDestination(screen)
+                .navigationDestination(for: LookBackVisit.self) { visit in
+                    lookBackDestination(visit)
+                        .id(visit)
                 }
         }
+        .onPreferenceChange(TopChromeHeightKey.self) { topChromeHeight = $0 }
         .overlay {
             ZStack(alignment: .bottom) {
                 jobSheetScrim
@@ -92,21 +190,59 @@ struct ChatScreen: View {
         "\(model.isDemoMode)-\(launch.opensJobSheet)-\(launch.opensLookBack)-\(launch.showDemoChrome)"
     }
 
+    /// Dim stays full-bleed. Hits do not: the paper header sits under this overlay,
+    /// and a full-screen hit target made Jobs untappable once a sheet was at half.
     @ViewBuilder
     private var jobSheetScrim: some View {
-        if jobSheet.hasJob, lookBackPath.isEmpty, JobSheetLayout.scrimOpacity(detent: jobSheet.detent) > 0 {
-            Color.black
-                .opacity(JobSheetLayout.scrimOpacity(detent: jobSheet.detent))
+        if presentedJob != nil, JobSheetLayout.scrimOpacity(detent: jobSheet.detent) > 0 {
+            let opacity = JobSheetLayout.scrimOpacity(detent: jobSheet.detent)
+            ZStack(alignment: .top) {
+                Color.black
+                    .opacity(opacity)
+                    .ignoresSafeArea()
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+                VStack(spacing: 0) {
+                    Color.clear
+                        .frame(height: headerPassThrough)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                    Color.clear
+                        .frame(maxWidth: .infinity)
+                        .frame(height: scrimHitHeight)
+                        .contentShape(Rectangle())
+                        .onTapGesture { jobSheet.close() }
+                        .accessibilityIdentifier("jobSheet.dim")
+                        .accessibilityLabel("Close job sheet")
+                        .accessibilityAddTraits(.isButton)
+                    Spacer(minLength: 0)
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+                }
                 .ignoresSafeArea()
-                .contentShape(Rectangle())
-                .allowsHitTesting(jobSheet.detent != .collapsed)
-                .onTapGesture { jobSheet.close() }
-                .accessibilityIdentifier("jobSheet.dim")
-                .accessibilityLabel("Close job sheet")
-                .accessibilityAddTraits(.isButton)
-                .accessibilityHidden(jobSheet.detent == .collapsed)
-                .animation(.easeInOut(duration: 0.22), value: jobSheet.detent)
+            }
+            .animation(.easeInOut(duration: 0.22), value: jobSheet.detent)
         }
+    }
+
+    /// Window-top to the bottom of the paper header. Zero when the header is hidden (full sheet).
+    private var headerPassThrough: CGFloat {
+        guard showPaperHeader else { return 0 }
+        // A full-screen GeometryReader reading is not the header. Fall back to one bar.
+        let chrome = topChromeHeight > 0 && topChromeHeight < 320 ? topChromeHeight : 44
+        return topSafeArea + chrome
+    }
+
+    /// The dimmed band between the header and the sheet. Its center stays on chat, so a scrim tap still collapses.
+    private var scrimHitHeight: CGFloat {
+        guard windowHeight > 0 else { return 200 }
+        let sheetTop = CGFloat(JobSheetLayout.originY(
+            detent: jobSheet.detent,
+            screenHeight: Double(windowHeight),
+            topSafeArea: Double(topSafeArea),
+            isAccessibilitySize: dynamicTypeSize.isAccessibilitySize
+        ))
+        return max(sheetTop - headerPassThrough, 44)
     }
 
     private var messageList: some View {
@@ -114,7 +250,7 @@ struct ChatScreen: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 12) {
                     if model.messages.isEmpty && !model.isLoading {
-                        Text("Describe a problem.")
+                        Text(JobsCopy.emptyChat)
                             .font(.body)
                             .foregroundStyle(.secondary)
                             .frame(maxWidth: .infinity, alignment: .leading)
@@ -139,14 +275,12 @@ struct ChatScreen: View {
             .defaultScrollAnchor(.bottom)
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("chat.messageList")
-            .allowsHitTesting(!jobSheet.blocksChat)
+            .allowsHitTesting(presentedJob == nil || !jobSheet.blocksChat)
             .onAppear {
                 scrollToEnd(proxy)
                 presentLaunchViewerIfNeeded()
-                presentLaunchJobSheetIfNeeded()
                 presentLaunchCitationIfNeeded()
                 presentLaunchLookBackIfNeeded()
-                jobSheet.sync(from: model.messages, photoID: jobPhotoID)
             }
             .onChange(of: demoImages.images.count) { _, _ in
                 refreshLaunchViewerImage()
@@ -170,7 +304,6 @@ struct ChatScreen: View {
             }
             .onChange(of: model.messages.count) { _, _ in
                 scrollToEnd(proxy)
-                jobSheet.sync(from: model.messages, photoID: jobPhotoID)
             }
             .onChange(of: model.isLoading) { _, _ in
                 scrollToEnd(proxy)
@@ -190,8 +323,13 @@ struct ChatScreen: View {
         .accessibilityLabel("Waiting for a reply")
     }
 
+    private var presentedJob: JobSheetState? {
+        guard lookBackPath.isEmpty else { return nil }
+        return model.sheetJob
+    }
+
     private var showPaperHeader: Bool {
-        lookBackPath.isEmpty && !(jobSheet.hasJob && jobSheet.detent == .full)
+        lookBackPath.isEmpty && !(presentedJob != nil && jobSheet.detent == .full)
     }
 
     /// Paper header, not a toolbar item. iOS 26 draws Liquid Glass behind toolbar buttons.
@@ -201,27 +339,16 @@ struct ChatScreen: View {
                 HStack(alignment: .firstTextBaseline, spacing: 12) {
                     garageButton
                     Spacer(minLength: 0)
+                    newJobButton()
                     jobsButton
                     scanLogButton
                     demoToggle
                 }
             } else {
-                ZStack {
-                    Text("Sidekick")
-                        .font(.headline)
-                        .foregroundStyle(.primary)
-                        .accessibilityIdentifier("chat.title")
-                    HStack {
-                        HStack(spacing: 12) {
-                            garageButton
-                            jobsButton
-                        }
-                        Spacer(minLength: 0)
-                        HStack(spacing: 12) {
-                            scanLogButton
-                            demoToggle
-                        }
-                    }
+                // Text "New job" when the centered title still has 16pt of air. Otherwise the icon.
+                ViewThatFits(in: .horizontal) {
+                    centeredTitleHeader(compactNewJob: false)
+                    centeredTitleHeader(compactNewJob: true)
                 }
             }
         }
@@ -231,6 +358,24 @@ struct ChatScreen: View {
         .frame(minHeight: 44)
         .frame(maxWidth: .infinity)
         .background(JobSheetChrome.screen)
+    }
+
+    private func centeredTitleHeader(compactNewJob: Bool) -> some View {
+        CenteredTitleBar(minGap: 16) {
+            HStack(spacing: 12) {
+                garageButton
+                jobsButton
+            }
+            Text("Sidekick")
+                .font(.headline)
+                .foregroundStyle(.primary)
+                .accessibilityIdentifier("chat.title")
+            HStack(spacing: 12) {
+                newJobButton(compact: compactNewJob)
+                scanLogButton
+                demoToggle
+            }
+        }
     }
 
     @ViewBuilder
@@ -245,11 +390,31 @@ struct ChatScreen: View {
         }
     }
 
+    private func newJobButton(compact: Bool = false) -> some View {
+        Button {
+            model.startNewJob()
+            jobSheet.setDetent(.collapsed)
+        } label: {
+            if compact {
+                Image(systemName: "square.and.pencil")
+                    .font(.body.weight(.medium))
+                    .accessibilityHidden(true)
+            } else {
+                Text(JobsCopy.newJob)
+            }
+        }
+        .buttonStyle(.plain)
+        .font(.body)
+        .foregroundStyle(.primary)
+        .fixedSize()
+        .disabled(model.target == .newJob)
+        .accessibilityLabel(JobsCopy.newJob)
+        .accessibilityIdentifier("chat.newJob")
+    }
+
     private var jobsButton: some View {
         Button {
-            if lookBackPath.last != .jobHistory {
-                lookBackPath.append(.jobHistory)
-            }
+            showLookBack(.jobHistory)
         } label: {
             lookBackHeaderLabel(title: JobHistoryCopy.title, systemImage: "list.bullet.rectangle")
         }
@@ -263,9 +428,7 @@ struct ChatScreen: View {
 
     private var scanLogButton: some View {
         Button {
-            if lookBackPath.last != .scanLog {
-                lookBackPath.append(.scanLog)
-            }
+            showLookBack(.scanLog)
         } label: {
             lookBackHeaderLabel(title: ScanLogCopy.title, systemImage: "square.grid.2x2")
         }
@@ -307,12 +470,14 @@ struct ChatScreen: View {
 
     private var bottomBar: some View {
         VStack(spacing: 0) {
-            if !jobSheet.blocksChat {
+            if presentedJob == nil || !jobSheet.blocksChat {
                 composerChrome
             }
-            if jobSheet.hasJob, lookBackPath.isEmpty {
+            if let job = presentedJob {
                 JobSheetView(
-                    model: jobSheet,
+                    job: job,
+                    sheet: jobSheet,
+                    onEdit: { jobs.edit(job.id, $0) },
                     image: jobPhoto,
                     attribution: jobAttribution,
                     shareAlike: jobShareAlike,
@@ -351,7 +516,7 @@ struct ChatScreen: View {
             .bottom,
             CGFloat(
                 JobSheetLayout.composerHomeInset(
-                    hasJob: jobSheet.hasJob,
+                    hasJob: presentedJob != nil,
                     bottomSafeArea: Double(bottomSafeArea)
                 )
             )
@@ -360,7 +525,7 @@ struct ChatScreen: View {
 
     private var composer: some View {
         HStack(alignment: .bottom, spacing: 8) {
-            if jobSheet.hasJob, jobSheet.job?.hasPhoto != true {
+            if let job = presentedJob, !job.hasPhoto {
                 Button(action: attachDemoPhotoToJob) {
                     Image(systemName: "photo.badge.plus")
                         .font(.title3)
@@ -522,14 +687,6 @@ struct ChatScreen: View {
         presentedViewer = session
     }
 
-    private func presentLaunchJobSheetIfNeeded() {
-        if let screen = launch.jobSheetScreen {
-            jobSheet.applyLaunch(screen, photoID: launch.resolvedPhotoID)
-        } else if launch.opensCitationPage {
-            jobSheet.applyLaunch(.half, photoID: launch.resolvedPhotoID)
-        }
-    }
-
     private func presentLaunchCitationIfNeeded() {
         guard launch.opensCitationPage, presentedCitation == nil else { return }
         presentedCitation = HighlightViewerScript.fixtureCitation
@@ -537,17 +694,28 @@ struct ChatScreen: View {
 
     private func presentLaunchLookBackIfNeeded() {
         guard lookBackPath.isEmpty, let screen = launch.lookBackScreen else { return }
-        lookBackPath = [screen]
+        showLookBack(screen)
+    }
+
+    /// Replace the stack with a new visit. An equal `LookBackScreen` is the same
+    /// destination, so a second Jobs tap kept the old list and its scroll offset.
+    /// The newest row then sat above the viewport and was not in the accessibility tree.
+    private func showLookBack(_ screen: LookBackScreen) {
+        lookBackGeneration += 1
+        lookBackPath = [LookBackVisit(screen: screen, generation: lookBackGeneration)]
     }
 
     @ViewBuilder
-    private func lookBackDestination(_ screen: LookBackScreen) -> some View {
-        switch screen {
+    private func lookBackDestination(_ visit: LookBackVisit) -> some View {
+        switch visit.screen {
         case .jobHistory:
             JobHistoryView(
+                jobs: jobs.jobs,
+                now: Date(),
                 store: demoImages,
                 configuration: configuration,
                 flags: launch.featureFlags,
+                visitGeneration: visit.generation,
                 onOpenJob: openHistoryJob
             )
             .modifier(AccessibilityLaunchModifier(enabled: launch.prefersAccessibilitySize))
@@ -562,9 +730,10 @@ struct ChatScreen: View {
         }
     }
 
-    private func openHistoryJob(_ row: JobHistoryRow) {
+    private func openHistoryJob(_ id: JobID) {
         lookBackPath = []
-        jobSheet.job = row.openedSheet()
+        model.open(id)
+        jobSheet.setDetent(.half)
     }
 
     private func openScanCell(_ entry: ScanLogEntry) {
@@ -581,7 +750,7 @@ struct ChatScreen: View {
     }
 
     private func presentJobViewer() {
-        guard let job = jobSheet.job, job.hasPhoto else { return }
+        guard let job = presentedJob, job.hasPhoto else { return }
         let presentation = HighlightViewerPresentation.resolve(
             source: HighlightViewerState.fromDemo(
                 display: job.highlight?.display,
@@ -608,30 +777,23 @@ struct ChatScreen: View {
     }
 
     private func attachDemoPhotoToJob() {
-        let photoID = jobPhotoID ?? DemoLaunchOptions.defaultPhotoID
-        if !jobSheet.hasJob {
-            jobSheet.sync(from: model.messages, photoID: photoID)
-        }
-        jobSheet.attachPhoto(photoID: photoID)
+        guard let job = model.sheetJob else { return }
+        let photoID = model.activeDemoPhotoID
+            ?? (launch.opensJobSheet ? launch.resolvedPhotoID : nil)
+            ?? DemoLaunchOptions.defaultPhotoID
+        jobs.edit(job.id, .attachDemoPhoto(photoID: photoID))
         if model.isDemoMode, model.selectedDemoPhotoID == nil {
             model.selectedDemoPhotoID = photoID
         }
     }
 
-    private var jobPhotoID: String? {
-        if launch.opensJobSheet {
-            return model.selectedDemoPhotoID ?? launch.resolvedPhotoID
-        }
-        return model.activeDemoPhotoID
-    }
-
     private var jobPhoto: UIImage? {
-        guard let photoID = jobSheet.job?.photoID else { return nil }
+        guard let photoID = presentedJob?.photoID else { return nil }
         return demoImages.images[photoID]
     }
 
     private var jobPhotoInfo: DemoPhotoInfo? {
-        guard let photoID = jobSheet.job?.photoID else { return nil }
+        guard let photoID = presentedJob?.photoID else { return nil }
         return demoImages.catalog?.photos.first { $0.photoID == photoID }
     }
 
@@ -674,12 +836,13 @@ private struct MessageBubble: View {
                     .multilineTextAlignment(.leading)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
-                    .background(
-                        Color.black,
-                        in: RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    )
+                .background(
+                    Color.black,
+                    in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+                )
+                .accessibilityLabel("You said \(user.text)")
+                .accessibilityIdentifier("chat.userMessage")
             }
-            .accessibilityLabel("You said \(user.text)")
         case let .assistant(assistant):
             HStack(alignment: .top, spacing: 0) {
                 AnswerCardView(
@@ -697,21 +860,25 @@ private struct MessageBubble: View {
 
 @MainActor
 private enum ChatScreenPreview {
-    static func conversation(
-        isLoading: Bool = false,
-        errorMessage: String? = nil,
+    static func host(
         isDemoMode: Bool = false,
-        selectedDemoPhotoID: String? = nil
-    ) -> ChatViewModel {
-        ChatViewModel(
-            conversationID: ConversationID(rawValue: "preview-conversation")!,
-            messages: [
-                .user(
-                    UserMessage(
-                        id: MessageID(rawValue: "preview-user")!,
-                        text: "Rough idle after cold start."
-                    )!
-                ),
+        selectedDemoPhotoID: String? = nil,
+        client: any ChatClient = IdleChatClient(),
+        includeAnswer: Bool = true,
+        composerText: String = "Still doing it.",
+        sendOnAppear: Bool = false
+    ) -> ChatPreviewHost {
+        let jobID = JobID(rawValue: "preview-job")!
+        var messages: [Message] = [
+            .user(
+                UserMessage(
+                    id: MessageID(rawValue: "preview-user")!,
+                    text: "Rough idle after cold start."
+                )!
+            ),
+        ]
+        if includeAnswer {
+            messages.append(
                 .assistant(
                     AssistantMessage(
                         id: MessageID(rawValue: "preview-assistant")!,
@@ -721,77 +888,101 @@ private enum ChatScreenPreview {
                             )!
                         )
                     )
-                ),
-            ],
-            composerText: "Still doing it.",
-            isLoading: isLoading,
-            errorMessage: errorMessage,
-            isDemoMode: isDemoMode,
-            selectedDemoPhotoID: selectedDemoPhotoID,
-            client: IdleChatClient()
+                )
+            )
+        }
+        let job = JobSheetState(
+            id: jobID,
+            title: "Rough idle after",
+            createdAt: Date(timeIntervalSince1970: 1_760_000_000),
+            conversation: Conversation(
+                id: ConversationID(rawValue: jobID.rawValue)!,
+                messages: messages
+            ),
+            steps: includeAnswer ? JobSheetCopy.steps(photoID: DemoLaunchOptions.defaultPhotoID) : []
         )
+        let jobs = JobsModel(source: .memory([job]), client: client)
+        let chat = ChatViewModel(
+            jobs: jobs,
+            target: .job(jobID),
+            composerText: composerText,
+            isDemoMode: isDemoMode,
+            selectedDemoPhotoID: selectedDemoPhotoID
+        )
+        return ChatPreviewHost(jobs: jobs, chat: chat, sendOnAppear: sendOnAppear)
+    }
+}
+
+private struct ChatPreviewHost: View {
+    @State private var jobs: JobsModel
+    @State private var chat: ChatViewModel
+    var sendOnAppear: Bool
+
+    init(jobs: JobsModel, chat: ChatViewModel, sendOnAppear: Bool = false) {
+        _jobs = State(initialValue: jobs)
+        _chat = State(initialValue: chat)
+        self.sendOnAppear = sendOnAppear
     }
 
-    static func loading() -> ChatViewModel {
-        ChatViewModel(
-            conversationID: ConversationID(rawValue: "preview-conversation")!,
-            messages: [
-                .user(
-                    UserMessage(
-                        id: MessageID(rawValue: "preview-user")!,
-                        text: "Rough idle after cold start."
-                    )!
-                ),
-            ],
-            composerText: "Still doing it.",
-            isLoading: true,
-            client: IdleChatClient()
-        )
+    var body: some View {
+        ChatScreen(jobs: jobs, model: chat, onOpenGarage: {})
+            .task {
+                if sendOnAppear {
+                    await chat.send()
+                }
+            }
     }
 }
 
 private struct IdleChatClient: ChatClient {
     func send(_ conversation: Conversation, demoPhotoID: String?) async throws -> Answer {
+        _ = conversation
+        _ = demoPhotoID
+        throw ChatClientError.offline
+    }
+}
+
+private struct HangingChatClient: ChatClient {
+    func send(_ conversation: Conversation, demoPhotoID: String?) async throws -> Answer {
+        _ = conversation
+        _ = demoPhotoID
+        try await Task.sleep(for: .seconds(3_600))
         throw ChatClientError.offline
     }
 }
 
 #Preview("Light") {
-    ChatScreen(model: ChatScreenPreview.conversation(), onOpenGarage: {})
+    ChatScreenPreview.host()
         .preferredColorScheme(.light)
 }
 
 #Preview("Dark") {
-    ChatScreen(model: ChatScreenPreview.conversation(), onOpenGarage: {})
+    ChatScreenPreview.host()
         .preferredColorScheme(.dark)
 }
 
 #Preview("Accessibility XL") {
-    ChatScreen(model: ChatScreenPreview.conversation(), onOpenGarage: {})
+    ChatScreenPreview.host()
         .environment(\.dynamicTypeSize, .accessibility3)
 }
 
 #Preview("Accessibility XXXL") {
-    ChatScreen(model: ChatScreenPreview.conversation(), onOpenGarage: {})
+    ChatScreenPreview.host()
         .environment(\.dynamicTypeSize, .accessibility5)
 }
 
 #Preview("Loading") {
-    ChatScreen(model: ChatScreenPreview.loading())
+    ChatScreenPreview.host(client: HangingChatClient(), includeAnswer: false, sendOnAppear: true)
 }
 
 #Preview("Error") {
-    ChatScreen(model: ChatScreenPreview.conversation(
-        errorMessage: ChatClientError.offline.userMessage
-    ))
+    ChatScreenPreview.host(client: IdleChatClient(), sendOnAppear: true)
 }
 
 #Preview("Demo mode") {
-    ChatScreen(
-        model: ChatScreenPreview.conversation(
-            isDemoMode: true,
-            selectedDemoPhotoID: DemoLaunchOptions.defaultPhotoID
-        )
+    ChatScreenPreview.host(
+        isDemoMode: true,
+        selectedDemoPhotoID: DemoLaunchOptions.defaultPhotoID
     )
     .preferredColorScheme(.light)
 }
