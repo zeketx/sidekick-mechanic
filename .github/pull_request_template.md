@@ -11,6 +11,10 @@ HARD = multi-subsystem, answer/data/retrieval quality, design decision, ~5+ file
 
 Part of #
 
+## User stories
+
+- [ ] If this PR adds or changes something a person can do in the app, `docs/USER_STORIES.md` is updated
+
 ## What changed
 
 
