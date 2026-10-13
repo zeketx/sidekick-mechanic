@@ -91,7 +91,7 @@ Status: Shipped
 As a user, I can hear that the manual does not cover the question and then get the cheap checks first so that I have a place to start without a made-up procedure. The card is not the closed-book card. Chassis and engine from the garage can show, and TBD stays TBD. A related manual page can be opened from the card and from the job sheet, and is labeled as related, not as the page that answered.
 
 Where: the reply, the card with the wrench, and the job sheet.
-Status: In review.
+Status: In review. [#143](https://github.com/zeketx/sidekick-mechanic/pull/143)
 
 As a user, I can have more ways of writing a torque caught, a missing manual come back as "not found", and "The mechanic is unavailable right now" show up as a failure instead of a normal reply so that none of those look like the book said it.
 
