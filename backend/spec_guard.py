@@ -99,6 +99,22 @@ _PIN_RE = re.compile(
     rf"\b(pins?|connectors?|terminals?)\s+({_PIN_ID}(?:\s*(?:,|&|\band\b)\s+{_PIN_ID})*)",
     re.IGNORECASE,
 )
+# Advice steps only. A hash or colon is not the space `_PIN_RE` requires,
+# so "pin #4" and "terminal: A" would otherwise reach the card.
+_ADVICE_PIN_RE = re.compile(
+    rf"\b(pins?|connectors?|terminals?)\s*[#:]\s*"
+    rf"({_PIN_ID}(?:\s*(?:,|&|\band\b)\s*[#:]?\s*{_PIN_ID})*)",
+    re.IGNORECASE,
+)
+# A mark between the number and the unit. "12.7. Nm" is not "12.7 Nm".
+_ADVICE_MEASURE_RE = re.compile(
+    r"(?<![A-Za-z0-9.])("
+    + _NUMBER_BODY
+    + r")\s*[#:.]+\s*("
+    + "|".join(f"(?:{pattern})" for _, pattern in _UNIT_PATTERNS)
+    + r")(?![A-Za-z0-9])",
+    re.IGNORECASE,
+)
 _ID_SPLIT_RE = re.compile(r"\s*(?:,|&|\band\b)\s*", re.IGNORECASE)
 _INVISIBLE_RE = re.compile("[\u200b\u200c\u200d\u2060\ufeff]")
 
@@ -157,8 +173,10 @@ def guard_answer(
 
     ``cited_chunk_texts`` is retrieved page text. Citation snippets inside
     ``answer`` are ignored. A payload that is already a refusal is returned
-    with the same fields. ``general_advice`` steps are scanned one at a time.
-    Hit text is not evidence for that kind.
+    with the same fields. ``general_advice`` steps are scanned one at a time,
+    including a hash or colon on a pin id and a mark between a number and
+    its unit. Hit text is not evidence for that kind. Found answers keep
+    the spaced patterns only.
     """
     global _checks, _failures, _uncited_claims
     if not isinstance(answer, Mapping):
@@ -232,7 +250,7 @@ def _claims_in_steps(steps: Sequence[object]) -> tuple[str, ...]:
     for step in steps:
         if not isinstance(step, str):
             continue
-        for claim in _unique_claims(step):
+        for claim in (*_unique_claims(step), *_advice_only_claims(step)):
             if claim.canonical in seen:
                 continue
             seen.add(claim.canonical)
@@ -302,6 +320,57 @@ def _unique_claims(text: str) -> tuple[_Claim, ...]:
         seen.add(claim.canonical)
         ordered.append(claim)
     return tuple(ordered)
+
+
+def _advice_only_claims(text: str) -> tuple[_Claim, ...]:
+    """Specs the shared extractor skips. Called from advice steps only.
+
+    ``3. A clip`` stays prose: a sentence period before a one-letter unit
+    is not a measurement. ``12.7. Nm`` and ``3. mm`` are.
+    """
+    prepared = _prepare(text)
+    found: list[_Claim] = []
+    for match in _ADVICE_MEASURE_RE.finditer(prepared):
+        if not _advice_measure_separator(match):
+            continue
+        number = _canonical_number(match.group(1))
+        unit = _canonical_unit(match.group(2))
+        found.append(
+            _Claim(
+                start=match.start(),
+                surface=match.group(0).strip(),
+                canonical=f"{number} {unit}",
+            )
+        )
+    for match in _ADVICE_PIN_RE.finditer(prepared):
+        kind = _pin_kind(match.group(1))
+        for token in _ID_SPLIT_RE.split(match.group(2)):
+            cleaned = token.lstrip("#:").strip()
+            pin_id = _pin_token(cleaned)
+            if pin_id is None:
+                continue
+            found.append(
+                _Claim(
+                    start=match.start(),
+                    surface=f"{kind} {cleaned}",
+                    canonical=f"{kind} {pin_id}",
+                )
+            )
+    found.sort(key=lambda claim: claim.start)
+    return tuple(found)
+
+
+def _advice_measure_separator(match: re.Match[str]) -> bool:
+    between = match.group(0)[
+        match.end(1) - match.start() : match.start(2) - match.start()
+    ]
+    if re.fullmatch(r"\s*[#:]+\s*", between):
+        return True
+    if not re.fullmatch(r"\s*\.+\s*", between):
+        return False
+    number = match.group(1)
+    unit = match.group(2)
+    return "." in number or len(unit) >= 2
 
 
 def _extract(text: str) -> tuple[_Claim, ...]:

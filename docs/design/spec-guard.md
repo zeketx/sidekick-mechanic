@@ -24,6 +24,8 @@ The refusal names each missing claim. A payload that is already `kind: "refusal"
 
 `kind: "general_advice"` is scanned one step at a time. The guard does not join the steps, so a number in one step and a unit in the next are not one claim. Hit text, related snippets, the honesty line, the safety line, and garage values are not evidence and are not claims. Any blocked claim replaces the whole payload with the refusal above. That refusal has no highlight and no steps. A step list with no claim is returned unchanged.
 
+Advice steps also block a hash or colon between `pin`, `connector`, or `terminal` and the id (`pin #4`, `Pin: 12`, `connector #C9`, `terminal: A`, `pins #4 and #5`), and a mark between a number and its unit (`12.7. Nm`, `3. mm`, `999: Nm`). Found-answer text still uses only the spaced forms above. A period that ends a sentence before a one-letter unit (`3. A clip`) is not a claim.
+
 Claims must sit entirely inside one chunk. A number in one chunk and its unit in another do not count. `25` does not match `125`, and `999` does not match `999.4` or `999.0`. The guard does not convert units: `999 Nm` does not match `999 kgfm`.
 
 ## What is extracted
