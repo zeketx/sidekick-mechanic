@@ -120,6 +120,30 @@ def test_parse_keeps_five_cleaned_steps_and_drops_a_long_one() -> None:
     assert long_step[:500] not in (parse_steps(raw) or [])
 
 
+def test_parse_keeps_a_decimal_measurement() -> None:
+    raw = json.dumps({"steps": ["12.7 Nm", "1. FAKE-STEP: after the measurement"]})
+
+    assert parse_steps(raw) == ["12.7 Nm", "FAKE-STEP: after the measurement"]
+
+
+def test_advice_prompt_omits_prior_assistant_text() -> None:
+    conversation = Conversation(
+        messages=[
+            Message(role="user", text="What is the fixture torque?"),
+            Message(role="assistant", text="The cited page says 999 Nm."),
+            Message(role="user", text="The fixture motor still will not start."),
+        ]
+    )
+    fake = FakeLLMClient(
+        text=json.dumps({"steps": ["FAKE-STEP: check the connection."]})
+    )
+
+    assert advise_on_miss(fake, conversation, ()) is not None
+    sent = "\n".join(turn.content for turn in fake.calls[0])
+    assert "999 Nm" not in sent
+    assert "The fixture motor still will not start." in sent
+
+
 def test_writer_failure_is_none() -> None:
     fake = FakeLLMClient(text="not json")
     assert advise_on_miss(fake, _conversation(), ()) is None

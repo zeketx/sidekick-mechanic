@@ -21,8 +21,10 @@ ADVICE_HONESTY = "Not in your manual. Here's what usually causes this."
 ADVICE_STEPS_HEADER = "General checks, not a manual answer:\n"
 _STEP_LIMIT = 5
 _STEP_CHARS = 500
+# A list marker is digits, then "." or ")", then whitespace, then a non-digit.
+# "12.7 Nm" is a measurement, not a marker. Stripping it would show "7 Nm".
 _LEADING_LABEL = re.compile(
-    r"^(?:step\s+\d+:|\d+[.)])\s*",
+    r"^(?:step\s+\d+\s*[:.)]|\d+[.)])\s+(?!\d)",
     re.IGNORECASE,
 )
 _INSTRUCTIONS = (
@@ -153,10 +155,13 @@ def related_citations(hits: Sequence[_Page]) -> list[dict[str, Any]]:
 
 
 def _turns(conversation: Conversation) -> list[ChatTurn]:
+    # Prior assistant text can quote a unit the guard allowed on a cited page.
+    # That page is not evidence for these steps, so the model does not see it.
     messages = [ChatTurn(role="system", content=advice_system_prompt(conversation))]
     messages.extend(
         ChatTurn(role=message.role, content=message.text)
         for message in conversation.messages
+        if message.role == "user"
     )
     return messages
 
