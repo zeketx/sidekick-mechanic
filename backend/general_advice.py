@@ -13,7 +13,6 @@ from typing import Any, Protocol
 
 from chat_models import Conversation, garage_prompt_block
 from contract import validate_answer
-from demo import DEMO_VEHICLE
 from llm import ChatTurn, LLMClient, LLMError
 from retrieval import cap_snippet, content_terms, snippet_matches_page, term_in_text
 from safety import SAFETY_NOTE
@@ -33,6 +32,10 @@ _INSTRUCTIONS = (
     'The object is {"steps": [string, ...]} only. Extra keys are ignored. '
     "Write one to five sentences. "
     "Put the cheapest and easiest check first. "
+    "Use one plain sentence for that first check, in the same shape every time. "
+    "When a garage summary names a vehicle, name that vehicle in the first check. "
+    "When no garage summary is present, do not name a vehicle. "
+    "Do not write household-appliance advice. "
     "Do not start a sentence with a step number. "
     "Do not give a torque or any other number with a unit. "
     "Do not give a pin, connector, or terminal id. "
@@ -72,23 +75,6 @@ _RELATED_WEAK_TERMS = frozenset(
         "looking",
     }
 )
-_DEFAULT_CHECK = (
-    f"On this {DEMO_VEHICLE}, look at the part the question names "
-    "before you take anything apart."
-)
-_CHEAP_CHECKS: tuple[tuple[frozenset[str], str], ...] = (
-    (
-        frozenset({"fan"}),
-        (
-            f"On this {DEMO_VEHICLE}, look at the engine cooling fan "
-            "before you take anything apart."
-        ),
-    ),
-)
-_TRUCK_LINE = (
-    f"The owner's truck is a {DEMO_VEHICLE}. "
-    "These checks are for this truck, not a household appliance."
-)
 
 
 class _Page(Protocol):
@@ -110,11 +96,9 @@ def advise_on_miss(
         result = client.complete(_turns(conversation))
     except LLMError:
         return None
-    parsed = parse_steps(result.text)
-    if parsed is None:
+    steps = parse_steps(result.text)
+    if steps is None:
         return None
-    canned = cheap_check(question)
-    steps = [canned, *[step for step in parsed if step != canned]][:_STEP_LIMIT]
     payload = {
         "kind": "general_advice",
         "honesty": ADVICE_HONESTY,
@@ -130,9 +114,11 @@ def advise_on_miss(
 def advice_system_prompt(conversation: Conversation) -> str:
     parts = [
         "You are Sidekick Mechanic. The manual does not cover this question.",
-        _TRUCK_LINE,
         _INSTRUCTIONS,
     ]
+    summary = truck_prompt_line(conversation)
+    if summary:
+        parts.append(summary)
     block = garage_prompt_block(conversation.garage)
     if block:
         parts.append(block)
@@ -216,12 +202,23 @@ def related_citations(question: str, hits: Sequence[_Page]) -> list[dict[str, An
     return kept
 
 
-def cheap_check(question: str) -> str:
-    focus = {term.casefold() for term in _focus_terms(question)}
-    for terms, sentence in _CHEAP_CHECKS:
-        if not focus.isdisjoint(terms):
-            return sentence
-    return _DEFAULT_CHECK
+def truck_prompt_line(conversation: Conversation) -> str:
+    """Name the vehicle from the garage summary, or return empty when it has none."""
+
+    basis = garage_basis(conversation)
+    if basis.get("source") != "garage":
+        return ""
+    truck = basis.get("truck")
+    engine = basis.get("engine")
+    if isinstance(truck, str) and isinstance(engine, str):
+        named = f"{truck}, engine {engine}"
+    elif isinstance(truck, str):
+        named = truck
+    elif isinstance(engine, str):
+        named = f"engine {engine}"
+    else:
+        return ""
+    return f"The garage summary names this vehicle: {named}."
 
 
 def _focus_terms(question: str) -> tuple[str, ...]:

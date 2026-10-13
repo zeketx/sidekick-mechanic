@@ -33,8 +33,9 @@ citation is `doc_id`, `page`, and a snippet copied from that page, so the
 provenance check can keep it. The answer text is a local stand-in, not a model
 procedure. An empty search calls the client for general advice. A related
 page from that search is kept only when it shares a focus term with the
-question. The first check is a fixed sentence that names the truck. A later
-stand-in step may start with `FAKE-STEP` and is not a real procedure. Do not
+question. The model writes the checks, cheapest first, and names a vehicle
+only when the garage summary includes one. The stand-in step starts with
+`FAKE-STEP` and is not a real procedure. Do not
 treat the stand-in, or an empty-citation reply, as a real procedure.
 
 Design: [`docs/design/retrieval-index.md`](../docs/design/retrieval-index.md).

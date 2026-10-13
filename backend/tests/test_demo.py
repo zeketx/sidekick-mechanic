@@ -409,10 +409,6 @@ def test_producer_resolves_from_question_without_a_second_llm_call() -> None:
 
 def test_empty_citations_still_attach_the_demo_outline() -> None:
     step = "FAKE-STEP: check the fixture connection before the fixture motor."
-    cheap = (
-        "On this 1990 Toyota Land Cruiser LJ78 with a 2JZ-GE swap, "
-        "look at the part the question names before you take anything apart."
-    )
     chunk = "FAKE-CHUNK: throttle body has no part location."
     fake = _ScriptedLLM(
         [
@@ -430,7 +426,8 @@ def test_empty_citations_still_attach_the_demo_outline() -> None:
     assert payload["kind"] == "general_advice"
     assert payload["honesty"] == ADVICE_HONESTY
     assert payload["safety"] == SAFETY_NOTE
-    assert payload["steps"] == [cheap, step]
+    assert payload["steps"] == [step]
+    assert "Land Cruiser" not in json.dumps(payload["steps"])
     assert payload["garage"] == {"source": "none"}
     assert payload["related"] == [
         {

@@ -12,7 +12,6 @@ from chat_models import (
     GarageTodoContext,
     Message,
 )
-from demo import DEMO_VEHICLE
 from general_advice import (
     ADVICE_HONESTY,
     ADVICE_STEPS_HEADER,
@@ -23,10 +22,6 @@ from llm import RETRIEVED_PAGES_HEADER, FakeLLMClient
 from safety import SAFETY_NOTE
 
 _STEP = "FAKE-STEP: check the fixture connection before the fixture motor."
-_CHEAP = (
-    "On this 1990 Toyota Land Cruiser LJ78 with a 2JZ-GE swap, "
-    "look at the part the question names before you take anything apart."
-)
 _HIT_SNIPPET = "FAKE-SNIPPET from the fixture motor hit."
 
 
@@ -82,7 +77,7 @@ def test_engine_tbd_round_trips_and_the_prompt_omits_page_text() -> None:
     }
     assert payload["honesty"] == ADVICE_HONESTY
     assert payload["safety"] == SAFETY_NOTE
-    assert payload["steps"] == [_CHEAP, _STEP]
+    assert payload["steps"] == [_STEP]
     assert payload["related"] == [
         {"doc_id": "FAKE-DOC", "page": 999, "snippet": _HIT_SNIPPET}
     ]
@@ -96,8 +91,9 @@ def test_engine_tbd_round_trips_and_the_prompt_omits_page_text() -> None:
     assert "FAKE-NOTE already replaced" in system
     assert "FAKE-TODO check the spare" in system
     assert "Garage notes are not a manual page." in system
-    assert DEMO_VEHICLE in system
-    assert "household appliance" in system
+    assert "The garage summary names this vehicle: FAKE-TRUCK, engine TBD." in system
+    assert "Land Cruiser" not in system
+    assert "household-appliance" in system
     assert "Demo photos" not in system
 
 

@@ -32,10 +32,6 @@ _UNAVAILABLE = {
     "reason": "provider_unavailable",
 }
 _FAKE_STEP = "FAKE-STEP: check the fixture connection before the fixture motor."
-_CHEAP = (
-    "On this 1990 Toyota Land Cruiser LJ78 with a 2JZ-GE swap, "
-    "look at the part the question names before you take anything apart."
-)
 
 
 class _Hit:
@@ -71,7 +67,7 @@ def _advice(
         "kind": "general_advice",
         "honesty": ADVICE_HONESTY,
         "safety": SAFETY_NOTE,
-        "steps": [_CHEAP, _FAKE_STEP] if steps is None else steps,
+        "steps": [_FAKE_STEP] if steps is None else steps,
         "garage": {"source": "none"},
         "related": [] if related is None else related,
     }
