@@ -13,7 +13,7 @@ import logging
 import re
 import threading
 import unicodedata
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -157,16 +157,19 @@ def guard_answer(
 
     ``cited_chunk_texts`` is retrieved page text. Citation snippets inside
     ``answer`` are ignored. A payload that is already a refusal is returned
-    with the same fields.
+    with the same fields. ``general_advice`` steps are scanned one at a time.
+    Hit text is not evidence for that kind.
     """
     global _checks, _failures, _uncited_claims
     if not isinstance(answer, Mapping):
         raise TypeError("answer must be a mapping")
     texts = _require_chunk_texts(cited_chunk_texts)
     payload = dict(answer)
-    # Refusal text names the missing claim. Scanning it would refuse again.
-    # Other shapes are left for contract validation.
-    if payload.get("kind") != "answer" or not isinstance(payload.get("text"), str):
+    kind = payload.get("kind")
+    # A refusal names the missing claim. Scanning it would refuse again.
+    if kind == "general_advice":
+        return _guard_steps(payload)
+    if kind != "answer" or not isinstance(payload.get("text"), str):
         return GuardResult(answer=payload, uncited=())
 
     known = _canonical_claims(texts)
@@ -195,6 +198,46 @@ def guard_answer(
     }
     validate_answer(refusal)
     return GuardResult(answer=refusal, uncited=blocked)
+
+
+def _guard_steps(payload: dict[str, Any]) -> GuardResult:
+    global _checks, _failures, _uncited_claims
+    steps = payload.get("steps")
+    blocked = _claims_in_steps(steps if isinstance(steps, list) else ())
+    with _stats_lock:
+        _checks += 1
+        if blocked:
+            _failures += 1
+            _uncited_claims += len(blocked)
+    if not blocked:
+        return GuardResult(answer=payload, uncited=())
+    logger.warning(
+        "spec guard blocked %d uncited claim(s): %s",
+        len(blocked),
+        ", ".join(blocked),
+    )
+    refusal = {
+        "kind": "refusal",
+        "text": "Not found in the cited manual text: " + ", ".join(blocked) + ".",
+        "reason": "not_found_in_manual",
+    }
+    validate_answer(refusal)
+    return GuardResult(answer=refusal, uncited=blocked)
+
+
+def _claims_in_steps(steps: Sequence[object]) -> tuple[str, ...]:
+    # Joining steps would invent a claim across the boundary ("999" then "Nm").
+    seen: set[str] = set()
+    surfaces: list[str] = []
+    for step in steps:
+        if not isinstance(step, str):
+            continue
+        for claim in _unique_claims(step):
+            if claim.canonical in seen:
+                continue
+            seen.add(claim.canonical)
+            surfaces.append(claim.surface)
+    return tuple(surfaces)
 
 
 class SpecGuardUncitedCounter:

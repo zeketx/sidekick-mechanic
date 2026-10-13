@@ -224,6 +224,29 @@ def extract_labels(text: str) -> str:
     return " ".join(labels)
 
 
+SNIPPET_LIMIT = 280
+
+
+def cap_snippet(snippet: str) -> str:
+    if len(snippet) <= SNIPPET_LIMIT:
+        return snippet
+    window = snippet[:SNIPPET_LIMIT]
+    last_space = _last_whitespace_index(window)
+    if last_space is None:
+        return window
+    trimmed = window[:last_space].rstrip()
+    if not trimmed:
+        return window
+    return trimmed
+
+
+def _last_whitespace_index(window: str) -> int | None:
+    for index in range(len(window) - 1, -1, -1):
+        if window[index].isspace():
+            return index
+    return None
+
+
 def snippet_matches_page(snippet: str, page_text: str) -> bool:
     """True when snippet is a contiguous span of the page text.
 

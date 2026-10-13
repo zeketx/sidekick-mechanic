@@ -232,14 +232,14 @@ def apply_demo_resolution(
     ``outline`` and ``confirm`` ride on ``display`` plus ``geometry``.
     The cited answer text stays. The stand-in photo is not described as the
     owner's truck. Abstain on a found answer omits ``highlight`` and appends
-    the manual-diagram placeholder. A refusal can gain the outline and keeps
-    its text.
+    the manual-diagram placeholder. A refusal or general advice can gain the
+    outline and keeps its other fields.
     """
     kind = answer.get("kind")
     payload = dict(answer)
     payload.pop("highlight", None)
-    if kind not in {"answer", "refusal"}:
-        raise ValueError("answer kind must be 'answer' or 'refusal'")
+    if kind not in {"answer", "refusal", "general_advice"}:
+        raise ValueError("answer kind must be 'answer', 'refusal', or 'general_advice'")
 
     photo = load_catalog().photo(photo_id)
     if photo is None:
@@ -257,7 +257,7 @@ def apply_demo_resolution(
             }
             return payload
 
-    if kind == "refusal":
+    if kind in {"refusal", "general_advice"}:
         return payload
 
     if resolution.kind in {ResolutionKind.NOT_MAPPED, ResolutionKind.HIGHLIGHT}:
@@ -296,12 +296,12 @@ def confirm_highlight_config() -> HighlightConfig:
     )
 
 
-def pixel_rings(part: DemoPart, width: int, height: int) -> list[list[tuple[float, float]]]:
+def pixel_rings(
+    part: DemoPart, width: int, height: int
+) -> list[list[tuple[float, float]]]:
     rings: list[list[tuple[float, float]]] = []
     for polygon in part.polygons:
-        rings.append(
-            [(point.x * width, point.y * height) for point in polygon.points]
-        )
+        rings.append([(point.x * width, point.y * height) for point in polygon.points])
     return rings
 
 
@@ -411,10 +411,14 @@ def _polygons(raw: object, photo_id: str, part_id: str) -> tuple[DemoPolygon, ..
     rings: list[DemoPolygon] = []
     for item in raw:
         if not isinstance(item, dict):
-            raise DemoCatalogError(f"{photo_id}/{part_id} each polygon must be an object")
+            raise DemoCatalogError(
+                f"{photo_id}/{part_id} each polygon must be an object"
+            )
         points_raw = item.get("points")
         if not isinstance(points_raw, list) or len(points_raw) < 3:
-            raise DemoCatalogError(f"{photo_id}/{part_id} polygon needs at least 3 points")
+            raise DemoCatalogError(
+                f"{photo_id}/{part_id} polygon needs at least 3 points"
+            )
         points = tuple(_point(point, photo_id, part_id) for point in points_raw)
         rings.append(DemoPolygon(points=points))
     return tuple(rings)

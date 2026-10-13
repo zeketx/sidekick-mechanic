@@ -84,10 +84,11 @@ FAKE_USAGE = TokenUsage(prompt_tokens=1, completion_tokens=1, total_tokens=2)
 class FakeLLMClient:
     """In-process stub. Used in tests and when no API key is configured.
 
-    ``text`` forces one completion. With ``text`` omitted, a go-deeper prompt
-    restates that one page, a grounded chat prompt becomes citation JSON
-    from the retrieved pages, and any other prompt returns
-    ``DEFAULT_FAKE_TEXT``.
+    ``text`` forces one completion for every call. With ``text`` omitted, a
+    ``script`` pops the next string on each call. Otherwise a go-deeper prompt
+    restates that one page, a general-advice prompt returns step JSON, a
+    grounded chat prompt becomes citation JSON from the retrieved pages, and
+    any other prompt returns ``DEFAULT_FAKE_TEXT``.
     """
 
     def __init__(
@@ -95,18 +96,27 @@ class FakeLLMClient:
         text: str | None = None,
         usage: TokenUsage | None = FAKE_USAGE,
         error: Exception | None = None,
+        script: tuple[str, ...] | None = None,
     ) -> None:
         self.text = text
         self.usage = usage
         self.error = error
+        self.script = list(script) if script is not None else None
         self.calls: list[list[ChatTurn]] = []
 
     def complete(self, messages: list[ChatTurn]) -> LLMResult:
         self.calls.append(list(messages))
         if self.error is not None:
             raise self.error
-        text = self.text if self.text is not None else _fake_completion_text(messages)
-        return LLMResult(text=text, model="fake", usage=self.usage)
+        if self.text is not None:
+            chosen = self.text
+        elif self.script is not None:
+            if not self.script:
+                raise LLMError("fake script has no remaining completion")
+            chosen = self.script.pop(0)
+        else:
+            chosen = _fake_completion_text(messages)
+        return LLMResult(text=chosen, model="fake", usage=self.usage)
 
 
 class OpenAICompatibleClient:
@@ -142,7 +152,9 @@ class OpenAICompatibleClient:
                 elif response.status_code >= 400:
                     raise LLMError(f"provider returned HTTP {response.status_code}")
                 else:
-                    result = _parse_completion(response, fallback_model=self._settings.model)
+                    result = _parse_completion(
+                        response, fallback_model=self._settings.model
+                    )
                     _log_vision_call(messages, result, started)
                     return result
             if attempt + 1 < attempts:
@@ -178,7 +190,9 @@ def _message_body(turn: ChatTurn) -> dict[str, Any]:
     return {"role": turn.role, "content": parts}
 
 
-def _log_vision_call(messages: list[ChatTurn], result: LLMResult, started: float) -> None:
+def _log_vision_call(
+    messages: list[ChatTurn], result: LLMResult, started: float
+) -> None:
     """Lengths only. Image bytes and reply text can show a real plug label."""
     sizes = [len(image.data) for turn in messages for image in turn.images]
     if not sizes:
@@ -232,7 +246,8 @@ def build_vision_client(environ: Mapping[str, str] | None = None) -> LLMClient |
         return None
     settings = LLMSettings(
         api_key=api_key,
-        base_url=_optional_str(env.get("SIDEKICK_VISION_BASE_URL")) or DEFAULT_VISION_BASE_URL,
+        base_url=_optional_str(env.get("SIDEKICK_VISION_BASE_URL"))
+        or DEFAULT_VISION_BASE_URL,
         model=model,
         timeout_seconds=DEFAULT_TIMEOUT_SECONDS,
         max_retries=DEFAULT_MAX_RETRIES,
@@ -245,7 +260,9 @@ def _optional_str(raw: str | None) -> str | None:
     return text or None
 
 
-def _float_setting(raw: str | None, default: float, *, name: str, minimum: float) -> float:
+def _float_setting(
+    raw: str | None, default: float, *, name: str, minimum: float
+) -> float:
     text = (raw or "").strip()
     if not text:
         return default
@@ -286,10 +303,24 @@ def _parse_completion(response: httpx.Response, *, fallback_model: str) -> LLMRe
         raise LLMError("provider returned empty content")
     model = payload.get("model")
     model_name = model if isinstance(model, str) and model else fallback_model
-    return LLMResult(text=content, model=model_name, usage=_parse_usage(payload.get("usage")))
+    return LLMResult(
+        text=content, model=model_name, usage=_parse_usage(payload.get("usage"))
+    )
 
 
 def _fake_completion_text(messages: list[ChatTurn]) -> str:
+    from general_advice import ADVICE_STEPS_HEADER
+
+    for turn in messages:
+        if ADVICE_STEPS_HEADER in turn.content:
+            return json.dumps(
+                {
+                    "steps": [
+                        "FAKE-STEP: check the fixture connection before the fixture motor."
+                    ]
+                },
+                ensure_ascii=False,
+            )
     go_deeper = _go_deeper_from_messages(messages)
     if go_deeper is not None:
         return json.dumps(go_deeper, ensure_ascii=False)

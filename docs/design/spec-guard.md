@@ -20,13 +20,15 @@ result = guard_answer(answer, cited_chunk_texts)
 }
 ```
 
-The refusal names each missing claim. A payload that is already `kind: "refusal"` is returned with the same fields and is not scanned. Scanning it would refuse the refusal, because the text names the missing claim.
+The refusal names each missing claim. A payload that is already `kind: "refusal"` is returned with the same fields and is not scanned. Scanning it would refuse the refusal, because the text names the missing claim. `kind: "error"` is not scanned.
+
+`kind: "general_advice"` is scanned one step at a time. The guard does not join the steps, so a number in one step and a unit in the next are not one claim. Hit text, related snippets, the honesty line, the safety line, and garage values are not evidence and are not claims. Any blocked claim replaces the whole payload with the refusal above. That refusal has no highlight and no steps. A step list with no claim is returned unchanged.
 
 Claims must sit entirely inside one chunk. A number in one chunk and its unit in another do not count. `25` does not match `125`, and `999` does not match `999.4` or `999.0`. The guard does not convert units: `999 Nm` does not match `999 kgfm`.
 
 ## What is extracted
 
-From answer text only:
+From found-answer text, and from each general-advice step on its own:
 
 - A number followed by a unit in the table in `backend/spec_guard.py` (torque, pressure, voltage, resistance, length, temperature, current, speed, volume, angle, percent).
 - `pin`, `connector`, and `terminal` references. The id is a single letter (`pin Q`) or a token that contains a digit (`pin 999`, `connector FAKE-C9`). `pins 999 and 998` is two claims. `pin` and `connector` do not match each other.
@@ -70,13 +72,13 @@ spec guard blocked 2 uncited claim(s): 999 Nm, pin 999
 
 `GuardResult.uncited_count` is the number of distinct missing claims on that answer, `0` when the answer is allowed through. The eval uncited-number count is the sum of those counts.
 
-`python -m eval` passes `SpecGuardUncitedCounter` to `run_harness`. Its `count` calls `guard_answer(answer, ())` and returns `uncited_count`. The harness answer has no chunk text, so every claim still in a found answer counts. A refusal counts as zero. `run_harness` without a counter still uses the local digit counter.
+`python -m eval` passes `SpecGuardUncitedCounter` to `run_harness`. Its `count` calls `guard_answer(answer, ())` and returns `uncited_count`. The harness answer has no chunk text, so every claim still in a found answer counts. A general-advice step is scanned the same way, and a number in a step counts even when a related snippet contains it. A refusal counts as zero. `run_harness` without a counter still uses the local digit counter.
 
 `stats()` returns process totals since `reset_stats()`:
 
 | Field | Meaning |
 | --- | --- |
-| `checks` | Found answers whose text was inspected |
+| `checks` | Found answers and general-advice step lists that were inspected |
 | `failures` | Those answers replaced with a refusal |
 | `uncited_claims` | Sum of `uncited_count` |
 

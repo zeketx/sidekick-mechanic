@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import pytest
@@ -26,7 +27,9 @@ from demo import (
     match_part_from_question,
     resolve_demo_answer,
 )
+from general_advice import ADVICE_HONESTY
 from llm import ChatTurn, LLMResult
+from safety import SAFETY_NOTE
 from part_resolver import Resolution, ResolutionKind
 from producer import LlmAnswerProducer, SYSTEM_PROMPT
 
@@ -343,9 +346,9 @@ def test_chat_without_demo_does_not_select_a_demo_part() -> None:
 
 
 def test_unknown_demo_photo_is_rejected() -> None:
-    response = _demo_client(
-        LlmAnswerProducer(_ScriptedLLM([_result("unused")]))
-    ).post("/chat", json=_demo_body("hello", photo_id="not-a-demo-photo"))
+    response = _demo_client(LlmAnswerProducer(_ScriptedLLM([_result("unused")]))).post(
+        "/chat", json=_demo_body("hello", photo_id="not-a-demo-photo")
+    )
     assert response.status_code == 422
     assert response.json() == {"detail": "unknown demo photo"}
 
@@ -403,7 +406,13 @@ def test_producer_resolves_from_question_without_a_second_llm_call() -> None:
 
 
 def test_empty_citations_still_attach_the_demo_outline() -> None:
-    fake = _ScriptedLLM([_result('{"text":"no page","citations":[]}')])
+    step = "FAKE-STEP: check the fixture connection before the fixture motor."
+    fake = _ScriptedLLM(
+        [
+            _result('{"text":"no page","citations":[]}'),
+            _result(json.dumps({"steps": [step]})),
+        ]
+    )
     response = _demo_client(LlmAnswerProducer(fake, retriever=_Pages())).post(
         "/chat",
         json=_demo_body("where's the throttle body?"),
@@ -411,13 +420,45 @@ def test_empty_citations_still_attach_the_demo_outline() -> None:
     assert response.status_code == 200
     payload = response.json()
     validate_answer(payload)
-    assert payload["kind"] == "refusal"
-    assert payload["reason"] == "not_found_in_manual"
+    assert payload["kind"] == "general_advice"
+    assert payload["honesty"] == ADVICE_HONESTY
+    assert payload["safety"] == SAFETY_NOTE
+    assert payload["steps"] == [step]
+    assert payload["garage"] == {"source": "none"}
+    assert payload["related"] == [
+        {
+            "doc_id": "FAKE-DOC",
+            "page": 999,
+            "snippet": "FAKE-CHUNK: no part location.",
+        }
+    ]
     assert payload["highlight"]["part_id"] == "throttle-body"
     assert payload["highlight"]["display"] == "outline"
-    assert payload["text"].startswith("Not found in the manual")
-    assert "1990 Toyota" not in payload["text"]
-    assert len(fake.calls) == 1
+    assert payload["highlight"]["demo"] is True
+    assert "no page" not in payload["steps"][0]
+    assert "not visible in this photo" not in json.dumps(payload)
+    assert len(fake.calls) == 2
+
+
+def test_general_advice_not_visible_keeps_the_checks() -> None:
+    step = "FAKE-STEP: look at the fixture."
+    advice = {
+        "kind": "general_advice",
+        "honesty": ADVICE_HONESTY,
+        "safety": SAFETY_NOTE,
+        "steps": [step],
+        "garage": {"source": "garage", "engine": "TBD"},
+        "related": [{"doc_id": "FAKE-DOC", "page": 999, "snippet": "FAKE-SNIPPET"}],
+    }
+    payload = resolve_demo_answer(advice, _selection("coil-packs"), HRYMX)
+    validate_answer(payload)
+    assert payload["honesty"] == ADVICE_HONESTY
+    assert payload["steps"] == [step]
+    assert payload["garage"] == {"source": "garage", "engine": "TBD"}
+    assert payload["related"] == advice["related"]
+    assert "highlight" not in payload
+    assert "text" not in payload
+    assert "not visible in this photo" not in json.dumps(payload)
 
 
 def test_unmatched_question_leaves_llm_text_and_omits_highlight() -> None:

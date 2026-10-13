@@ -94,8 +94,9 @@ Do not start that port in this issue. Re-evaluate only if M2 eval shows lexical 
 #20 calls `Retriever.search` before the model when the index file exists for that
 request. It keeps a citation only when `(doc_id, page)` was retrieved and the
 snippet is a contiguous span of that page, after whitespace is collapsed. A rearrangement of the page's tokens is not a quote. An empty
-search, or a JSON object with an empty citations array, returns the refusal
-shape. A completion that is not that JSON object, or a non-empty citation list
+search, or a JSON object with an empty citations array, asks for general
+advice (`kind: general_advice`) instead of a canned refusal. A completion
+that is not that JSON object, or a non-empty citation list
 that does not survive the check, returns a provider error
 (`kind: error`, `reason: provider_unavailable`). That payload is not a
 manual answer. #24 runs
