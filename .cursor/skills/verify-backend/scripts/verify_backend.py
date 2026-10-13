@@ -27,6 +27,7 @@ from jsonschema.exceptions import ValidationError
 REPO = Path(__file__).resolve().parents[4]
 BACKEND = REPO / "backend"
 sys.path.insert(0, str(BACKEND))
+from demo import DEMO_VEHICLE  # noqa: E402
 from general_advice import ADVICE_HONESTY  # noqa: E402
 from llm import FAKE_ADVICE_STEP  # noqa: E402
 from safety import SAFETY_NOTE  # noqa: E402
@@ -43,12 +44,17 @@ RESULTS_DIR = BACKEND / "eval" / "results"
 CHAT_BODY = {"messages": [{"role": "user", "text": "Why is it hard to start?"}]}
 INVALID_BODY = {"messages": []}
 # No index on this server. The product asks for general advice instead of
-# inventing a cited procedure. The step is the fake client's stand-in.
+# inventing a cited procedure. The first step names the truck. The fake
+# client's stand-in is the next step.
+_TRUCK_CHECK = (
+    f"On this {DEMO_VEHICLE}, look at the part the question names "
+    "before you take anything apart."
+)
 FAKE_ANSWER = {
     "kind": "general_advice",
     "honesty": ADVICE_HONESTY,
     "safety": SAFETY_NOTE,
-    "steps": [FAKE_ADVICE_STEP],
+    "steps": [_TRUCK_CHECK, FAKE_ADVICE_STEP],
     "garage": {"source": "none"},
     "related": [],
 }

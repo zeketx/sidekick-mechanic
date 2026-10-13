@@ -80,7 +80,7 @@ python3 .cursor/skills/verify-backend/scripts/verify_backend.py drive cited-spec
 
 What each case must return:
 
-- `fake` — HTTP 200, schema-valid general advice. There is no index, so the reply is `kind` `general_advice`, the honesty line `Not in your manual. Here's what usually causes this.`, one step that starts with `FAKE-STEP`, `garage.source` `none`, and `related` `[]`.
+- `fake` — HTTP 200, schema-valid general advice. There is no index, so the reply is `kind` `general_advice`, the honesty line `Not in your manual. Here's what usually causes this.`, a first step that names the 1990 Toyota Land Cruiser LJ78 with a 2JZ-GE swap, a second step that starts with `FAKE-STEP`, `garage.source` `none`, and `related` `[]`.
 - `plain.json` — the committed fixture, unchanged.
 - `refusal.json` — `kind` `refusal`, `reason` `not_found_in_manual`.
 - `with_citations.json` — citation `doc_id` `FAKE-DOC-2JZ`, `page` `999`.

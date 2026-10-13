@@ -12,9 +12,13 @@ _FAN_CHECK = (
     "look at the engine cooling fan before you take anything apart."
 )
 _OFF_TOPIC = (
-    "FAKE-HEADING: AUTOMATIC TRANSMISSION FAKE-AT-OIL-COOLER union nuts."
+    "FAKE-HEADING: AUTOMATIC TRANSMISSION FAKE-AT-OIL-COOLER union nuts. "
+    "Do not spend time turning them. Check the union before you look again."
 )
 _ON_TOPIC = "FAKE-HEADING: COOLING FAN FAKE-FAN-RELAY wiring."
+_CHECK_QUESTION = (
+    "Please check my automatic fan is not turning on at start time"
+)
 _FAN_CITATION = {
     "doc_id": "FAKE-DOC-FAN",
     "page": 999,
@@ -87,3 +91,37 @@ def test_first_check_is_stable_across_model_strings() -> None:
     assert first is not None
     assert second is not None
     assert first["steps"][0] == second["steps"][0] == _FAN_CHECK
+
+
+def test_procedure_words_do_not_keep_the_oil_cooler_page() -> None:
+    fake = FakeLLMClient(
+        text=json.dumps({"steps": ["FAKE-STEP: check the fixture relay."]})
+    )
+    payload = advise_on_miss(
+        fake,
+        Conversation(messages=[Message(role="user", text=_CHECK_QUESTION)]),
+        (_Hit("FAKE-DOC", 999, _OFF_TOPIC),),
+    )
+
+    assert payload is not None
+    assert payload["related"] == []
+    assert payload["steps"][0] == _FAN_CHECK
+
+
+def test_fan_later_than_the_shown_prefix_is_not_related() -> None:
+    late = (
+        "FAKE-HEADING: AUTOMATIC TRANSMISSION FAKE-AT-OIL-COOLER union nuts. "
+        + ("FAKE-PAD " * 40)
+        + "fan"
+    )
+    fake = FakeLLMClient(
+        text=json.dumps({"steps": ["FAKE-STEP: check the fixture relay."]})
+    )
+    payload = advise_on_miss(
+        fake,
+        _conversation(),
+        (_Hit("FAKE-DOC", 999, late),),
+    )
+
+    assert payload is not None
+    assert payload["related"] == []

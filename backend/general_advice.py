@@ -58,6 +58,18 @@ _RELATED_WEAK_TERMS = frozenset(
         "works",
         "problem",
         "issue",
+        "check",
+        "checks",
+        "checked",
+        "checking",
+        "inspect",
+        "inspects",
+        "inspected",
+        "inspecting",
+        "look",
+        "looks",
+        "looked",
+        "looking",
     }
 )
 _DEFAULT_CHECK = (
@@ -195,7 +207,9 @@ def related_citations(question: str, hits: Sequence[_Page]) -> list[dict[str, An
         snippet = cap_snippet(hit.text)
         if not snippet.strip() or not snippet_matches_page(snippet, hit.text):
             continue
-        if not any(term_in_text(term, hit.text) for term in focus):
+        # The chip shows this prefix. A focus term later in the page still
+        # leaves an off-topic heading on the card.
+        if not any(term_in_text(term, snippet) for term in focus):
             continue
         seen.add(key)
         kept.append({"doc_id": doc_id, "page": page, "snippet": snippet})
