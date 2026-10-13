@@ -1,5 +1,3 @@
-"""Fan miss: related pages must share a focus term. Fixtures only."""
-
 from __future__ import annotations
 
 import json
