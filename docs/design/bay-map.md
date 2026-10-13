@@ -79,7 +79,7 @@ This is the first landing. A later change to these keys runs `/blast-radius` bef
 
 ## Synthesis decision
 
-Three architect runners were scheduled. The Opus runner timed out and wrote nothing. Sol and Grok both finished.
+Three architect runners were scheduled. The Opus runner timed out and wrote nothing. Sol and Grok both finished. Opus and Sol are the runners scheduled that day. The current roster is the Grok map in [`.cursor/rules/pstack-models.mdc`](../../.cursor/rules/pstack-models.mdc).
 
 Sol is the base. Its public surface is the catalog plus `highlightChoices` and `resolve`, and `ConfirmedHighlight` is the only highlight value. Grok exposed draft regions on the Swift type and used a `1e-9` area tie that is not a total order.
 

@@ -10,7 +10,7 @@ Three style configs, on the same five 390×260 scenes: `dark`, `bright`, `mid`, 
 
 The licensed manifest ([`backend/data/prototype_bay_photos.json`](../../backend/data/prototype_bay_photos.json)) has one photo. That is not five photos, and this bakeoff does not add another third-party image. The five scenes are synthetic. They are not the owner's truck.
 
-`~/.cursor/rules/pstack-models.mdc` was not present, so the arena used its fallback runners: one candidate each on Claude Opus, GPT, and Grok, then a Claude Opus cross-judge.
+`~/.cursor/rules/pstack-models.mdc` was not present, so the arena used its fallback runners: one candidate each on Claude Opus, GPT, and Grok, then a Claude Opus cross-judge. That sentence records the plugin fallback used that day. A new arena uses [`.cursor/rules/pstack-models.mdc`](../../.cursor/rules/pstack-models.mdc), which is Grok only.
 
 The bay map schema and the highlight renderer merged to main while the comparison was in progress. The comparison used a local applicator with the same four operations. That applicator is not in the tree. The winner is the default `HighlightConfig`, drawn by `render_highlight`.
 
