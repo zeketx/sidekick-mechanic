@@ -114,7 +114,49 @@ final class JobSheetTests: XCTestCase {
         XCTAssertEqual(job.answerText.contains("air box"), false)
         XCTAssertEqual(job.citations.first?.docID.rawValue, "FAKE-DOC-2JZ")
         XCTAssertEqual(job.citations.first?.page.rawValue, 999)
+        XCTAssertEqual(job.relatedCitations, [])
         XCTAssertEqual(job.conversation.messages.count, 2)
+    }
+
+    func testRelatedPagesStayOffTheCitedChipList() throws {
+        let related = try XCTUnwrap(
+            Citation(
+                docID: try XCTUnwrap(DocumentID(rawValue: "FAKE-DOC")),
+                page: try XCTUnwrap(PageNumber(rawValue: 999)),
+                snippet: "FAKE-SNIPPET"
+            )
+        )
+        let advice = try XCTUnwrap(
+            GeneralAdvice(
+                steps: ["FAKE-STEP: check the fixture connection before the fixture motor."],
+                garage: .none,
+                related: [related]
+            )
+        )
+        let job = JobSheetState(
+            id: try XCTUnwrap(JobID(rawValue: "job-fake")),
+            title: "FAKE",
+            createdAt: Date(timeIntervalSince1970: 0),
+            conversation: Conversation(
+                id: try XCTUnwrap(ConversationID(rawValue: "job-fake")),
+                messages: [
+                    .assistant(
+                        AssistantMessage(
+                            id: try XCTUnwrap(MessageID(rawValue: "m-fake")),
+                            answer: .generalAdvice(advice)
+                        )
+                    )
+                ]
+            )
+        )
+
+        XCTAssertEqual(job.citations, [])
+        XCTAssertEqual(job.relatedCitations, [related])
+        XCTAssertEqual(related.chipLabel, "FAKE-DOC · p. 999")
+        XCTAssertEqual(
+            AnswerCardContent.relatedHint,
+            "Opens a related manual page. This page did not answer the question."
+        )
     }
 
     func testV1SheetHasNoLaterBacklogFields() {
