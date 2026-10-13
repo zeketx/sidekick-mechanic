@@ -1,0 +1,26 @@
+---
+description: Opt-in low-cost pstack models. Apply only when the user says "low-cost mode", "low cost", or "grok-only", the prompt contains a line "Cost: LOW", or the user invokes /cheap. Otherwise do not apply this rule.
+alwaysApply: false
+---
+# pstack model configuration for low-cost mode only. One line per role.
+# Replaces every role line in `.cursor/rules/pstack-models.mdc` while `/cheap`, "low-cost mode", "low cost", "grok-only", or a `Cost: LOW` line is in the prompt. Otherwise leave this file unused.
+# While active, these lines are the pstack-models rule for this session, including panel lists and nested helpers. Do not pass Claude, GPT, Gemini, Composer, or a grok-4.7 slug.
+# Bare `grok-4.6` is not a Task slug. Detected slug: `cursor-grok-4.6-xhigh`. If Task rejects it, use another `cursor-grok-4.6-*` slug from the error.
+# budget: large (xhigh)
+feature, refactoring: cursor-grok-4.6-xhigh
+bug-fix: cursor-grok-4.6-xhigh
+perf-issue: cursor-grok-4.6-xhigh
+hillclimb: cursor-grok-4.6-xhigh
+judgment and prose: cursor-grok-4.6-xhigh
+hardest tasks: cursor-grok-4.6-xhigh
+how explorer: cursor-grok-4.6-xhigh
+how explainer: cursor-grok-4.6-xhigh
+why investigators: cursor-grok-4.6-xhigh
+why synthesizer: cursor-grok-4.6-xhigh
+reflect tooling: cursor-grok-4.6-xhigh
+reflect judgment, divergent, synthesizer: cursor-grok-4.6-xhigh
+arena runners: cursor-grok-4.6-xhigh, cursor-grok-4.6-xhigh
+arena cross-judge pool: cursor-grok-4.6-xhigh, cursor-grok-4.6-xhigh
+swarm workers: cursor-grok-4.6-xhigh
+architect runners: cursor-grok-4.6-xhigh, cursor-grok-4.6-xhigh
+interrogate reviewers: cursor-grok-4.6-xhigh, cursor-grok-4.6-xhigh

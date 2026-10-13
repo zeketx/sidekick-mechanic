@@ -356,7 +356,7 @@ Environment variables (see `.env.example`):
 | --- | --- | --- |
 | `SIDEKICK_LLM_API_KEY` | empty (fake client) | Secret. Read from the environment only. |
 | `SIDEKICK_LLM_BASE_URL` | `https://api.openai.com/v1` | Provider base URL, including `/v1` |
-| `SIDEKICK_LLM_MODEL` | `gpt-4o-mini` | Model id |
+| `SIDEKICK_LLM_MODEL` | `gpt-4o-mini` | Answer-provider model id. Not a pstack or poteto agent slug. |
 | `SIDEKICK_LLM_TIMEOUT_SECONDS` | `30` | Per-attempt HTTP timeout |
 | `SIDEKICK_LLM_MAX_RETRIES` | `2` | Retries after the first attempt on timeout, transport errors, 429, and 5xx |
 
