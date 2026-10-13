@@ -7,6 +7,8 @@ from typing import Any
 import pytest
 from jsonschema.validators import Draft202012Validator
 
+from safety import SAFETY_NOTE
+
 CONTRACTS_DIR = Path(__file__).resolve().parents[1] / "contracts"
 SCHEMA_PATH = CONTRACTS_DIR / "answer.schema.json"
 FIXTURES_DIR = CONTRACTS_DIR / "fixtures"
@@ -15,6 +17,7 @@ REQUIRED_FIXTURES = (
     "with_citations.json",
     "with_highlight.json",
     "refusal.json",
+    "general_advice.json",
 )
 
 
@@ -89,6 +92,44 @@ def test_highlight_fixture() -> None:
         "bay_photo_id": "fake-bay-photo-front",
         "part_id": "fake-part-intake",
     }
+
+
+def test_general_advice_safety_const_matches_safety_note() -> None:
+    safety = _schema()["$defs"]["general_advice"]["properties"]["safety"]
+    assert safety["const"] == SAFETY_NOTE
+
+
+def test_general_advice_fixture() -> None:
+    payload = _load_fixture("general_advice.json")
+    _validator().validate(payload)
+    assert payload["kind"] == "general_advice"
+    assert payload["honesty"] == "Not in your manual. Here's what usually causes this."
+    assert payload["safety"] == SAFETY_NOTE
+    assert payload["steps"] == [
+        "FAKE-STEP: check the fixture connection before the fixture motor."
+    ]
+    assert payload["garage"] == {
+        "source": "garage",
+        "truck": "FAKE-TRUCK",
+        "engine": "TBD",
+    }
+    assert payload["related"] == [
+        {"doc_id": "FAKE-DOC", "page": 999, "snippet": "FAKE-SNIPPET"}
+    ]
+    assert "citations" not in payload
+    assert "reason" not in payload
+    assert "text" not in payload
+    assert "highlight" not in payload
+
+
+def test_general_advice_rejects_citations_reason_and_text() -> None:
+    base = _load_fixture("general_advice.json")
+    with_citations = {**base, "citations": []}
+    with_reason = {**base, "reason": "not_found_in_manual"}
+    with_text = {**base, "text": "FAKE-STEP"}
+    assert list(_validator().iter_errors(with_citations))
+    assert list(_validator().iter_errors(with_reason))
+    assert list(_validator().iter_errors(with_text))
 
 
 def test_refusal_fixture() -> None:

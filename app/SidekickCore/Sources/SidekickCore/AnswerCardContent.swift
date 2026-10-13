@@ -77,6 +77,11 @@ public struct AnswerCardContent: Hashable, Sendable {
             chips = []
             highlight = refusal.highlight
             showsHighlightSlot = refusal.highlight != nil
+        case let .generalAdvice(advice):
+            presentation = .found
+            chips = []
+            highlight = advice.highlight
+            showsHighlightSlot = advice.highlight != nil
         case .providerUnavailable:
             presentation = .providerUnavailable
             chips = []
