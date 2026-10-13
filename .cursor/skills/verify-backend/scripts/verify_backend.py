@@ -26,6 +26,10 @@ from jsonschema.exceptions import ValidationError
 
 REPO = Path(__file__).resolve().parents[4]
 BACKEND = REPO / "backend"
+sys.path.insert(0, str(BACKEND))
+from general_advice import ADVICE_HONESTY  # noqa: E402
+from llm import FAKE_ADVICE_STEP  # noqa: E402
+from safety import SAFETY_NOTE  # noqa: E402
 SKILL = Path(__file__).resolve().parents[1]
 SERVE = Path(__file__).resolve().parent / "serve.py"
 RUN_DIR = SKILL / "run"
@@ -38,13 +42,15 @@ RESULTS_DIR = BACKEND / "eval" / "results"
 
 CHAT_BODY = {"messages": [{"role": "user", "text": "Why is it hard to start?"}]}
 INVALID_BODY = {"messages": []}
+# No index on this server. The product asks for general advice instead of
+# inventing a cited procedure. The step is the fake client's stand-in.
 FAKE_ANSWER = {
-    "kind": "answer",
-    "text": (
-        "This is a fake LLM reply with no manual citations. "
-        "No vehicle specs in this reply."
-    ),
-    "citations": [],
+    "kind": "general_advice",
+    "honesty": ADVICE_HONESTY,
+    "safety": SAFETY_NOTE,
+    "steps": [FAKE_ADVICE_STEP],
+    "garage": {"source": "none"},
+    "related": [],
 }
 UNCITED_REFUSAL = {
     "kind": "refusal",

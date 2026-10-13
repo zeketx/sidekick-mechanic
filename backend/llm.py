@@ -20,6 +20,8 @@ DEFAULT_VISION_BASE_URL = "https://openrouter.ai/api/v1"
 DEFAULT_MODEL = "gpt-4o-mini"
 DEFAULT_TIMEOUT_SECONDS = 30.0
 DEFAULT_MAX_RETRIES = 2
+FAKE_ADVICE_STEP = "FAKE-STEP: check the fixture connection before the fixture motor."
+
 DEFAULT_FAKE_TEXT = (
     "This is a fake LLM reply with no manual citations. No vehicle specs in this reply."
 )
@@ -314,11 +316,7 @@ def _fake_completion_text(messages: list[ChatTurn]) -> str:
     for turn in messages:
         if ADVICE_STEPS_HEADER in turn.content:
             return json.dumps(
-                {
-                    "steps": [
-                        "FAKE-STEP: check the fixture connection before the fixture motor."
-                    ]
-                },
+                {"steps": [FAKE_ADVICE_STEP]},
                 ensure_ascii=False,
             )
     go_deeper = _go_deeper_from_messages(messages)

@@ -1,6 +1,6 @@
 # Chat
 
-Chat is the `POST /chat` request the iPhone app sends. The response is either a found answer or a `not_found_in_manual` refusal, validated against `backend/contracts/answer.schema.json`.
+Chat is the `POST /chat` request the iPhone app sends. The response is a found answer, general advice, or a `not_found_in_manual` refusal, validated against `backend/contracts/answer.schema.json`.
 
 ## Sub-features
 
@@ -26,7 +26,7 @@ Preconditions:
 - For one case, launch that case and require `python3 .cursor/skills/verify-backend/scripts/verify_backend.py doctor` to exit 0.
 - For every sub-feature in one shot, use `run` instead of launching by hand.
 
-- **Contract.** Launch the fake server. Run `python3 .cursor/skills/verify-backend/scripts/verify_backend.py launch --case fake`, then `python3 .cursor/skills/verify-backend/scripts/verify_backend.py doctor`, then `python3 .cursor/skills/verify-backend/scripts/verify_backend.py drive fake`. HTTP 200. `kind` is `answer`. `text` is `This is a fake LLM reply with no manual citations. No vehicle specs in this reply.` `citations` is `[]`. `schema_valid` is true in `evidence/latest/chat-fake.json`.
+- **Contract.** Launch the fake server. Run `python3 .cursor/skills/verify-backend/scripts/verify_backend.py launch --case fake`, then `python3 .cursor/skills/verify-backend/scripts/verify_backend.py doctor`, then `python3 .cursor/skills/verify-backend/scripts/verify_backend.py drive fake`. HTTP 200. With no index, `kind` is `general_advice`. The honesty line is `Not in your manual. Here's what usually causes this.` The only step starts with `FAKE-STEP`. `garage.source` is `none`. `related` is `[]`. `schema_valid` is true in `evidence/latest/chat-fake.json`.
 - **Invalid body.** The same `drive fake` command posts `{"messages":[]}`. HTTP 422 and the body has `detail`. Proof is `evidence/latest/chat-invalid.json`.
 - **Plain fixture.** Run `python3 .cursor/skills/verify-backend/scripts/verify_backend.py launch --case fixture --name plain.json`, doctor, then `python3 .cursor/skills/verify-backend/scripts/verify_backend.py drive fixture`. The response equals `backend/contracts/fixtures/plain.json`.
 - **Refusal.** Run `python3 .cursor/skills/verify-backend/scripts/verify_backend.py launch --case fixture --name refusal.json`, doctor, then `python3 .cursor/skills/verify-backend/scripts/verify_backend.py drive fixture`. `kind` is `refusal` and `reason` is `not_found_in_manual`.
