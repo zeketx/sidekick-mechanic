@@ -12,6 +12,7 @@ from chat_models import (
     GarageTodoContext,
     Message,
 )
+from demo import DEMO_VEHICLE
 from general_advice import (
     ADVICE_HONESTY,
     ADVICE_STEPS_HEADER,
@@ -22,6 +23,11 @@ from llm import RETRIEVED_PAGES_HEADER, FakeLLMClient
 from safety import SAFETY_NOTE
 
 _STEP = "FAKE-STEP: check the fixture connection before the fixture motor."
+_CHEAP = (
+    "On this 1990 Toyota Land Cruiser LJ78 with a 2JZ-GE swap, "
+    "look at the part the question names before you take anything apart."
+)
+_HIT_SNIPPET = "FAKE-SNIPPET from the fixture motor hit."
 
 
 class _Hit:
@@ -61,7 +67,7 @@ def test_engine_tbd_round_trips_and_the_prompt_omits_page_text() -> None:
     )
     fake = FakeLLMClient(text=model)
     hits = (
-        _Hit("FAKE-DOC", 999, "FAKE-SNIPPET from the hit."),
+        _Hit("FAKE-DOC", 999, _HIT_SNIPPET),
         _Hit("FAKE-DOC", 999, "FAKE-SNIPPET duplicate page."),
         _Hit("FAKE-OTHER", 999, "   "),
     )
@@ -76,9 +82,9 @@ def test_engine_tbd_round_trips_and_the_prompt_omits_page_text() -> None:
     }
     assert payload["honesty"] == ADVICE_HONESTY
     assert payload["safety"] == SAFETY_NOTE
-    assert payload["steps"] == [_STEP]
+    assert payload["steps"] == [_CHEAP, _STEP]
     assert payload["related"] == [
-        {"doc_id": "FAKE-DOC", "page": 999, "snippet": "FAKE-SNIPPET from the hit."}
+        {"doc_id": "FAKE-DOC", "page": 999, "snippet": _HIT_SNIPPET}
     ]
     assert "MODEL-PICKED" not in json.dumps(payload)
     assert "notes" not in payload["garage"]
@@ -86,10 +92,13 @@ def test_engine_tbd_round_trips_and_the_prompt_omits_page_text() -> None:
     assert ADVICE_STEPS_HEADER in system
     assert RETRIEVED_PAGES_HEADER not in system
     assert page not in system
-    assert "FAKE-SNIPPET from the hit." not in system
+    assert _HIT_SNIPPET not in system
     assert "FAKE-NOTE already replaced" in system
     assert "FAKE-TODO check the spare" in system
     assert "Garage notes are not a manual page." in system
+    assert DEMO_VEHICLE in system
+    assert "household appliance" in system
+    assert "Demo photos" not in system
 
 
 def test_parse_keeps_five_cleaned_steps_and_drops_a_long_one() -> None:

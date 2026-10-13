@@ -77,7 +77,11 @@ def test_chat_missing_index_returns_general_advice(
     validate_answer(payload)
     assert payload["kind"] == "general_advice"
     assert payload["honesty"] == ADVICE_HONESTY
-    assert payload["steps"][0].startswith("FAKE-STEP")
+    assert payload["steps"][0] == (
+        "On this 1990 Toyota Land Cruiser LJ78 with a 2JZ-GE swap, "
+        "look at the part the question names before you take anything apart."
+    )
+    assert payload["steps"][1].startswith("FAKE-STEP")
     assert "text" not in payload
     assert DEFAULT_FAKE_TEXT not in payload["steps"][0]
 

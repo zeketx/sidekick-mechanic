@@ -13,8 +13,9 @@ from typing import Any, Protocol
 
 from chat_models import Conversation, garage_prompt_block
 from contract import validate_answer
+from demo import DEMO_VEHICLE
 from llm import ChatTurn, LLMClient, LLMError
-from retrieval import cap_snippet, snippet_matches_page
+from retrieval import cap_snippet, content_terms, snippet_matches_page, term_in_text
 from safety import SAFETY_NOTE
 
 ADVICE_HONESTY = "Not in your manual. Here's what usually causes this."
@@ -39,6 +40,43 @@ _INSTRUCTIONS = (
     "Leave TBD as TBD. "
     "Garage notes are not a manual page."
 )
+_RELATED_WEAK_TERMS = frozenset(
+    {
+        "automatic",
+        "manual",
+        "not",
+        "no",
+        "never",
+        "turning",
+        "turn",
+        "turned",
+        "turns",
+        "time",
+        "times",
+        "working",
+        "work",
+        "works",
+        "problem",
+        "issue",
+    }
+)
+_DEFAULT_CHECK = (
+    f"On this {DEMO_VEHICLE}, look at the part the question names "
+    "before you take anything apart."
+)
+_CHEAP_CHECKS: tuple[tuple[frozenset[str], str], ...] = (
+    (
+        frozenset({"fan"}),
+        (
+            f"On this {DEMO_VEHICLE}, look at the engine cooling fan "
+            "before you take anything apart."
+        ),
+    ),
+)
+_TRUCK_LINE = (
+    f"The owner's truck is a {DEMO_VEHICLE}. "
+    "These checks are for this truck, not a household appliance."
+)
 
 
 class _Page(Protocol):
@@ -54,20 +92,24 @@ def advise_on_miss(
 ) -> dict[str, Any] | None:
     """Return general advice, or None when the writer did not return steps."""
 
+    last = conversation.last_user_message
+    question = last.text if last is not None else ""
     try:
         result = client.complete(_turns(conversation))
     except LLMError:
         return None
-    steps = parse_steps(result.text)
-    if steps is None:
+    parsed = parse_steps(result.text)
+    if parsed is None:
         return None
+    canned = cheap_check(question)
+    steps = [canned, *[step for step in parsed if step != canned]][:_STEP_LIMIT]
     payload = {
         "kind": "general_advice",
         "honesty": ADVICE_HONESTY,
         "safety": SAFETY_NOTE,
         "steps": steps,
         "garage": garage_basis(conversation),
-        "related": related_citations(hits),
+        "related": related_citations(question, hits),
     }
     validate_answer(payload)
     return payload
@@ -76,6 +118,7 @@ def advise_on_miss(
 def advice_system_prompt(conversation: Conversation) -> str:
     parts = [
         "You are Sidekick Mechanic. The manual does not cover this question.",
+        _TRUCK_LINE,
         _INSTRUCTIONS,
     ]
     block = garage_prompt_block(conversation.garage)
@@ -133,7 +176,10 @@ def garage_basis(conversation: Conversation) -> dict[str, Any]:
     return basis
 
 
-def related_citations(hits: Sequence[_Page]) -> list[dict[str, Any]]:
+def related_citations(question: str, hits: Sequence[_Page]) -> list[dict[str, Any]]:
+    focus = _focus_terms(question)
+    if not focus:
+        return []
     kept: list[dict[str, Any]] = []
     seen: set[tuple[str, int]] = set()
     for hit in hits:
@@ -149,9 +195,27 @@ def related_citations(hits: Sequence[_Page]) -> list[dict[str, Any]]:
         snippet = cap_snippet(hit.text)
         if not snippet.strip() or not snippet_matches_page(snippet, hit.text):
             continue
+        if not any(term_in_text(term, hit.text) for term in focus):
+            continue
         seen.add(key)
         kept.append({"doc_id": doc_id, "page": page, "snippet": snippet})
     return kept
+
+
+def cheap_check(question: str) -> str:
+    focus = {term.casefold() for term in _focus_terms(question)}
+    for terms, sentence in _CHEAP_CHECKS:
+        if not focus.isdisjoint(terms):
+            return sentence
+    return _DEFAULT_CHECK
+
+
+def _focus_terms(question: str) -> tuple[str, ...]:
+    return tuple(
+        term
+        for term in content_terms(question)
+        if term.casefold() not in _RELATED_WEAK_TERMS
+    )
 
 
 def _turns(conversation: Conversation) -> list[ChatTurn]:

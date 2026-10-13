@@ -84,7 +84,9 @@ class _Page:
 class _Pages:
     def search(self, query: str, k: int = 5) -> tuple[_Page, ...]:
         del query, k
-        return (_Page("FAKE-DOC", 999, "FAKE-CHUNK: no part location."),)
+        return (
+            _Page("FAKE-DOC", 999, "FAKE-CHUNK: throttle body has no part location."),
+        )
 
 
 def test_confirm_dim_is_in_the_visible_band() -> None:
@@ -407,6 +409,11 @@ def test_producer_resolves_from_question_without_a_second_llm_call() -> None:
 
 def test_empty_citations_still_attach_the_demo_outline() -> None:
     step = "FAKE-STEP: check the fixture connection before the fixture motor."
+    cheap = (
+        "On this 1990 Toyota Land Cruiser LJ78 with a 2JZ-GE swap, "
+        "look at the part the question names before you take anything apart."
+    )
+    chunk = "FAKE-CHUNK: throttle body has no part location."
     fake = _ScriptedLLM(
         [
             _result('{"text":"no page","citations":[]}'),
@@ -423,13 +430,13 @@ def test_empty_citations_still_attach_the_demo_outline() -> None:
     assert payload["kind"] == "general_advice"
     assert payload["honesty"] == ADVICE_HONESTY
     assert payload["safety"] == SAFETY_NOTE
-    assert payload["steps"] == [step]
+    assert payload["steps"] == [cheap, step]
     assert payload["garage"] == {"source": "none"}
     assert payload["related"] == [
         {
             "doc_id": "FAKE-DOC",
             "page": 999,
-            "snippet": "FAKE-CHUNK: no part location.",
+            "snippet": chunk,
         }
     ]
     assert payload["highlight"]["part_id"] == "throttle-body"

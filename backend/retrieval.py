@@ -129,7 +129,7 @@ class Fts5Index:
     ) -> tuple[RetrievedChunk, ...]:
         if k < 1:
             raise RetrievalError(f"k must be >= 1, got {k}")
-        terms = _content_terms(query)
+        terms = content_terms(query)
         if not terms:
             return ()
         and_match = _fts_and_query(terms)
@@ -353,7 +353,7 @@ def _require_fts5_schema(connection: sqlite3.Connection) -> None:
     del rows
 
 
-def _content_terms(query: str) -> tuple[str, ...]:
+def content_terms(query: str) -> tuple[str, ...]:
     terms: list[str] = []
     seen: set[str] = set()
     for token in _TOKEN.findall(query):
@@ -448,7 +448,7 @@ def _rerank(
         phrase_hits = sum(1 for phrase in phrases if phrase in hay)
         coverage = 0.0
         for term in terms:
-            if _term_in_text(term, hay):
+            if term_in_text(term, hay):
                 coverage += idf[term.lower()]
         score = (
             8.0 * phrase_hits
@@ -509,7 +509,7 @@ def _structural_bonus(query: str, text: str) -> float:
     return bonus
 
 
-def _term_in_text(term: str, hay: str) -> bool:
+def term_in_text(term: str, hay: str) -> bool:
     tokens = {token.lower() for token in _TOKEN.findall(hay)}
     return any(variant.lower() in tokens for variant in _surface_variants(term))
 
