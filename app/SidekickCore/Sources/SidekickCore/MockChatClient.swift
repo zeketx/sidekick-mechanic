@@ -48,6 +48,7 @@ public struct MockChatClient: ChatClient, Sendable {
     public static func defaultSelectFixture(_ conversation: Conversation) -> String {
         let text = conversation.lastUserText?.lowercased() ?? ""
         if text.contains("not found") || text.contains("refusal") { return "refusal.json" }
+        if text.contains("usually causes") { return "general_advice.json" }
         if text.contains("highlight") { return "with_highlight.json" }
         if text.contains("citation") { return "with_citations.json" }
         return "plain.json"

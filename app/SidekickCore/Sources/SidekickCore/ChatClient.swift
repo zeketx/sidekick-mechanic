@@ -122,6 +122,7 @@ public enum ContractFixtures {
         "with_citations.json",
         "with_highlight.json",
         "refusal.json",
+        "general_advice.json",
     ]
 
     public static func load(from directory: URL) throws -> [String: Answer] {
