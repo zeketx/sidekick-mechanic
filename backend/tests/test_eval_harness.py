@@ -101,6 +101,15 @@ def test_harness_sample_does_not_invent_recall(tmp_path: Path) -> None:
     assert written["metrics"]["recall_at_5"] is None
     assert written["metrics"]["citation_accuracy"] == 0.0
     assert written["metrics"]["refusal_correctness"] == 0.0
+    assert written["metrics"]["gap_coverage"] == 0.0
+    unanswerable = [case for case in written["cases"] if case["answerable"] is False]
+    assert unanswerable
+    assert all(case["gap_covered"] is False for case in unanswerable)
+    assert all(
+        case["gap_covered"] is None
+        for case in written["cases"]
+        if case["answerable"] is True
+    )
     assert written["metrics"]["uncited_number_count"] == 0
     assert written["metrics"]["correct_part_rate"] == 0.0
     assert written["metrics"]["region_iou"] == 0.5
@@ -138,7 +147,9 @@ def test_cli_uses_spec_guard_counter(tmp_path: Path) -> None:
 
 
 def test_harness_ci_subset_is_smaller(tmp_path: Path) -> None:
-    payload = run_harness(SAMPLE_PATH, output_dir=tmp_path, ci_only=True, date=FAKE_DATE)
+    payload = run_harness(
+        SAMPLE_PATH, output_dir=tmp_path, ci_only=True, date=FAKE_DATE
+    )
 
     assert payload["subset"] == "ci"
     assert payload["case_count"] == 3
@@ -149,7 +160,9 @@ def test_harness_ci_subset_is_smaller(tmp_path: Path) -> None:
     }
 
 
-def test_scripted_runner_scores_retrieval_without_reading_citations(tmp_path: Path) -> None:
+def test_scripted_runner_scores_retrieval_without_reading_citations(
+    tmp_path: Path,
+) -> None:
     path = _write_golden(
         tmp_path,
         [
@@ -205,6 +218,9 @@ def test_scripted_runner_scores_retrieval_without_reading_citations(tmp_path: Pa
     assert payload["metrics"]["recall_at_5"] == 1.0
     assert payload["metrics"]["citation_accuracy"] == 1.0
     assert payload["metrics"]["refusal_correctness"] == 1.0
+    assert payload["metrics"]["gap_coverage"] == 1.0
+    assert payload["cases"][1]["gap_covered"] is True
+    assert payload["cases"][0]["gap_covered"] is None
     assert payload["cases"][0]["part_id"] == "fake-part-intake"
     assert payload["cases"][1]["recall_at_5"] is None
     assert payload["cases"][1]["retrieval_available"] is True
@@ -242,7 +258,9 @@ def test_citations_do_not_count_as_retrieval(tmp_path: Path) -> None:
                 retrieval=None,
             )
 
-    payload = run_harness(path, runner=CitingOnly(), output_dir=tmp_path, date=FAKE_DATE)
+    payload = run_harness(
+        path, runner=CitingOnly(), output_dir=tmp_path, date=FAKE_DATE
+    )
 
     assert payload["metrics"]["recall_at_5"] is None
     assert payload["metrics"]["citation_accuracy"] == 1.0
@@ -308,6 +326,7 @@ def test_metrics_markdown_uses_results_and_tbd_targets(tmp_path: Path) -> None:
                     "recall_at_5": None,
                     "citation_accuracy": 0.0,
                     "refusal_correctness": 1.0,
+                    "gap_coverage": None,
                     "uncited_number_count": 3,
                     "latency_p50_ms": 1.5,
                     "latency_p95_ms": 2.25,
@@ -328,6 +347,7 @@ def test_metrics_markdown_uses_results_and_tbd_targets(tmp_path: Path) -> None:
     assert "| recall@5 | TBD | not available | 2026-10-01 |" in text
     assert "| citation accuracy | TBD | 0.0000 | 2026-10-01 |" in text
     assert "| refusal correctness | TBD | 1.0000 | 2026-10-01 |" in text
+    assert "| gap coverage | TBD | not available | 2026-10-01 |" in text
     assert "| uncited-number count | TBD | 3 | 2026-10-01 |" in text
     assert "| latency p50 (ms) | TBD | 1.500 | 2026-10-01 |" in text
     assert "| latency p95 (ms) | TBD | 2.250 | 2026-10-01 |" in text
@@ -339,7 +359,9 @@ def test_metrics_markdown_uses_results_and_tbd_targets(tmp_path: Path) -> None:
 
 
 def test_job_summary_shows_not_available_for_null_recall(tmp_path: Path) -> None:
-    payload = run_harness(SAMPLE_PATH, output_dir=tmp_path, ci_only=True, date=FAKE_DATE)
+    payload = run_harness(
+        SAMPLE_PATH, output_dir=tmp_path, ci_only=True, date=FAKE_DATE
+    )
 
     summary = render_job_summary(payload)
 
@@ -347,7 +369,9 @@ def test_job_summary_shows_not_available_for_null_recall(tmp_path: Path) -> None
     assert "| region IoU | 0.5000 |" in summary
     assert "| unmapped-highlight count | 0 |" in summary
     assert "ci subset" in summary
-    assert "Smoke test: retrieval did not run. Exit 0 is not a quality result." in summary
+    assert (
+        "Smoke test: retrieval did not run. Exit 0 is not a quality result." in summary
+    )
 
 
 def test_latest_results_follow_generated_at(tmp_path: Path) -> None:
@@ -487,6 +511,7 @@ def test_cli_exits_when_unmapped_highlight_count_is_not_zero(
                 "recall_at_5": None,
                 "citation_accuracy": 0.0,
                 "refusal_correctness": None,
+                "gap_coverage": None,
                 "uncited_number_count": 0,
                 "latency_p50_ms": 1.0,
                 "latency_p95_ms": 1.0,
@@ -537,6 +562,7 @@ def test_eval_exits_nonzero_when_retrieved_citation_accuracy_is_zero(
                 "recall_at_5": 1.0,
                 "citation_accuracy": 0.0,
                 "refusal_correctness": None,
+                "gap_coverage": None,
                 "uncited_number_count": 0,
                 "latency_p50_ms": 1.0,
                 "latency_p95_ms": 1.0,
