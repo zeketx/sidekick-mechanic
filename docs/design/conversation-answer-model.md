@@ -20,7 +20,8 @@ The answer card reads `AnswerCardContent`, built from `Answer`:
 let card = AnswerCardContent(answer: answer)
 // card.text
 // card.chips[].label  — document id and page
-// card.statusTitle     — "Not found in the manual", or nil when found
+// card.statusTitle     — nil when found, "Not found in the manual" on a refusal,
+//                        or the honesty line on general advice
 // card.showsHighlightSlot
 ```
 
@@ -28,7 +29,7 @@ The network client and eval decode the #10 fixtures with `JSONDecoder().decode(A
 
 ## Shape
 
-`Answer` is a sum type. `found` holds text, a citations array, and an optional `HighlightRef`. `refusal` holds text and `RefusalReason`, and may hold a demo highlight. A refusal cannot carry a citation. `providerUnavailable` is `kind: error` with `reason: provider_unavailable`. It is not a found answer and cannot carry citations or a highlight.
+`Answer` is a sum type. `found` holds text, a citations array, and an optional `HighlightRef`. `refusal` holds text and `RefusalReason`, and may hold a demo highlight. A refusal cannot carry a citation. `generalAdvice` is the arm for a question the manual does not cover. It holds one to five checks, a garage basis (`none`, or a truck and/or an engine, where `TBD` is a legal value), related pages, and an optional highlight. Honesty and safety are fixed lines. This arm cannot carry citations, a reason, or a text field. `providerUnavailable` is `kind: error` with `reason: provider_unavailable`. It is not a found answer and cannot carry citations or a highlight.
 
 `Citation` requires `DocumentID`, `PageNumber`, and a non-empty snippet. `PageNumber` rejects 0 and negative values. Empty document, photo, and part IDs fail at construction.
 
@@ -40,6 +41,7 @@ JSON is snake_case, documented here so #10 stays aligned:
 | --- | --- |
 | `Answer.found` | `"kind": "answer"` |
 | `Answer.refusal` | `"kind": "refusal"` |
+| `Answer.generalAdvice` | `"kind": "general_advice"` |
 | `Citation.docID` | `doc_id` |
 | `Citation.page` | `page` |
 | `Citation.snippet` | `snippet` |
@@ -84,4 +86,4 @@ Candidate B was a sum type for `Answer` and `Message`, with branded IDs and a re
 
 ## Answer card
 
-The chat screen holds a `ChatViewModel` over `Conversation`. Assistant turns render `AnswerCardContent` (chip labels, refusal status, highlight-slot visibility) in `AnswerCardView`. The image slot is a placeholder until the highlight engine has a bay photo.
+The chat screen holds a `ChatViewModel` over `Conversation`. Assistant turns render `AnswerCardContent` (chip labels, refusal status, highlight-slot visibility) in `AnswerCardView`. A found answer shows its text and citation chips. General advice shows the honesty line with a wrench, the garage basis when the phone sent a chassis or engine, the safety line, numbered checks, and dashed related pages. Those related pages are not the chips that mean the page answered the question. The image slot is a placeholder until the highlight engine has a bay photo.

@@ -6,6 +6,8 @@ from typing import Any
 import pytest
 
 from contract import load_answer_fixture, validate_answer
+from general_advice import ADVICE_HONESTY
+from safety import SAFETY_NOTE
 from spec_guard import (
     GuardStats,
     SpecGuardUncitedCounter,
@@ -502,3 +504,96 @@ def test_string_of_chunks_is_rejected() -> None:
 def test_non_string_chunk_is_rejected() -> None:
     with pytest.raises(TypeError, match="must be a string"):
         guard_answer(_found("No spec."), (None,))  # type: ignore[arg-type]
+
+
+def _advice(steps: list[str]) -> dict[str, Any]:
+    return {
+        "kind": "general_advice",
+        "honesty": ADVICE_HONESTY,
+        "safety": SAFETY_NOTE,
+        "steps": steps,
+        "garage": {"source": "none"},
+        "related": [{"doc_id": "FAKE-DOC", "page": 999, "snippet": "999 Nm"}],
+    }
+
+
+def test_general_advice_step_spec_is_refused_even_when_the_chunk_has_it() -> None:
+    advice = _advice(["FAKE-STEP: torque is 999 Nm."])
+    advice["highlight"] = {
+        "bay_photo_id": "fake-bay-photo-front",
+        "part_id": "fake-part-intake",
+    }
+
+    result = guard_answer(advice, ("FAKE-CHUNK: 999 Nm",))
+
+    assert result.answer == _refusal(("999 Nm",))
+    assert result.uncited == ("999 Nm",)
+    assert "steps" not in result.answer
+    assert "highlight" not in result.answer
+    validate_answer(result.answer)
+
+
+def test_clean_general_advice_is_unchanged_even_when_the_chunk_has_a_spec() -> None:
+    advice = _advice(
+        ["FAKE-STEP: check the fixture connection before the fixture motor."]
+    )
+
+    result = guard_answer(advice, ("FAKE-CHUNK: 999 Nm",))
+
+    assert result.answer == advice
+    assert result.uncited == ()
+
+
+def test_general_advice_does_not_join_steps_into_a_claim() -> None:
+    advice = _advice(["FAKE-STEP 999", "Nm on the fixture."])
+
+    result = guard_answer(advice, ())
+
+    assert result.answer == advice
+    assert result.uncited == ()
+
+
+@pytest.mark.parametrize(
+    ("step", "surfaces"),
+    [
+        ("Check pin #4 before the motor.", ("pin 4",)),
+        ("Pin: 12 is loose.", ("pin 12",)),
+        ("Check connector #C9.", ("connector C9",)),
+        ("terminal: A is seated.", ("terminal A",)),
+        ("Check pins #4 and #5.", ("pin 4", "pin 5")),
+        ("Torque reads 12.7. Nm on the fixture.", ("12.7. Nm",)),
+        ("Leave 3. mm of play.", ("3. mm",)),
+        ("The mark reads 999: Nm.", ("999: Nm",)),
+    ],
+)
+def test_general_advice_punctuated_spec_is_refused(
+    step: str, surfaces: tuple[str, ...]
+) -> None:
+    result = guard_answer(_advice([step]), ("FAKE-CHUNK: pin 4, 12.7 Nm",))
+
+    assert result.answer == _refusal(surfaces)
+    assert result.uncited == surfaces
+    validate_answer(result.answer)
+
+
+def test_general_advice_sentence_period_before_a_letter_is_prose() -> None:
+    advice = _advice(
+        [
+            "Check the pin. A loose clip can rattle.",
+            "See item 3. A second look is enough.",
+        ]
+    )
+
+    result = guard_answer(advice, ())
+
+    assert result.answer == advice
+    assert result.uncited == ()
+
+
+def test_found_answer_does_not_use_the_advice_punctuation_scan() -> None:
+    answer = _found("Check pin #4. Torque is 12.7. Nm.")
+
+    result = guard_answer(answer, ())
+
+    assert result.answer == answer
+    assert result.uncited == ()

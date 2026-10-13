@@ -15,6 +15,7 @@ final class ChatClientTests: XCTestCase {
             ("show the citation please", "with_citations.json"),
             ("highlight the intake", "with_highlight.json"),
             ("this is a refusal not found", "refusal.json"),
+            ("this usually causes a stumble", "general_advice.json"),
         ]
         for (text, name) in cases {
             let answer = try await client.send(try conversation(text))

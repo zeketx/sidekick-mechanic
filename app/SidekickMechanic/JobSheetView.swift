@@ -220,6 +220,9 @@ struct JobSheetView: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .accessibilityIdentifier("jobSheet.answer")
                     chipRow
+                    if !job.relatedCitations.isEmpty {
+                        relatedChipRow
+                    }
                     stepsList
                     if job.hasPhoto != true {
                         attachButton
@@ -379,6 +382,33 @@ struct JobSheetView: View {
         }
         .fixedSize(horizontal: false, vertical: true)
         .accessibilityIdentifier("jobSheet.chips")
+    }
+
+    private var relatedChipRow: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(AnswerCardContent.relatedHeading)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("jobSheet.relatedHeading")
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(Array(job.relatedCitations.enumerated()), id: \.offset) { index, citation in
+                        Button {
+                            onOpenCitation(citation)
+                        } label: {
+                            JobSheetChipLabel(text: citation.chipLabel, dashed: true)
+                        }
+                        .buttonStyle(.plain)
+                        .tint(JobSheetChrome.chipInk)
+                        .foregroundStyle(JobSheetChrome.chipInk)
+                        .accessibilityIdentifier("jobSheet.related.\(index)")
+                        .accessibilityHint(AnswerCardContent.relatedHint)
+                    }
+                }
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityIdentifier("jobSheet.related")
+        }
     }
 
     private var partChip: some View {
@@ -583,6 +613,7 @@ struct JobSheetView: View {
 
 private struct JobSheetChipLabel: View {
     var text: String
+    var dashed: Bool = false
 
     var body: some View {
         Text(text)
@@ -592,7 +623,10 @@ private struct JobSheetChipLabel: View {
             .padding(.vertical, 6)
             .background(JobSheetChrome.paper, in: Capsule())
             .overlay {
-                Capsule().strokeBorder(JobSheetChrome.chipInk.opacity(0.4), lineWidth: 1)
+                Capsule().strokeBorder(
+                    JobSheetChrome.chipInk.opacity(0.4),
+                    style: StrokeStyle(lineWidth: 1, dash: dashed ? [4, 3] : [])
+                )
             }
     }
 }

@@ -12,6 +12,8 @@ from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from general_advice import ADVICE_HONESTY
+
 Page = tuple[str, int]
 
 # Standalone numeric token. Does not parse units or pin names.
@@ -33,10 +35,16 @@ METRIC_DEFINITIONS: dict[str, str] = {
         "Fraction of unanswerable questions returned as a contract refusal "
         "(kind refusal, reason not_found_in_manual)."
     ),
+    "gap coverage": (
+        "Fraction of unanswerable questions that returned either a contract "
+        "refusal or general advice with the honesty line and at least one step."
+    ),
     "uncited-number count": (
         "Sum of the active counter's count for each answer. The local "
         "counter counts digit tokens in answer text that do not appear in a "
-        "citation snippet. It does not understand units or pinouts. The spec "
+        "citation snippet. For general advice it counts digit tokens in the "
+        "steps, and related snippets do not excuse a number. It does not "
+        "understand units or pinouts. The spec "
         "guard counter counts unit-numbers and pin references it would block. "
         "The results file names the counter."
     ),
@@ -90,6 +98,7 @@ class CaseScore:
     recall_at_5: float | None
     citation_accurate: bool | None
     refusal_correct: bool | None
+    gap_covered: bool | None
     uncited_number_count: int
     correct_part: bool | None
     unmapped_highlight: int
@@ -100,6 +109,7 @@ class Metrics:
     recall_at_5: float | None
     citation_accuracy: float | None
     refusal_correctness: float | None
+    gap_coverage: float | None
     uncited_number_count: int
     latency_p50_ms: float | None
     latency_p95_ms: float | None
@@ -110,13 +120,17 @@ class Metrics:
 class LocalUncitedNumberCounter:
     """Count digit tokens in answer text missing from citation snippets.
 
-    ``name`` is recorded on the results file so a later guard can identify
-    itself. This counter does not know units or connector names.
+    General advice counts digit tokens in the steps. Related snippets do not
+    excuse a number there. ``name`` is recorded on the results file so a
+    later guard can identify itself. This counter does not know units or
+    connector names.
     """
 
     name = "local"
 
     def count(self, answer: Mapping[str, Any]) -> int:
+        if answer.get("kind") == "general_advice":
+            return _digit_count(_step_text(answer))
         text = answer.get("text")
         if not isinstance(text, str):
             return 0
@@ -191,6 +205,21 @@ def is_correct_refusal(answer: Mapping[str, Any]) -> bool:
         answer.get("kind") == "refusal"
         and answer.get("reason") == "not_found_in_manual"
     )
+
+
+def gap_path_ok(answer: Mapping[str, Any]) -> bool:
+    """True for a contract refusal or general advice with the honesty line and steps."""
+
+    if is_correct_refusal(answer):
+        return True
+    if answer.get("kind") != "general_advice":
+        return False
+    if answer.get("honesty") != ADVICE_HONESTY:
+        return False
+    steps = answer.get("steps")
+    if not isinstance(steps, list) or not steps:
+        return False
+    return all(isinstance(step, str) and step for step in steps)
 
 
 def part_is_correct(
@@ -268,8 +297,11 @@ def score_case(
         answer_kind=kind,
         retrieval_available=retrieval is not None,
         recall_at_5=recall,
-        citation_accurate=citation_is_accurate(expected, answer) if answerable else None,
+        citation_accurate=citation_is_accurate(expected, answer)
+        if answerable
+        else None,
         refusal_correct=is_correct_refusal(answer) if not answerable else None,
+        gap_covered=gap_path_ok(answer) if not answerable else None,
         uncited_number_count=count_uncited_numbers(answer, counter),
         correct_part=part_is_correct(part_id, answer, mapped_part_ids),
         unmapped_highlight=count_unmapped_highlight(answer, mapped_part_ids),
@@ -281,7 +313,10 @@ def aggregate_metrics(cases: Sequence[CaseScore]) -> Metrics:
     citations = [
         case.citation_accurate for case in cases if case.citation_accurate is not None
     ]
-    refusals = [case.refusal_correct for case in cases if case.refusal_correct is not None]
+    refusals = [
+        case.refusal_correct for case in cases if case.refusal_correct is not None
+    ]
+    gaps = [case.gap_covered for case in cases if case.gap_covered is not None]
     latencies = [case.latency_ms for case in cases]
     correct_parts = [
         case.correct_part for case in cases if case.correct_part is not None
@@ -290,6 +325,7 @@ def aggregate_metrics(cases: Sequence[CaseScore]) -> Metrics:
         recall_at_5=_mean(recalls),
         citation_accuracy=_mean([1.0 if hit else 0.0 for hit in citations]),
         refusal_correctness=_mean([1.0 if hit else 0.0 for hit in refusals]),
+        gap_coverage=_mean([1.0 if hit else 0.0 for hit in gaps]),
         uncited_number_count=sum(case.uncited_number_count for case in cases),
         latency_p50_ms=percentile(latencies, 50),
         latency_p95_ms=percentile(latencies, 95),
@@ -302,6 +338,17 @@ def _mean(values: Sequence[float] | None) -> float | None:
     if not values:
         return None
     return sum(values) / len(values)
+
+
+def _step_text(answer: Mapping[str, Any]) -> str:
+    steps = answer.get("steps")
+    if not isinstance(steps, list):
+        return ""
+    return "\n".join(step for step in steps if isinstance(step, str))
+
+
+def _digit_count(text: str) -> int:
+    return sum(1 for _ in _NUMBER.finditer(text))
 
 
 def _citation_snippets(answer: Mapping[str, Any]) -> list[str]:

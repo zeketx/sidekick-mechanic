@@ -19,6 +19,7 @@ from chat_models import (
     garage_prompt_block,
 )
 from contract import load_answer_fixture, validate_answer
+from general_advice import ADVICE_HONESTY
 from llm import DEFAULT_FAKE_TEXT, FakeLLMClient, LLMError
 from producer import (
     UNAVAILABLE_ANSWER,
@@ -64,7 +65,7 @@ def test_chat_happy_path_returns_schema_valid_fixture() -> None:
     }
 
 
-def test_chat_missing_index_refuses_without_calling_the_model(
+def test_chat_missing_index_returns_general_advice(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     missing = tmp_path / "missing.sqlite"
@@ -74,9 +75,11 @@ def test_chat_missing_index_refuses_without_calling_the_model(
     assert response.status_code == 200
     payload = response.json()
     validate_answer(payload)
-    assert payload["kind"] == "refusal"
-    assert payload["reason"] == "not_found_in_manual"
-    assert DEFAULT_FAKE_TEXT not in payload["text"]
+    assert payload["kind"] == "general_advice"
+    assert payload["honesty"] == ADVICE_HONESTY
+    assert payload["steps"][0].startswith("FAKE-STEP")
+    assert "text" not in payload
+    assert DEFAULT_FAKE_TEXT not in payload["steps"][0]
 
 
 def test_chat_llm_error_returns_contract_valid_error_answer() -> None:

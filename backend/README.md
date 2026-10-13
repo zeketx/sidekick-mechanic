@@ -11,24 +11,28 @@ calls the model. The model must reply with one JSON object. Each citation has
 stays only when that page was in the hits and the snippet is a contiguous span
 of that page. Whitespace may collapse. A rearrangement of the page's tokens is
 not a quote. An empty search, a missing index file, or a JSON object with an
-empty `citations` array returns a refusal with reason `not_found_in_manual`.
-A missing index does not call the model.
+empty `citations` array asks for general advice (`kind: general_advice`).
+The reply says the manual does not cover the question, then lists one to
+five cheap checks. Related pages from that search are not the pages that
+answered. A missing index does call the model for those checks.
 Engine-wiring questions (ECM, injectors, ignition coils, VVT, EFI, the 2JZ
 engine harness) search `is300-engine-wiring` and cite that EWD. While
 `lj78-wiring` is `blocked` in `docs/MANUALS.md`, a chassis or body wiring
 question specific to the LJ78 / 70-series truck uses that same reason and
 says the wiring manual is not ingested yet, even if the IS300 EWD would have
 matched a fuse or relay. A generic wiring, harness, pinout, or EWD question
-that matches nothing uses that same miss. Those refusals have no citations.
+that matches nothing uses that same miss while `lj78-wiring` is blocked.
+When that row is not blocked, the miss is general advice. Those wiring
+refusals have no citations.
 Non-JSON completions, citations that all fail that check, provider errors, and
 a blank completion return a provider error (`kind: error`,
 `reason: provider_unavailable`). That payload is not a manual answer. With no
 API key, `FakeLLMClient` answers from the retrieved pages. Each
 citation is `doc_id`, `page`, and a snippet copied from that page, so the
 provenance check can keep it. The answer text is a local stand-in, not a model
-procedure. An empty search still returns `not_found_in_manual` and does not
-call the client. Do not treat the stand-in, or an empty-citation reply, as a
-real procedure.
+procedure. An empty search calls the client for general advice. The stand-in
+step starts with `FAKE-STEP` and is not a real procedure. Do not treat the
+stand-in, or an empty-citation reply, as a real procedure.
 
 Design: [`docs/design/retrieval-index.md`](../docs/design/retrieval-index.md).
 
@@ -67,12 +71,14 @@ network). After ingestion has written `.ingest/chunks.jsonl`, build the index
 with `python3 retrieval.py build`. A question that matches indexed pages then
 returns those pages as citations. Each snippet is an exact span of the page
 text, and the answer sentence is a stand-in so `/chat` can be tried without a
-key. A question that matches nothing returns the refusal `not_found_in_manual`.
+key. A question that matches nothing returns general advice, unless it is
+the wiring-not-ingested case above.
 An engine-wiring question cites `is300-engine-wiring` when that EWD is in
 the index. A chassis or body wiring question specific to the LJ78 / 70-series
 truck, while `lj78-wiring` is blocked, says the wiring manual is not ingested
-yet. A generic wiring question that matches nothing uses that same miss.
-If the index file is missing, the reply is prose and `citations` is empty.
+yet. A generic wiring question that matches nothing uses that same miss
+while `lj78-wiring` is blocked, and general advice when it is not.
+If the index file is missing, the reply is general advice.
 
 Cited pages:
 
@@ -285,7 +291,8 @@ The body is a conversation:
 `role` is `user` or `assistant`. `text` must be non-empty. Extra properties are
 rejected. Invalid bodies return HTTP 422.
 
-The response is an answer or a refusal as defined by the shared contract. The
+The response is an answer, general advice, or a refusal as defined by the
+shared contract. The
 app must not invent vehicle facts; fixture citations use `page: 999` and
 `FAKE-*` values.
 
@@ -294,8 +301,10 @@ app must not invent vehicle facts; fixture citations use `page: 999` and
 `spec_guard.guard_answer(answer, cited_chunk_texts)` runs on the producer
 payload before the safety note is applied, so the note is never scanned.
 It extracts numbers with units and pin, connector, and terminal references.
-Each one must appear in a cited chunk. Otherwise the payload is replaced
-with a `not_found_in_manual` refusal that names the missing claims.
+On a found answer, each one must appear in a cited chunk. On general advice,
+each step is scanned on its own and chunk text is not evidence. Otherwise
+the payload is replaced with a `not_found_in_manual` refusal that names the
+missing claims.
 Normalization is specified in
 [`docs/design/spec-guard.md`](../docs/design/spec-guard.md).
 

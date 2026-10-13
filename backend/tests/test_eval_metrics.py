@@ -10,11 +10,14 @@ from eval.metrics import (
     aggregate_metrics,
     citation_is_accurate,
     count_uncited_numbers,
+    gap_path_ok,
     is_correct_refusal,
     percentile,
     recall_at_5,
     score_case,
 )
+from general_advice import ADVICE_HONESTY
+from producer import WIRING_NOT_INGESTED_REFUSAL
 
 FAKE_PAGE = ("FAKE-DOC-2JZ", 999)
 OTHER_PAGE = ("FAKE-DOC-WIRING", 999)
@@ -73,6 +76,14 @@ def test_citation_is_inaccurate_when_any_page_is_outside_expected() -> None:
     assert citation_is_accurate([FAKE_PAGE], answer) is False
 
 
+def test_citation_accuracy_stays_true_for_a_real_citation_and_false_for_advice() -> (
+    None
+):
+    found = _answer(citations=[_citation(FAKE_PAGE)])
+    assert citation_is_accurate([FAKE_PAGE], found) is True
+    assert citation_is_accurate([FAKE_PAGE], _advice()) is False
+
+
 def test_citation_is_inaccurate_with_no_citations_or_a_refusal() -> None:
     assert citation_is_accurate([FAKE_PAGE], _answer(citations=[])) is False
     assert citation_is_accurate([FAKE_PAGE], _refusal()) is False
@@ -80,7 +91,15 @@ def test_citation_is_inaccurate_with_no_citations_or_a_refusal() -> None:
 
 def test_refusal_matches_only_the_contract_shape() -> None:
     assert is_correct_refusal(_refusal()) is True
+    assert is_correct_refusal(WIRING_NOT_INGESTED_REFUSAL) is True
     assert is_correct_refusal(_answer(text="Not found in the manual.")) is False
+    assert is_correct_refusal(_advice()) is False
+
+
+def test_gap_path_covers_a_refusal_or_general_advice_and_not_a_found_answer() -> None:
+    assert gap_path_ok(WIRING_NOT_INGESTED_REFUSAL) is True
+    assert gap_path_ok(_advice()) is True
+    assert gap_path_ok(_answer()) is False
 
 
 def test_local_counter_counts_numbers_missing_from_snippets() -> None:
@@ -107,6 +126,14 @@ def test_local_counter_counts_each_occurrence_and_numbers_in_refusals() -> None:
 
     assert count_uncited_numbers(answer) == 2
     assert count_uncited_numbers(refusal) == 1
+
+
+def test_local_counter_counts_digits_in_general_advice_steps() -> None:
+    advice = _advice()
+    advice["steps"] = ["FAKE-STEP 12 then 12."]
+    advice["related"] = [_citation(FAKE_PAGE, snippet="page 12")]
+
+    assert count_uncited_numbers(advice) == 2
 
 
 def test_local_counter_ignores_text_without_digits() -> None:
@@ -161,6 +188,7 @@ def test_aggregate_leaves_recall_null_when_no_case_has_retrieval() -> None:
     assert metrics.recall_at_5 is None
     assert metrics.citation_accuracy == 1.0
     assert metrics.refusal_correctness == 0.0
+    assert metrics.gap_coverage == 0.0
     assert metrics.uncited_number_count == 0
     assert metrics.latency_p50_ms == pytest.approx(20.0)
     assert metrics.latency_p95_ms == pytest.approx(29.0)
@@ -224,6 +252,17 @@ def _citation(
     snippet: str = "FAKE-SNIPPET",
 ) -> dict[str, Any]:
     return {"doc_id": page[0], "page": page[1], "snippet": snippet}
+
+
+def _advice() -> dict[str, Any]:
+    return {
+        "kind": "general_advice",
+        "honesty": ADVICE_HONESTY,
+        "safety": "Safety: fixture note.",
+        "steps": ["FAKE-STEP: check the fixture connection."],
+        "garage": {"source": "none"},
+        "related": [],
+    }
 
 
 def _refusal(*, text: str = "Not found in the fixture.") -> dict[str, Any]:

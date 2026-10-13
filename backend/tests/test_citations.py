@@ -10,10 +10,10 @@ from fastapi.testclient import TestClient
 
 from app import create_app
 from chat_models import Conversation, GarageContext, GarageNoteContext, Message
+from general_advice import ADVICE_HONESTY, ADVICE_STEPS_HEADER
 from llm import FAKE_GROUNDED_TEXT, ChatTurn, FakeLLMClient, LLMError
 from part_resolver import BayMapView, BayPartView
 from producer import (
-    SYSTEM_PROMPT,
     WIRING_NOT_INGESTED_REFUSAL,
     LlmAnswerProducer,
     _IndexRetriever,
@@ -26,16 +26,12 @@ _PAGE = 999
 _SNIPPET = "FAKE-SNIPPET: no real spec."
 _QUESTION = "Where is the fake part?"
 _ANSWER = "The fake page names the fixture part."
-_REFUSAL = {
-    "kind": "refusal",
-    "text": "Not found in the manual. I do not have a cited page for this.",
-    "reason": "not_found_in_manual",
-}
 _UNAVAILABLE = {
     "kind": "error",
     "text": "The mechanic is unavailable right now. Try again in a moment.",
     "reason": "provider_unavailable",
 }
+_FAKE_STEP = "FAKE-STEP: check the fixture connection before the fixture motor."
 
 
 class _Hit:
@@ -61,6 +57,20 @@ def _conversation(text: str = _QUESTION) -> Conversation:
 
 def _completion(text: str, citations: list[dict[str, Any]]) -> str:
     return json.dumps({"text": text, "citations": citations})
+
+
+def _advice(
+    related: list[dict[str, Any]] | None = None,
+    steps: list[str] | None = None,
+) -> dict[str, Any]:
+    return {
+        "kind": "general_advice",
+        "honesty": ADVICE_HONESTY,
+        "safety": SAFETY_NOTE,
+        "steps": [_FAKE_STEP] if steps is None else steps,
+        "garage": {"source": "none"},
+        "related": [] if related is None else related,
+    }
 
 
 def _cited(
@@ -197,29 +207,45 @@ def test_invented_snippet_is_unavailable() -> None:
     assert payload == _UNAVAILABLE
 
 
-def test_empty_search_refuses_without_calling_the_model(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    caplog.set_level(logging.INFO, logger="sidekick.llm")
-    producer, fake, _ = _producer("should not be sent", ())
+def test_empty_search_returns_general_advice() -> None:
+    fake = FakeLLMClient()
+    producer = LlmAnswerProducer(fake, retriever=_Retriever(()))
 
     payload = producer.produce(_conversation())
 
-    assert payload == _REFUSAL
-    assert fake.calls == []
-    assert "llm request" not in caplog.text
+    assert payload == _advice()
+    assert len(fake.calls) == 1
+    system = fake.calls[0][0].content
+    assert ADVICE_STEPS_HEADER in system
+    assert "Retrieved pages:" not in system
+    assert _SNIPPET not in system
 
 
-def test_empty_citations_array_refuses_and_discards_model_text() -> None:
-    producer, _, _ = _producer(
-        _completion("nope", []),
-        (_Hit(_DOC, _PAGE, _SNIPPET),),
+def test_empty_citations_array_discards_model_text_and_uses_hits() -> None:
+    grounded = json.dumps({"text": "nope", "citations": []})
+    steps = json.dumps(
+        {
+            "steps": [_FAKE_STEP],
+            "related": [{"doc_id": "MODEL-PICKED", "page": 1, "snippet": "not a hit"}],
+        }
+    )
+    fake = FakeLLMClient(script=(grounded, steps))
+    producer = LlmAnswerProducer(
+        fake, retriever=_Retriever((_Hit(_DOC, _PAGE, _SNIPPET),))
     )
 
     payload = producer.produce(_conversation())
 
-    assert payload == _REFUSAL
+    assert payload == _advice(
+        related=[{"doc_id": _DOC, "page": _PAGE, "snippet": _SNIPPET}]
+    )
     assert "nope" not in json.dumps(payload)
+    assert "MODEL-PICKED" not in json.dumps(payload)
+    advice = fake.calls[1][0].content
+    assert ADVICE_STEPS_HEADER in advice
+    assert "Retrieved pages:" not in advice
+    assert _SNIPPET not in advice
+    assert _SNIPPET in fake.calls[0][0].content
 
 
 def test_prose_completion_is_unavailable() -> None:
@@ -311,16 +337,17 @@ def test_chat_returns_cited_answer_and_refusal_without_safety_note() -> None:
         "citations": [_cited()],
     }
 
-    refusal_producer, _, _ = _producer("should not be sent", ())
-    refused = TestClient(create_app(producer=refusal_producer)).post(
+    miss = FakeLLMClient()
+    miss_producer = LlmAnswerProducer(miss, retriever=_Retriever(()))
+    refused = TestClient(create_app(producer=miss_producer)).post(
         "/chat",
         json={"messages": [{"role": "user", "text": _QUESTION}]},
     )
 
     assert refused.status_code == 200
     body = refused.json()
-    assert body == _REFUSAL
-    assert not body["text"].startswith(SAFETY_NOTE)
+    assert body == _advice()
+    assert "text" not in body
 
 
 def test_markdown_fence_json_is_a_cited_answer() -> None:
@@ -353,15 +380,22 @@ def test_ill_typed_citations_are_unavailable() -> None:
     assert "nope" not in json.dumps(payload)
 
 
-def test_blank_text_with_empty_citations_is_a_refusal() -> None:
-    producer, _, _ = _producer(
-        json.dumps({"text": "", "citations": []}),
-        (_Hit(_DOC, _PAGE, _SNIPPET),),
+def test_blank_text_with_empty_citations_is_general_advice() -> None:
+    fake = FakeLLMClient(
+        script=(
+            json.dumps({"text": "", "citations": []}),
+            json.dumps({"steps": [_FAKE_STEP]}),
+        )
+    )
+    producer = LlmAnswerProducer(
+        fake, retriever=_Retriever((_Hit(_DOC, _PAGE, _SNIPPET),))
     )
 
     payload = producer.produce(_conversation())
 
-    assert payload == _REFUSAL
+    assert payload == _advice(
+        related=[{"doc_id": _DOC, "page": _PAGE, "snippet": _SNIPPET}]
+    )
 
 
 def test_case_changed_snippet_is_unavailable() -> None:
@@ -484,20 +518,21 @@ def test_newline_in_page_text_round_trips_through_the_prompt() -> None:
     }
 
 
-def test_missing_index_file_refuses_without_calling_the_model(tmp_path: Path) -> None:
-    fake = FakeLLMClient(text="Fixture prose with no manual page.")
+def test_missing_index_file_returns_general_advice(tmp_path: Path) -> None:
+    fake = FakeLLMClient()
     producer = LlmAnswerProducer(
         fake, retriever=_IndexRetriever(tmp_path / "missing.sqlite")
     )
 
     payload = producer.produce(_conversation())
 
-    assert payload == _REFUSAL
-    assert fake.calls == []
+    assert payload == _advice()
+    assert len(fake.calls) == 1
+    assert "Retrieved pages:" not in fake.calls[0][0].content
 
 
-def test_missing_index_with_a_bay_map_does_not_call_the_model(tmp_path: Path) -> None:
-    fake = FakeLLMClient(text="Fixture prose with no manual page.")
+def test_missing_index_with_a_bay_map_does_not_select_a_part(tmp_path: Path) -> None:
+    fake = FakeLLMClient()
     bay_map = BayMapView(parts=(BayPartView(part_id="fake-part", regions=()),))
     producer = LlmAnswerProducer(
         fake,
@@ -507,10 +542,11 @@ def test_missing_index_with_a_bay_map_does_not_call_the_model(tmp_path: Path) ->
 
     payload = producer.produce(_conversation())
 
-    assert payload == _REFUSAL
-    assert fake.calls == []
+    assert payload == _advice()
+    assert "highlight" not in payload
+    assert len(fake.calls) == 1
 
-    empty = FakeLLMClient(text="Fixture prose with no manual page.")
+    empty = FakeLLMClient()
     empty_producer = LlmAnswerProducer(
         empty,
         bay_map=bay_map,
@@ -518,9 +554,8 @@ def test_missing_index_with_a_bay_map_does_not_call_the_model(tmp_path: Path) ->
     )
     empty_payload = empty_producer.produce(_conversation())
 
-    assert empty_payload["kind"] == "refusal"
-    assert empty_payload["reason"] == "not_found_in_manual"
-    assert empty.calls == []
+    assert empty_payload == _advice()
+    assert len(empty.calls) == 1
 
 
 def test_corrupt_index_file_is_unavailable(tmp_path: Path) -> None:
@@ -568,10 +603,7 @@ def test_fake_client_cited_answer_survives_provenance_filter() -> None:
     assert body["citations"][1]["snippet"] in beta
 
 
-def test_fake_client_refuses_when_retrieval_is_empty(
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    caplog.set_level(logging.INFO, logger="sidekick.llm")
+def test_fake_client_returns_general_advice_when_retrieval_is_empty() -> None:
     fake = FakeLLMClient()
     producer = LlmAnswerProducer(fake, retriever=_Retriever(()))
 
@@ -581,9 +613,8 @@ def test_fake_client_refuses_when_retrieval_is_empty(
     )
 
     assert response.status_code == 200
-    assert response.json() == _REFUSAL
-    assert fake.calls == []
-    assert "llm request" not in caplog.text
+    assert response.json() == _advice()
+    assert len(fake.calls) == 1
 
 
 def test_keyless_chat_cites_an_indexed_fake_page(
@@ -615,7 +646,7 @@ def test_keyless_chat_cites_an_indexed_fake_page(
     assert body["citations"][0]["snippet"] in page_text
 
 
-def test_keyless_chat_refuses_when_the_index_has_no_hits(
+def test_keyless_chat_gives_general_advice_when_the_index_has_no_hits(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     caplog: pytest.LogCaptureFixture,
@@ -641,7 +672,7 @@ def test_keyless_chat_refuses_when_the_index_has_no_hits(
     )
 
     assert response.status_code == 200
-    assert response.json() == _REFUSAL
+    assert response.json() == _advice()
     assert "llm request" not in caplog.text
 
 
@@ -795,7 +826,7 @@ def test_lj78_chassis_wiring_ignores_is300_hits(
     assert "LJ78" not in response.text
 
 
-def test_engine_wiring_miss_is_generic_not_found(
+def test_engine_wiring_miss_is_general_advice(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     index_path = tmp_path / "index.sqlite"
@@ -825,10 +856,10 @@ def test_engine_wiring_miss_is_generic_not_found(
     )
 
     assert response.status_code == 200
-    assert response.json() == _REFUSAL
+    assert response.json() == _advice()
 
 
-def test_wiring_miss_stays_generic_when_the_row_is_not_blocked(
+def test_wiring_miss_is_general_advice_when_the_row_is_not_blocked(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     index_path = tmp_path / "index.sqlite"
@@ -852,7 +883,7 @@ def test_wiring_miss_stays_generic_when_the_row_is_not_blocked(
     )
 
     assert response.status_code == 200
-    assert response.json() == _REFUSAL
+    assert response.json() == _advice()
 
 
 def test_index_retriever_cites_a_fake_chunk(tmp_path: Path) -> None:

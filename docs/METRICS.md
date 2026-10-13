@@ -11,6 +11,7 @@ Targets are `TBD` where the eval issue does not set one.
 | recall@5 | TBD | not available | 2026-10-01 |
 | citation accuracy | TBD | 0.0000 | 2026-10-01 |
 | refusal correctness | TBD | 0.0000 | 2026-10-01 |
+| gap coverage | TBD | not available | 2026-10-01 |
 | uncited-number count | TBD | 0 | 2026-10-01 |
 | latency p50 (ms) | TBD | 2.796 | 2026-10-01 |
 | latency p95 (ms) | TBD | 11.010 | 2026-10-01 |
@@ -23,7 +24,8 @@ Targets are `TBD` where the eval issue does not set one.
 - **recall@5.** Mean, over answerable questions that have retrieval hits, of how many expected (doc_id, page) pairs appear in the first 5 hits. Null when no question has retrieval. An empty hit list scores 0. Citations are not treated as retrieval.
 - **citation accuracy.** Fraction of answerable questions whose answer cites at least one page and every cited (doc_id, page) is in the expected set. A refusal or an empty citation list scores 0 for that question.
 - **refusal correctness.** Fraction of unanswerable questions returned as a contract refusal (kind refusal, reason not_found_in_manual).
-- **uncited-number count.** Sum of the active counter's count for each answer. The local counter counts digit tokens in answer text that do not appear in a citation snippet. It does not understand units or pinouts. The spec guard counter counts unit-numbers and pin references it would block. The results file names the counter.
+- **gap coverage.** Fraction of unanswerable questions that returned either a contract refusal or general advice with the honesty line and at least one step.
+- **uncited-number count.** Sum of the active counter's count for each answer. The local counter counts digit tokens in answer text that do not appear in a citation snippet. For general advice it counts digit tokens in the steps, and related snippets do not excuse a number. It does not understand units or pinouts. The spec guard counter counts unit-numbers and pin references it would block. The results file names the counter.
 - **latency p50 (ms).** 50th percentile of per-question runner time in milliseconds. Linear index (n - 1) * 0.50.
 - **latency p95 (ms).** 95th percentile of per-question runner time in milliseconds. Linear index (n - 1) * 0.95.
 - **correct-part rate.** Fraction of golden questions whose part_id is a confirmed bay-map part and whose answer highlight names that same part_id. Questions with no part_id, or a part that has no confirmed region, are left out. A missing highlight scores 0.

@@ -1,0 +1,20 @@
+{
+  "kind": "general_advice",
+  "honesty": "Not in your manual. Here's what usually causes this.",
+  "safety": "Safety: Let the engine cool before you touch it. Disconnect the battery when the step calls for it. Support the vehicle on stands before you work underneath.",
+  "steps": [
+    "FAKE-STEP: check the fixture connection before the fixture motor."
+  ],
+  "garage": {
+    "source": "garage",
+    "truck": "FAKE-TRUCK",
+    "engine": "TBD"
+  },
+  "related": [
+    {
+      "doc_id": "FAKE-DOC",
+      "page": 999,
+      "snippet": "FAKE-SNIPPET"
+    }
+  ]
+}

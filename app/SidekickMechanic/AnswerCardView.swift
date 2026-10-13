@@ -13,21 +13,28 @@ struct AnswerCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             if let statusTitle = content.statusTitle {
-                Label(statusTitle, systemImage: "book.closed")
+                Label(statusTitle, systemImage: content.statusSymbol)
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(.primary)
                     .accessibilityIdentifier("answerCard.status")
             }
 
-            Text(content.text)
-                .font(.body)
-                .foregroundStyle(.primary)
-                .multilineTextAlignment(.leading)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityIdentifier("answerCard.text")
+            if content.presentation == .generalAdvice {
+                generalAdviceBody
+                if !content.relatedChips.isEmpty {
+                    relatedBlock
+                }
+            } else {
+                Text(content.text)
+                    .font(.body)
+                    .foregroundStyle(.primary)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("answerCard.text")
 
-            if !content.chips.isEmpty {
-                chipRow
+                if !content.chips.isEmpty {
+                    chipRow
+                }
             }
 
             if let demoContext, demoContext.isDemoMode, let image = demoContext.photo {
@@ -44,10 +51,65 @@ struct AnswerCardView: View {
         .accessibilityIdentifier(content.accessibilityIdentifier)
     }
 
+    private var generalAdviceBody: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let basisLine = content.basisLine {
+                Text(basisLine)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("answerCard.basis")
+            }
+            if let safetyText = content.safetyText {
+                Text(safetyText)
+                    .font(.subheadline)
+                    .foregroundStyle(.primary)
+                    .accessibilityIdentifier("answerCard.safety")
+            }
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(Array(content.steps.enumerated()), id: \.offset) { index, step in
+                    Text("\(index + 1). \(step)")
+                        .font(.body)
+                        .foregroundStyle(.primary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("answerCard.step.\(index)")
+                }
+            }
+            .accessibilityIdentifier("answerCard.steps")
+        }
+    }
+
+    private var relatedBlock: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(AnswerCardContent.relatedHeading)
+                .font(.subheadline.weight(.semibold))
+                .accessibilityIdentifier("answerCard.relatedHeading")
+            capsules(
+                content.relatedChips,
+                hint: AnswerCardContent.relatedHint,
+                dashed: true,
+                identifier: "answerCard.related"
+            )
+        }
+    }
+
     private var chipRow: some View {
+        capsules(
+            content.chips,
+            hint: "Opens the manual page",
+            dashed: false,
+            identifier: "answerCard.chips"
+        )
+    }
+
+    private func capsules(
+        _ chips: [AnswerCardContent.Chip],
+        hint: String,
+        dashed: Bool,
+        identifier: String
+    ) -> some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                ForEach(content.chips) { chip in
+                ForEach(chips) { chip in
                     Button {
                         onOpenCitation?(chip.citation)
                     } label: {
@@ -58,18 +120,29 @@ struct AnswerCardView: View {
                             .padding(.vertical, 6)
                             .background(.background, in: Capsule())
                             .overlay {
-                                Capsule().strokeBorder(Color.secondary.opacity(0.35))
+                                if dashed {
+                                    Capsule().strokeBorder(
+                                        Color.secondary.opacity(0.35),
+                                        style: StrokeStyle(lineWidth: 1, dash: [4, 3])
+                                    )
+                                } else {
+                                    Capsule().strokeBorder(Color.secondary.opacity(0.35))
+                                }
                             }
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(chip.label)
-                    .accessibilityHint("Opens the manual page")
-                    .accessibilityIdentifier("answerCard.chip.\(chip.id)")
+                    .accessibilityHint(hint)
+                    .accessibilityIdentifier(
+                        dashed
+                            ? "answerCard.related.\(chip.id)"
+                            : "answerCard.chip.\(chip.id)"
+                    )
                 }
             }
         }
         .fixedSize(horizontal: false, vertical: true)
-        .accessibilityIdentifier("answerCard.chips")
+        .accessibilityIdentifier(identifier)
     }
 
     @ViewBuilder
@@ -125,6 +198,8 @@ struct AnswerCardView: View {
         switch content.presentation {
         case .found:
             Color.secondary.opacity(0.15)
+        case .generalAdvice:
+            Color.accentColor.opacity(0.12)
         case .notFoundInManual, .providerUnavailable:
             Color.secondary.opacity(0.22)
         }
@@ -171,6 +246,10 @@ private struct AnswerCardPreview: View {
 
 #Preview("Refusal") {
     AnswerCardPreview(answer: AnswerCardFixture.refusal)
+}
+
+#Preview("General advice") {
+    AnswerCardPreview(answer: AnswerCardFixture.generalAdvice)
 }
 
 #Preview("No highlight") {

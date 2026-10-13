@@ -126,6 +126,62 @@ final class AnswerCardContentTests: XCTestCase {
         XCTAssertEqual(loaded["with_citations.json"], AnswerCardFixture.withCitations)
         XCTAssertEqual(loaded["with_highlight.json"], AnswerCardFixture.withHighlight)
         XCTAssertEqual(loaded["refusal.json"], AnswerCardFixture.refusal)
+        XCTAssertEqual(loaded["general_advice.json"], AnswerCardFixture.generalAdvice)
+    }
+
+    func testGeneralAdviceKeepsRelatedPagesOffTheAnswerChips() throws {
+        let card = AnswerCardContent(answer: try load("general_advice.json"))
+
+        XCTAssertEqual(card.presentation, .generalAdvice)
+        XCTAssertEqual(card.accessibilityIdentifier, "answerCard.generalAdvice")
+        XCTAssertEqual(card.statusTitle, GeneralAdvice.honesty)
+        XCTAssertEqual(card.statusSymbol, "wrench.and.screwdriver")
+        XCTAssertEqual(card.basisLine, "Truck: FAKE-TRUCK. Engine: TBD.")
+        XCTAssertEqual(card.safetyText, GeneralAdvice.safety)
+        XCTAssertEqual(
+            card.steps,
+            ["FAKE-STEP: check the fixture connection before the fixture motor."]
+        )
+        XCTAssertTrue(card.chips.isEmpty)
+        XCTAssertEqual(card.relatedChips.map(\.label), ["FAKE-DOC · p. 999"])
+        XCTAssertEqual(card.relatedChips.map(\.citation.snippet), ["FAKE-SNIPPET"])
+        XCTAssertEqual(AnswerCardContent.relatedHeading, "Related pages")
+        XCTAssertEqual(
+            AnswerCardContent.relatedHint,
+            "Opens a related manual page. This page did not answer the question."
+        )
+    }
+
+    func testGeneralAdviceBasisKeepsTBDWhenOnlyTheEngineIsSet() throws {
+        let advice = try XCTUnwrap(
+            GeneralAdvice(
+                steps: ["FAKE-STEP: listen for the fixture."],
+                garage: .garage(truck: nil, engine: "TBD")
+            )
+        )
+        let card = AnswerCardContent(answer: .generalAdvice(advice))
+
+        XCTAssertEqual(card.basisLine, "Engine: TBD.")
+        XCTAssertTrue(card.chips.isEmpty)
+        XCTAssertTrue(card.relatedChips.isEmpty)
+    }
+
+    func testGeneralAdviceOmitsBasisWhenTheGarageHasNoTruckOrEngine() throws {
+        let advice = try XCTUnwrap(
+            GeneralAdvice(
+                steps: ["FAKE-STEP: listen for the fixture."],
+                garage: .none
+            )
+        )
+        let card = AnswerCardContent(answer: .generalAdvice(advice))
+
+        XCTAssertNil(card.basisLine)
+    }
+
+    func testRefusalKeepsTheClosedBookSymbol() throws {
+        let card = AnswerCardContent(answer: try load("refusal.json"))
+        XCTAssertEqual(card.statusSymbol, "book.closed")
+        XCTAssertEqual(card.accessibilityIdentifier, "answerCard.refusal")
     }
 
     private func load(_ name: String) throws -> Answer {

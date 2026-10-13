@@ -6,6 +6,7 @@ public struct AnswerCardContent: Hashable, Sendable {
     public enum Presentation: Hashable, Sendable {
         case found
         case notFoundInManual
+        case generalAdvice
         case providerUnavailable
     }
 
@@ -23,10 +24,16 @@ public struct AnswerCardContent: Hashable, Sendable {
     /// Stable heading for the refusal card. The body text stays the model's reply.
     public static let notFoundStatusTitle = "Not found in the manual"
     public static let unavailableStatusTitle = "Mechanic unavailable"
+    public static let relatedHeading = "Related pages"
+    public static let relatedHint = "Opens a related manual page. This page did not answer the question."
 
     public let text: String
     public let presentation: Presentation
     public let chips: [Chip]
+    public let relatedChips: [Chip]
+    public let steps: [String]
+    public let basisLine: String?
+    public let safetyText: String?
     public let showsHighlightSlot: Bool
     public let highlight: HighlightRef?
 
@@ -36,8 +43,19 @@ public struct AnswerCardContent: Hashable, Sendable {
             return nil
         case .notFoundInManual:
             return Self.notFoundStatusTitle
+        case .generalAdvice:
+            return GeneralAdvice.honesty
         case .providerUnavailable:
             return Self.unavailableStatusTitle
+        }
+    }
+
+    public var statusSymbol: String {
+        switch presentation {
+        case .generalAdvice:
+            return "wrench.and.screwdriver"
+        case .found, .notFoundInManual, .providerUnavailable:
+            return "book.closed"
         }
     }
 
@@ -47,6 +65,8 @@ public struct AnswerCardContent: Hashable, Sendable {
             return "answerCard.found"
         case .notFoundInManual:
             return "answerCard.refusal"
+        case .generalAdvice:
+            return "answerCard.generalAdvice"
         case .providerUnavailable:
             return "answerCard.unavailable"
         }
@@ -63,25 +83,46 @@ public struct AnswerCardContent: Hashable, Sendable {
         switch answer {
         case let .found(found):
             presentation = .found
-            chips = found.citations.enumerated().map { index, citation in
-                Chip(
-                    id: index,
-                    label: citation.chipLabel,
-                    citation: citation
-                )
-            }
+            chips = Self.chips(found.citations)
+            relatedChips = []
+            steps = []
+            basisLine = nil
+            safetyText = nil
             highlight = found.highlight
             showsHighlightSlot = found.highlight != nil
         case let .refusal(refusal):
             presentation = .notFoundInManual
             chips = []
+            relatedChips = []
+            steps = []
+            basisLine = nil
+            safetyText = nil
             highlight = refusal.highlight
             showsHighlightSlot = refusal.highlight != nil
+        case let .generalAdvice(advice):
+            presentation = .generalAdvice
+            chips = []
+            relatedChips = Self.chips(advice.related)
+            steps = advice.steps
+            basisLine = advice.basisLine
+            safetyText = GeneralAdvice.safety
+            highlight = advice.highlight
+            showsHighlightSlot = advice.highlight != nil
         case .providerUnavailable:
             presentation = .providerUnavailable
             chips = []
+            relatedChips = []
+            steps = []
+            basisLine = nil
+            safetyText = nil
             highlight = nil
             showsHighlightSlot = false
+        }
+    }
+
+    private static func chips(_ citations: [Citation]) -> [Chip] {
+        citations.enumerated().map { index, citation in
+            Chip(id: index, label: citation.chipLabel, citation: citation)
         }
     }
 }
@@ -130,6 +171,8 @@ public enum AnswerCardFixture {
         text: "Not found in the manual. I do not have a cited page for this."
     ))
 
+    public static let generalAdvice: Answer = .generalAdvice(makeGeneralAdvice())
+
     private static func makeFound(
         text: String,
         citations: [Citation] = [],
@@ -141,6 +184,19 @@ public enum AnswerCardFixture {
         return found
     }
 
+    private static func makeGeneralAdvice() -> GeneralAdvice {
+        guard let advice = GeneralAdvice(
+            steps: ["FAKE-STEP: check the fixture connection before the fixture motor."],
+            garage: .garage(truck: "FAKE-TRUCK", engine: "TBD"),
+            related: [
+                makeCitation(docID: "FAKE-DOC", page: 999, snippet: "FAKE-SNIPPET"),
+            ]
+        ) else {
+            preconditionFailure("general advice fixture is valid")
+        }
+        return advice
+    }
+
     private static func makeRefusal(text: String) -> Refusal {
         guard let refusal = Refusal(text: text) else {
             preconditionFailure("answer card fixture text is non-empty")
@@ -148,7 +204,7 @@ public enum AnswerCardFixture {
         return refusal
     }
 
-    private static func makeCitation(docID: String, page: Int, snippet: String) -> Citation {
+    private static func makeCitation(docID: String, page: Int = 999, snippet: String) -> Citation {
         guard let citation = Citation(
             docID: makeID(DocumentID.init, docID),
             page: makeID(PageNumber.init, page),

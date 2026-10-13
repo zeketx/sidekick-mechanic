@@ -8,6 +8,7 @@ final class AnswerTests: XCTestCase {
         "with_citations.json",
         "with_highlight.json",
         "refusal.json",
+        "general_advice.json",
     ]
 
     func testRequiredFixturesExist() throws {
@@ -81,6 +82,63 @@ final class AnswerTests: XCTestCase {
                     )
                 )
             )
+        )
+    }
+
+    func testGeneralAdviceFixture() throws {
+        let answer = try decodeFixture("general_advice.json")
+        let citation = try XCTUnwrap(
+            Citation(
+                docID: try XCTUnwrap(DocumentID(rawValue: "FAKE-DOC")),
+                page: try XCTUnwrap(PageNumber(rawValue: 999)),
+                snippet: "FAKE-SNIPPET"
+            )
+        )
+        let advice = try XCTUnwrap(
+            GeneralAdvice(
+                steps: ["FAKE-STEP: check the fixture connection before the fixture motor."],
+                garage: .garage(truck: "FAKE-TRUCK", engine: "TBD"),
+                related: [citation]
+            )
+        )
+        XCTAssertEqual(answer, .generalAdvice(advice))
+        XCTAssertEqual(
+            answer.text,
+            """
+            \(GeneralAdvice.honesty)
+            Truck: FAKE-TRUCK. Engine: TBD.
+            \(GeneralAdvice.safety)
+            FAKE-STEP: check the fixture connection before the fixture motor.
+            """
+        )
+        guard case let .generalAdvice(decoded) = answer else {
+            return XCTFail("expected general advice")
+        }
+        XCTAssertEqual(decoded.garage, .garage(truck: "FAKE-TRUCK", engine: "TBD"))
+        XCTAssertEqual(decoded.basisLine, "Truck: FAKE-TRUCK. Engine: TBD.")
+    }
+
+    func testGeneralAdviceRejectsCitationsReasonAndText() {
+        XCTAssertThrowsError(try decodeGeneralAdvice(extra: #""citations": [],"#))
+        XCTAssertThrowsError(try decodeGeneralAdvice(extra: #""reason": "not_found_in_manual","#))
+        XCTAssertThrowsError(try decodeGeneralAdvice(extra: #""text": "FAKE-STEP","#))
+    }
+
+    func testGeneralAdviceRejectsOtherHonestySafetyAndEmptySteps() {
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(Answer.self, from: Data(generalAdviceJSON(
+                steps: [#""FAKE-STEP: check the fixture connection before the fixture motor.""#],
+                honesty: "Something else."
+            ).utf8))
+        )
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(Answer.self, from: Data(generalAdviceJSON(
+                steps: [#""FAKE-STEP: check the fixture connection before the fixture motor.""#],
+                safety: "Wear gloves."
+            ).utf8))
+        )
+        XCTAssertThrowsError(
+            try JSONDecoder().decode(Answer.self, from: Data(generalAdviceJSON(steps: []).utf8))
         )
     }
 
@@ -305,6 +363,34 @@ final class AnswerTests: XCTestCase {
             """#.utf8
         )
         XCTAssertThrowsError(try JSONDecoder().decode(Answer.self, from: json))
+    }
+
+    private func decodeGeneralAdvice(extra: String) throws -> Answer {
+        let json = generalAdviceJSON(
+            steps: [#""FAKE-STEP: check the fixture connection before the fixture motor.""#],
+            extra: extra
+        )
+        return try JSONDecoder().decode(Answer.self, from: Data(json.utf8))
+    }
+
+    private func generalAdviceJSON(
+        steps: [String],
+        honesty: String = GeneralAdvice.honesty,
+        safety: String = GeneralAdvice.safety,
+        extra: String = ""
+    ) -> String {
+        let stepList = steps.joined(separator: ",")
+        return """
+        {
+          "kind": "general_advice",
+          "honesty": "\(honesty)",
+          "safety": "\(safety)",
+          \(extra)
+          "steps": [\(stepList)],
+          "garage": {"source": "none"},
+          "related": []
+        }
+        """
     }
 
     private func fixtureNames() throws -> Set<String> {

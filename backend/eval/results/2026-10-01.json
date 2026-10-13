@@ -24,6 +24,7 @@
     "recall_at_5": null,
     "citation_accuracy": 0.0,
     "refusal_correctness": 0.0,
+    "gap_coverage": null,
     "uncited_number_count": 0,
     "latency_p50_ms": 2.796,
     "latency_p95_ms": 11.01,

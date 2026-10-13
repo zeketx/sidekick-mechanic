@@ -19,6 +19,7 @@ TARGETS: dict[str, str] = {
     "recall_at_5": "TBD",
     "citation_accuracy": "TBD",
     "refusal_correctness": "TBD",
+    "gap_coverage": "TBD",
     "uncited_number_count": "TBD",
     "latency_p50_ms": "TBD",
     "latency_p95_ms": "TBD",
@@ -31,6 +32,7 @@ METRIC_ROWS: tuple[tuple[str, str, str], ...] = (
     ("recall_at_5", "recall@5", "rate"),
     ("citation_accuracy", "citation accuracy", "rate"),
     ("refusal_correctness", "refusal correctness", "rate"),
+    ("gap_coverage", "gap coverage", "rate"),
     ("uncited_number_count", "uncited-number count", "count"),
     ("latency_p50_ms", "latency p50 (ms)", "latency"),
     ("latency_p95_ms", "latency p95 (ms)", "latency"),
@@ -97,8 +99,7 @@ def render_metrics_markdown(payload: dict[str, Any], *, source: Path) -> str:
             + " |"
         )
     definitions = [
-        f"- **{label}.** {METRIC_DEFINITIONS[label]}"
-        for _, label, _ in METRIC_ROWS
+        f"- **{label}.** {METRIC_DEFINITIONS[label]}" for _, label, _ in METRIC_ROWS
     ]
     source_text = _source_label(source)
     header = [

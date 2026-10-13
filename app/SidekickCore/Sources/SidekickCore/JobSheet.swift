@@ -351,6 +351,14 @@ extension JobSheetState {
         return found.citations
     }
 
+    /// Related pages on a general-advice reply. A found answer's pages stay in `citations`.
+    public var relatedCitations: [Citation] {
+        guard let latestAssistant, case let .generalAdvice(advice) = latestAssistant.answer else {
+            return []
+        }
+        return advice.related
+    }
+
     /// Latest answer highlight, including a refusal outline. An attached photo does not invent one.
     public var highlight: HighlightRef? {
         latestAssistant?.answer.highlight

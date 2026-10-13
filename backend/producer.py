@@ -20,6 +20,7 @@ from typing import Any, Protocol, runtime_checkable
 from chat_models import Conversation, garage_prompt_block
 from contract import load_answer_fixture, validate_answer
 from demo import DEMO_SYSTEM_PROMPT, resolve_demo_answer
+from general_advice import advise_on_miss
 from llm import (
     RETRIEVED_PAGES_HEADER,
     ChatTurn,
@@ -33,16 +34,17 @@ from part_resolver import BayMapView, complete_selection, resolve_answer
 from retrieval import (
     DEFAULT_K,
     INDEX_FILENAME,
+    SNIPPET_LIMIT,
     Fts5Index,
     RetrievalError,
     RetrievedChunk,
     Retriever,
+    cap_snippet,
     snippet_matches_page,
 )
 
 DEFAULT_FIXTURE = "plain.json"
 LOGGER = logging.getLogger("sidekick.llm")
-_SNIPPET_LIMIT = 280
 
 _GROUNDED_PREAMBLE = (
     "You are Sidekick Mechanic. Answer the owner's question. "
@@ -60,7 +62,7 @@ _GROUNDED_INSTRUCTIONS = (
     "snippet must copy tokens from that page's decoded text, not JSON escape "
     "sequences. Whitespace may differ; do not invent tokens. "
     "Do not add an ellipsis, quotes, or other characters. "
-    f"The server shortens a snippet longer than {_SNIPPET_LIMIT} characters. "
+    f"The server shortens a snippet longer than {SNIPPET_LIMIT} characters. "
     "Use only a doc_id and page from the retrieved pages. "
     "If those pages do not support an answer, set citations to an empty array. "
     "text may be empty only in that case."
@@ -70,12 +72,6 @@ UNAVAILABLE_ANSWER: dict[str, Any] = {
     "kind": "error",
     "text": "The mechanic is unavailable right now. Try again in a moment.",
     "reason": "provider_unavailable",
-}
-
-NOT_FOUND_REFUSAL: dict[str, Any] = {
-    "kind": "refusal",
-    "text": "Not found in the manual. I do not have a cited page for this.",
-    "reason": "not_found_in_manual",
 }
 
 WIRING_NOT_INGESTED_REFUSAL: dict[str, Any] = {
@@ -109,7 +105,6 @@ _CHASSIS_WIRING_SUBJECT = re.compile(
 )
 
 validate_answer(UNAVAILABLE_ANSWER)
-validate_answer(NOT_FOUND_REFUSAL)
 validate_answer(WIRING_NOT_INGESTED_REFUSAL)
 
 
@@ -184,11 +179,13 @@ class LlmAnswerProducer:
         try:
             hits = _search_hits(retriever, query)
         except _IndexMissing:
-            return self._with_part_highlight(dict(NOT_FOUND_REFUSAL), conversation)
+            return self._advice_or_unavailable(conversation, ())
         except (RetrievalError, sqlite3.Error):
             return dict(UNAVAILABLE_ANSWER)
         if not hits:
-            return self._with_part_highlight(_refusal_for_miss(query), conversation)
+            if _wiring_not_ingested_miss(query):
+                return dict(WIRING_NOT_INGESTED_REFUSAL)
+            return self._advice_or_unavailable(conversation, ())
 
         text = self._complete(
             _chat_messages(conversation, _grounded_system_prompt(hits, conversation))
@@ -199,7 +196,7 @@ class LlmAnswerProducer:
         if parsed is None:
             return dict(UNAVAILABLE_ANSWER)
         if parsed.citation_count == 0:
-            return self._with_part_highlight(dict(NOT_FOUND_REFUSAL), conversation)
+            return self._advice_or_unavailable(conversation, hits)
         citations = _filter_citations(parsed.citations, hits)
         if not citations:
             return dict(UNAVAILABLE_ANSWER)
@@ -233,9 +230,7 @@ class LlmAnswerProducer:
             hits = _search_hits(retriever, query)
         except (_IndexMissing, RetrievalError, sqlite3.Error):
             return ()
-        return tuple(
-            hit.text for hit in hits if (hit.doc_id, hit.page) in cited_pages
-        )
+        return tuple(hit.text for hit in hits if (hit.doc_id, hit.page) in cited_pages)
 
     def _ungrounded(self, conversation: Conversation) -> dict[str, Any]:
         system = _with_garage(
@@ -272,6 +267,16 @@ class LlmAnswerProducer:
         if not text:
             return None
         return text
+
+    def _advice_or_unavailable(
+        self,
+        conversation: Conversation,
+        hits: Sequence[_RetrievedPage],
+    ) -> dict[str, Any]:
+        advice = advise_on_miss(self._client, conversation, hits)
+        if advice is None:
+            return dict(UNAVAILABLE_ANSWER)
+        return self._with_part_highlight(advice, conversation)
 
     def _with_part_highlight(
         self,
@@ -354,17 +359,17 @@ def _search_hits(retriever: Retriever, query: str) -> tuple[RetrievedChunk, ...]
         if isinstance(retriever, _IndexRetriever):
             return retriever.search(query, doc_id=_ENGINE_WIRING_DOC_ID)
         return tuple(
-            hit for hit in retriever.search(query) if hit.doc_id == _ENGINE_WIRING_DOC_ID
+            hit
+            for hit in retriever.search(query)
+            if hit.doc_id == _ENGINE_WIRING_DOC_ID
         )
     return retriever.search(query)
 
 
-def _refusal_for_miss(query: str) -> dict[str, Any]:
+def _wiring_not_ingested_miss(query: str) -> bool:
     if _is_engine_wiring(query):
-        return dict(NOT_FOUND_REFUSAL)
-    if _WIRING_QUERY.search(query) and _wiring_manual_blocked():
-        return dict(WIRING_NOT_INGESTED_REFUSAL)
-    return dict(NOT_FOUND_REFUSAL)
+        return False
+    return _WIRING_QUERY.search(query) is not None and _wiring_manual_blocked()
 
 
 def _is_engine_wiring(query: str) -> bool:
@@ -505,7 +510,7 @@ def _filter_citations(
         page_text = pages.get((doc_id, page))
         if page_text is None or not snippet_matches_page(snippet, page_text):
             continue
-        stored = _cap_snippet(snippet)
+        stored = cap_snippet(snippet)
         if not stored.strip():
             continue
         identity = (doc_id, page, stored)
@@ -514,26 +519,6 @@ def _filter_citations(
         seen.add(identity)
         kept.append({"doc_id": doc_id, "page": page, "snippet": stored})
     return kept
-
-
-def _cap_snippet(snippet: str) -> str:
-    if len(snippet) <= _SNIPPET_LIMIT:
-        return snippet
-    window = snippet[:_SNIPPET_LIMIT]
-    last_space = _last_whitespace_index(window)
-    if last_space is None:
-        return window
-    trimmed = window[:last_space].rstrip()
-    if not trimmed:
-        return window
-    return trimmed
-
-
-def _last_whitespace_index(window: str) -> int | None:
-    for index in range(len(window) - 1, -1, -1):
-        if window[index].isspace():
-            return index
-    return None
 
 
 def _latency_ms(started: float) -> int:
