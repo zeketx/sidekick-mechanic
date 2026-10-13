@@ -15,7 +15,7 @@ Chat is the `POST /chat` request the iPhone app sends. The response is either a 
 
 ## How to get to it (user POV)
 
-- In the app, type a problem and tap Send. The app posts `{ "messages": [{ "role": "user", "text": "..." }] }` to `{SIDEKICK_BACKEND_URL}/chat`.
+- In the app, type a problem and tap Send. The app posts `{ "messages": [{ "role": "user", "text": "..." }] }` to `{SIDEKICK_BACKEND_URL}/chat`. When the Garage has facts, notes, or open to-dos, the same request also sends a compact `garage` object. Verification still posts messages only.
 - From a shell, post the same body to the verification server the helper prints. The question used here is `Why is it hard to start?`
 
 ## Driving it with verify-backend

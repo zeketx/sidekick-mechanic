@@ -101,6 +101,29 @@ def test_page_answer_is_schema_valid_cites_the_page_and_has_no_highlight() -> No
     ]
 
 
+def test_page_explain_mentions_garage_notes_and_still_cites_the_page() -> None:
+    page_client = FakeLLMClient(text="FAKE-REPLY about this page.")
+    body = _page_turn()
+    body["garage"] = {
+        "notes": [{"name": "Wiring harness", "note": "already replaced"}],
+    }
+
+    response = _client(page_client=page_client).post("/chat", json=body)
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["kind"] == "answer"
+    assert payload["citations"] == [
+        {"doc_id": "FAKE-DOC", "page": 999, "snippet": " ".join(FAKE_PAGE_TEXT.split())}
+    ]
+    system = page_client.calls[0][0].content
+    assert "already replaced" in system
+    assert "not a manual page" in system
+    page_text = system.split(PAGE_TEXT_HEADER, 1)[1]
+    assert page_text == FAKE_PAGE_TEXT
+    assert "already replaced" not in page_text
+
+
 def test_page_turn_keeps_the_conversation_history() -> None:
     page_client = FakeLLMClient(text="FAKE-REPLY about this page.")
     body = {

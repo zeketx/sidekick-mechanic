@@ -30,9 +30,11 @@ struct URLSessionHTTP: HTTPPerforming {
 /// Conversation and message IDs stay on the domain model; the backend forbids extras.
 /// A page is identity only. The server loads its text. Only the last item carries photo bytes.
 /// `demo` is omitted on the normal path and whenever the newest user turn is about a page.
+/// `garage` is omitted when there is nothing to send.
 struct ChatHTTPBody: Encodable, Equatable {
     var messages: [Item]
     var demo: Demo?
+    var garage: GarageChatContext?
 
     struct Item: Encodable, Equatable {
         var role: String
@@ -75,7 +77,11 @@ struct ChatHTTPBody: Encodable, Equatable {
         }
     }
 
-    init(_ conversation: Conversation, demoPhotoID: String? = nil) {
+    init(
+        _ conversation: Conversation,
+        demoPhotoID: String? = nil,
+        garage: GarageChatContext? = nil
+    ) {
         let lastIndex = conversation.messages.indices.last
         messages = conversation.messages.enumerated().map { index, message in
             switch message {
@@ -97,17 +103,24 @@ struct ChatHTTPBody: Encodable, Equatable {
         } else {
             demo = nil
         }
+        if let garage, !garage.isEmpty {
+            self.garage = garage
+        } else {
+            self.garage = nil
+        }
     }
 
     enum CodingKeys: String, CodingKey {
         case messages
         case demo
+        case garage
     }
 
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(messages, forKey: .messages)
         try container.encodeIfPresent(demo, forKey: .demo)
+        try container.encodeIfPresent(garage, forKey: .garage)
     }
 }
 
@@ -125,14 +138,18 @@ public struct LiveChatClient: ChatClient, Sendable {
         self.http = http
     }
 
-    public func send(_ conversation: Conversation, demoPhotoID: String? = nil) async throws -> Answer {
+    public func send(
+        _ conversation: Conversation,
+        demoPhotoID: String? = nil,
+        garage: GarageChatContext? = nil
+    ) async throws -> Answer {
         var urlRequest = URLRequest(url: configuration.chatURL)
         urlRequest.httpMethod = "POST"
         urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         urlRequest.setValue("application/json", forHTTPHeaderField: "Accept")
         urlRequest.timeoutInterval = configuration.requestTimeout
         urlRequest.httpBody = try JSONEncoder().encode(
-            ChatHTTPBody(conversation, demoPhotoID: demoPhotoID)
+            ChatHTTPBody(conversation, demoPhotoID: demoPhotoID, garage: garage)
         )
 
         let data: Data

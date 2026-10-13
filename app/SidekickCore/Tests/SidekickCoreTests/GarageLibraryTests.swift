@@ -270,6 +270,47 @@ final class GarageLibraryTests: XCTestCase {
         }
         XCTAssertFalse(store.photoFileExists("../escape.jpg"))
     }
+
+    func testChatContextOmitsPhotosAndDoneTodosAndTrimsNotes() {
+        var library = GarageLibrary(
+            facts: [
+                GarageFact(id: "engine", label: "FAKE-LABEL", value: "FAKE-VALUE", isConfirmed: true),
+                GarageFact(id: "blank", label: "  ", value: "skip", isConfirmed: true),
+            ],
+            photos: [GaragePhoto(id: "p1", caption: "bay", fileName: "p1.jpg")],
+            items: [
+                GarageItem(
+                    id: "i1",
+                    name: "Wiring harness",
+                    note: "already replaced",
+                    photoFileName: "i1.jpg"
+                ),
+                GarageItem(id: "i2", name: "  ", note: "skip", photoFileName: nil),
+            ],
+            todos: [
+                GarageTodo(id: "open", title: "Check the spare", isDone: false),
+                GarageTodo(id: "done", title: "Wash the truck", isDone: true),
+            ]
+        )
+        let longNote = String(repeating: "FAKE-NOTE ", count: 40)
+        _ = library.addItem(id: "i3", name: "Long paper", note: longNote, photoFileName: nil)
+
+        let context = GarageChatContext.compact(from: library)
+        XCTAssertEqual(context?.facts, [GarageChatContext.Fact(label: "FAKE-LABEL", value: "FAKE-VALUE")])
+        XCTAssertEqual(
+            context?.notes.first,
+            GarageChatContext.Note(name: "Wiring harness", note: "already replaced")
+        )
+        XCTAssertEqual(context?.notes.last?.name, "Long paper")
+        XCTAssertEqual(context?.notes.last?.note.count, GarageChatContext.maxFieldCharacters)
+        XCTAssertTrue(context?.notes.last?.note.hasSuffix("…") == true)
+        XCTAssertEqual(context?.openTodos, [GarageChatContext.Todo(title: "Check the spare")])
+    }
+
+    func testEmptyGarageHasNoChatContext() {
+        let library = GarageLibrary(facts: [], photos: [], items: [], todos: [])
+        XCTAssertNil(GarageChatContext.compact(from: library))
+    }
 }
 
 private final class IDSource: @unchecked Sendable {

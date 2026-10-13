@@ -7,7 +7,17 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app import create_app
-from chat_models import Conversation, Message
+from chat_models import (
+    MAX_GARAGE_FIELD_CHARS,
+    MAX_GARAGE_PROMPT_CHARS,
+    Conversation,
+    GarageContext,
+    GarageFactContext,
+    GarageNoteContext,
+    GarageTodoContext,
+    Message,
+    garage_prompt_block,
+)
 from contract import load_answer_fixture, validate_answer
 from llm import DEFAULT_FAKE_TEXT, FakeLLMClient, LLMError
 from producer import (
@@ -22,6 +32,17 @@ HAPPY_BODY = {
     "messages": [
         {"role": "user", "text": "Why is it hard to start?"},
     ]
+}
+
+GARAGE_BODY = {
+    "messages": [
+        {"role": "user", "text": "Should I replace the wiring harness?"},
+    ],
+    "garage": {
+        "facts": [{"label": "Harness", "value": "already replaced"}],
+        "notes": [{"name": "Wiring harness", "note": "already replaced"}],
+        "open_todos": [{"title": "Check the spare"}],
+    },
 }
 
 
@@ -204,6 +225,120 @@ def test_chat_refuses_uncited_spec_before_safety_note() -> None:
     assert payload["kind"] == "refusal"
     assert payload["text"] == "Not found in the cited manual text: 999 Nm."
     assert SAFETY_NOTE not in payload["text"]
+
+
+def test_chat_accepts_optional_garage_context() -> None:
+    captured: list[Conversation] = []
+
+    class CaptureProducer:
+        def produce(self, conversation: Conversation) -> dict[str, Any]:
+            captured.append(conversation)
+            return load_answer_fixture("plain.json")
+
+    response = _client(CaptureProducer()).post("/chat", json=GARAGE_BODY)
+
+    assert response.status_code == 200
+    validate_answer(response.json())
+    assert captured[0].garage == GarageContext(
+        facts=[GarageFactContext(label="Harness", value="already replaced")],
+        notes=[GarageNoteContext(name="Wiring harness", note="already replaced")],
+        open_todos=[GarageTodoContext(title="Check the spare")],
+    )
+
+
+def test_chat_without_garage_context_still_works() -> None:
+    captured: list[Conversation] = []
+
+    class CaptureProducer:
+        def produce(self, conversation: Conversation) -> dict[str, Any]:
+            captured.append(conversation)
+            return load_answer_fixture("plain.json")
+
+    response = _client(CaptureProducer()).post("/chat", json=HAPPY_BODY)
+
+    assert response.status_code == 200
+    assert captured[0].garage is None
+    assert response.json() == load_answer_fixture("plain.json")
+
+
+def test_chat_empty_garage_object_is_accepted() -> None:
+    captured: list[Conversation] = []
+
+    class CaptureProducer:
+        def produce(self, conversation: Conversation) -> dict[str, Any]:
+            captured.append(conversation)
+            return load_answer_fixture("plain.json")
+
+    response = _client(CaptureProducer()).post(
+        "/chat",
+        json={
+            "messages": [{"role": "user", "text": "Why is it hard to start?"}],
+            "garage": {},
+        },
+    )
+
+    assert response.status_code == 200
+    assert captured[0].garage == GarageContext()
+    assert garage_prompt_block(captured[0].garage) == ""
+
+
+def test_chat_rejects_unknown_garage_field() -> None:
+    response = _client().post(
+        "/chat",
+        json={
+            "messages": [{"role": "user", "text": "Why is it hard to start?"}],
+            "garage": {"facts": [], "extra": True},
+        },
+    )
+
+    assert response.status_code == 422
+
+
+def test_producer_includes_garage_notes_in_the_system_prompt() -> None:
+    fake = FakeLLMClient()
+    conversation = Conversation(
+        messages=[Message(role="user", text="Should I replace the wiring harness?")],
+        garage=GarageContext(
+            facts=[GarageFactContext(label="Harness", value="already replaced")],
+            notes=[GarageNoteContext(name="Wiring harness", note="already replaced")],
+            open_todos=[GarageTodoContext(title="Check the spare")],
+        ),
+    )
+
+    payload = LlmAnswerProducer(fake).produce(conversation)
+
+    validate_answer(payload)
+    system = fake.calls[0][0].content
+    assert "already replaced" in system
+    assert "Check the spare" in system
+    assert "not a manual page" in system
+    assert "Do not invent torque" in system
+    assert fake.calls[0][1].content == "Should I replace the wiring harness?"
+
+
+def test_garage_prompt_caps_total_length() -> None:
+    notes = [
+        GarageNoteContext(name=f"Part {index}", note="FAKE-NOTE " * 20)
+        for index in range(16)
+    ]
+    block = garage_prompt_block(GarageContext(notes=notes))
+
+    assert len(block) <= MAX_GARAGE_PROMPT_CHARS
+    assert block.endswith("…")
+
+
+def test_garage_prompt_trims_a_very_long_note() -> None:
+    long_note = "FAKE-NOTE " + ("word " * 80)
+    block = garage_prompt_block(
+        GarageContext(notes=[GarageNoteContext(name="Wiring harness", note=long_note)])
+    )
+
+    assert "Wiring harness:" in block
+    note_line = next(line for line in block.splitlines() if line.startswith("- Wiring"))
+    detail = note_line.split(": ", 1)[1]
+    assert len(detail) <= MAX_GARAGE_FIELD_CHARS
+    assert detail.endswith("…")
+    assert len(block) <= MAX_GARAGE_PROMPT_CHARS
 
 
 def test_chat_does_not_scan_the_safety_note(monkeypatch: pytest.MonkeyPatch) -> None:

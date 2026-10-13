@@ -96,6 +96,41 @@ final class ChatClientTests: XCTestCase {
             [["role": "user", "text": "hello"]]
         )
         XCTAssertNil(object["demo"])
+        XCTAssertNil(object["garage"])
+    }
+
+    func testLivePostsGarageContextWhenProvided() async throws {
+        let http = FakeHTTP(result: .success((
+            Data(#"""
+            {"kind":"answer","text":"Fixture-only live reply.","citations":[]}
+            """#.utf8),
+            httpResponse(200)
+        )))
+        let client = LiveChatClient(
+            configuration: ChatClientConfiguration(baseURL: URL(string: "http://example.test:9")!),
+            http: http
+        )
+        let garage = GarageChatContext(
+            facts: [GarageChatContext.Fact(label: "Harness", value: "already replaced")],
+            notes: [GarageChatContext.Note(name: "Wiring harness", note: "already replaced")],
+            openTodos: [GarageChatContext.Todo(title: "Check the spare")]
+        )
+        _ = try await client.send(try conversation("Should I replace the wiring harness?"), garage: garage)
+        let body = try JSONSerialization.jsonObject(with: XCTUnwrap(http.requests[0].httpBody))
+        let object = try XCTUnwrap(body as? [String: Any])
+        let payload = try XCTUnwrap(object["garage"] as? [String: Any])
+        XCTAssertEqual(
+            (payload["facts"] as? [[String: String]]),
+            [["label": "Harness", "value": "already replaced"]]
+        )
+        XCTAssertEqual(
+            (payload["notes"] as? [[String: String]]),
+            [["name": "Wiring harness", "note": "already replaced"]]
+        )
+        XCTAssertEqual(
+            (payload["open_todos"] as? [[String: String]]),
+            [["title": "Check the spare"]]
+        )
     }
 
     func testLivePostsDemoPhotoIDWhenProvided() async throws {

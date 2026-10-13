@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
-from chat_models import Conversation
+from chat_models import Conversation, garage_prompt_block
 from contract import load_answer_fixture, validate_answer
 from demo import DEMO_SYSTEM_PROMPT, resolve_demo_answer
 from llm import (
@@ -238,8 +238,9 @@ class LlmAnswerProducer:
         )
 
     def _ungrounded(self, conversation: Conversation) -> dict[str, Any]:
-        system = (
-            DEMO_SYSTEM_PROMPT if conversation.demo is not None else SYSTEM_PROMPT
+        system = _with_garage(
+            DEMO_SYSTEM_PROMPT if conversation.demo is not None else SYSTEM_PROMPT,
+            conversation,
         )
         text = self._complete(_chat_messages(conversation, system))
         if text is None:
@@ -341,6 +342,13 @@ def _chat_messages(conversation: Conversation, system: str) -> list[ChatTurn]:
     return messages
 
 
+def _with_garage(system: str, conversation: Conversation) -> str:
+    block = garage_prompt_block(conversation.garage)
+    if not block:
+        return system
+    return f"{system}\n\n{block}"
+
+
 def _search_hits(retriever: Retriever, query: str) -> tuple[RetrievedChunk, ...]:
     if _is_engine_wiring(query):
         if isinstance(retriever, _IndexRetriever):
@@ -414,10 +422,14 @@ def _grounded_system_prompt(
         if conversation is not None and conversation.demo is not None
         else _GROUNDED_PREAMBLE
     )
-    return (
-        f"{preamble}\n\n{_GROUNDED_INSTRUCTIONS}\n\n"
-        f"{RETRIEVED_PAGES_HEADER}{rendered}"
-    )
+    parts = [preamble]
+    if conversation is not None:
+        block = garage_prompt_block(conversation.garage)
+        if block:
+            parts.append(block)
+    parts.append(_GROUNDED_INSTRUCTIONS)
+    parts.append(f"{RETRIEVED_PAGES_HEADER}{rendered}")
+    return "\n\n".join(parts)
 
 
 def _parse_grounded_completion(raw: str) -> _GroundedCompletion | None:

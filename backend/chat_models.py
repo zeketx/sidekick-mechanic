@@ -62,11 +62,57 @@ class DemoRequest(BaseModel):
     photo_id: str = Field(min_length=1)
 
 
+# Keep the garage prompt short. Long notes are cut. Extras are dropped.
+MAX_GARAGE_FACTS = 24
+MAX_GARAGE_NOTES = 16
+MAX_GARAGE_TODOS = 16
+MAX_GARAGE_FIELD_CHARS = 180
+MAX_GARAGE_PROMPT_CHARS = 1800
+
+GARAGE_PROMPT_HEADER = "Owner garage notes (saved on the phone; not a manual page):"
+GARAGE_PROMPT_FOOTER = (
+    "You may mention these notes when they help (for example, that a harness "
+    "is already replaced). They are not evidence for torque values, pinouts, "
+    "wire colors, or other specs. Do not cite them as a manual page."
+)
+
+
+class GarageFactContext(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    label: str = Field(min_length=1)
+    value: str = Field(min_length=1)
+
+
+class GarageNoteContext(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1)
+    note: str = ""
+
+
+class GarageTodoContext(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    title: str = Field(min_length=1)
+
+
+class GarageContext(BaseModel):
+    """Compact garage summary from the phone. Omit when there is nothing to send."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    facts: list[GarageFactContext] = Field(default_factory=list)
+    notes: list[GarageNoteContext] = Field(default_factory=list)
+    open_todos: list[GarageTodoContext] = Field(default_factory=list)
+
+
 class Conversation(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     messages: list[Message] = Field(min_length=1)
     demo: DemoRequest | None = None
+    garage: GarageContext | None = None
 
     @model_validator(mode="after")
     def _photo_last_and_page_without_demo(self) -> Conversation:
@@ -85,3 +131,55 @@ class Conversation(BaseModel):
         """The page the newest user turn is about. None takes the general path."""
         last = self.last_user_message
         return last.page if last is not None else None
+
+
+def _trim_field(text: str, limit: int = MAX_GARAGE_FIELD_CHARS) -> str:
+    cleaned = " ".join(text.split())
+    if len(cleaned) <= limit:
+        return cleaned
+    if limit <= 1:
+        return cleaned[:limit]
+    return cleaned[: limit - 1].rstrip() + "…"
+
+
+def garage_prompt_block(garage: GarageContext | None) -> str:
+    """Plain-language garage notes for the system prompt, or empty if none."""
+
+    if garage is None:
+        return ""
+
+    lines: list[str] = []
+    facts = [
+        fact
+        for fact in garage.facts[:MAX_GARAGE_FACTS]
+        if fact.label.strip() and fact.value.strip()
+    ]
+    if facts:
+        lines.append("Facts:")
+        for fact in facts:
+            lines.append(f"- {_trim_field(fact.label)}: {_trim_field(fact.value)}")
+
+    notes = [note for note in garage.notes[:MAX_GARAGE_NOTES] if note.name.strip()]
+    if notes:
+        lines.append("Notes:")
+        for note in notes:
+            name = _trim_field(note.name)
+            detail = _trim_field(note.note)
+            lines.append(f"- {name}: {detail}" if detail else f"- {name}")
+
+    todos = [
+        todo for todo in garage.open_todos[:MAX_GARAGE_TODOS] if todo.title.strip()
+    ]
+    if todos:
+        lines.append("Open to-dos:")
+        for todo in todos:
+            lines.append(f"- {_trim_field(todo.title)}")
+
+    if not lines:
+        return ""
+
+    rendered = "\n".join([GARAGE_PROMPT_HEADER, *lines, "", GARAGE_PROMPT_FOOTER])
+    if len(rendered) <= MAX_GARAGE_PROMPT_CHARS:
+        return rendered
+    cutoff = MAX_GARAGE_PROMPT_CHARS - 1
+    return rendered[:cutoff].rstrip() + "…"

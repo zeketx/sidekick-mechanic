@@ -55,6 +55,22 @@ final class PageContextTests: XCTestCase {
         XCTAssertEqual(model.target, .job(try jobID("convo-1")))
         XCTAssertEqual(model.messages.count, 4)
         XCTAssertEqual(try userText(model.messages[2]), "What tools do I need?\nFAKE-DOC · p. 999")
+        XCTAssertEqual(client.sentGarages, [nil])
+    }
+
+    func testPageAskStillSendsGarageNotes() async throws {
+        let client = ScriptedChatClient(results: [.success(plainAnswer())])
+        let garage = GarageChatContext(
+            notes: [GarageChatContext.Note(name: "Wiring harness", note: "already replaced")]
+        )
+        let model = makeModel(client: client, garageContext: { garage })
+        model.askAbout(try fakePage())
+
+        await model.send(.tools)
+
+        XCTAssertEqual(client.sentGarages, [garage])
+        XCTAssertEqual(client.sentDemoPhotoIDs, [nil])
+        XCTAssertEqual(client.sent.count, 1)
     }
 
     func testAFollowUpWhilePinnedCarriesThePageOnEveryUserTurn() async throws {
@@ -226,14 +242,16 @@ final class PageContextTests: XCTestCase {
         client: any ChatClient = ScriptedChatClient(results: []),
         messages: [Message] = [],
         isDemoMode: Bool = false,
-        selectedDemoPhotoID: String? = nil
+        selectedDemoPhotoID: String? = nil,
+        garageContext: @escaping @Sendable () -> GarageChatContext? = { nil }
     ) -> ChatViewModel {
         let ids = SequentialMessageIDs(values: ["msg-1", "msg-2", "msg-3", "msg-4"])
         let seeded = [seededJob(messages: messages)]
         let jobs = JobsModel(
             source: .memory(seeded),
             client: client,
-            makeID: { ids.next().rawValue }
+            makeID: { ids.next().rawValue },
+            garageContext: garageContext
         )
         return ChatViewModel(
             jobs: jobs,
@@ -329,17 +347,23 @@ private final class ScriptedChatClient: ChatClient, @unchecked Sendable {
     private var results: [Result<Answer, Error>]
     private(set) var sent: [Conversation] = []
     private(set) var sentDemoPhotoIDs: [String?] = []
+    private(set) var sentGarages: [GarageChatContext?] = []
 
     init(results: [Result<Answer, Error>]) {
         self.results = results
     }
 
-    func send(_ conversation: Conversation, demoPhotoID: String?) async throws -> Answer {
+    func send(
+        _ conversation: Conversation,
+        demoPhotoID: String?,
+        garage: GarageChatContext?
+    ) async throws -> Answer {
         let result: Result<Answer, Error> = {
             lock.lock()
             defer { lock.unlock() }
             sent.append(conversation)
             sentDemoPhotoIDs.append(demoPhotoID)
+            sentGarages.append(garage)
             return results.removeFirst()
         }()
         return try result.get()
