@@ -73,22 +73,7 @@ _RELATED_WEAK_TERMS = frozenset(
         "looks",
         "looked",
         "looking",
-        "above",
-        "across",
-        "along",
-        "around",
-        "behind",
-        "below",
-        "between",
-        "during",
-        "inside",
-        "near",
         "onto",
-        "outside",
-        "through",
-        "under",
-        "while",
-        "within",
     }
 )
 
