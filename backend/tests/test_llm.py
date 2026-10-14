@@ -368,6 +368,47 @@ def test_rate_limit_logs_the_status_without_the_key(
     assert "fake-test-key" not in caplog.text
 
 
+def test_provider_error_text_is_logged_without_the_key(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    secret = "test-key-not-real"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            429,
+            json={"error": {"message": f"slow down Bearer {secret}"}},
+        )
+
+    client = _openai_client(handler, settings=_settings(max_retries=0))
+    caplog.set_level(logging.WARNING, logger="sidekick.llm")
+    payload = LlmAnswerProducer(client).produce(
+        _conversation("The radiator is leaking.")
+    )
+
+    assert payload == UNAVAILABLE_ANSWER
+    assert "kind=rate_limit" in caplog.text
+    assert "status=429" in caplog.text
+    assert "slow down" in caplog.text
+    assert secret not in caplog.text
+    assert "Bearer" not in caplog.text
+
+
+def test_http_200_provider_error_is_retried() -> None:
+    bodies: list[dict[str, Any]] = [
+        {"error": {"message": "upstream overloaded", "code": 503}},
+        _openai_body("recovered"),
+    ]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=bodies.pop(0))
+
+    result = _openai_client(handler, settings=_settings(max_retries=1)).complete(
+        [ChatTurn(role="user", content="The truck shakes on the highway.")]
+    )
+
+    assert result.text == "recovered"
+
+
 def test_empty_completion_logs_parse_rejection(
     caplog: pytest.LogCaptureFixture,
 ) -> None:

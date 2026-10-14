@@ -13,7 +13,14 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-from llm import GO_DEEPER_HEADER, ChatTurn, LLMClient, LLMError, build_llm_client
+from llm import (
+    GO_DEEPER_HEADER,
+    ChatTurn,
+    LLMClient,
+    LLMError,
+    build_llm_client,
+    log_llm_failure,
+)
 from spec_guard import guard_answer
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -221,7 +228,8 @@ def _llm_sections(
                 ChatTurn(role="user", content=prompt),
             ]
         )
-    except LLMError:
+    except LLMError as exc:
+        log_llm_failure(exc)
         return None
     parsed = _parse_sections(result.text)
     if parsed is None:
