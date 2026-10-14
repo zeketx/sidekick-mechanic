@@ -1,9 +1,3 @@
-"""Admit golden rows whose citations ingested page text supports.
-
-The harness reads golden.jsonl. This module is the only writer.
-It does not search for a better page and it does not copy spec values out.
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -20,8 +14,6 @@ from types import MappingProxyType
 from eval.golden import GoldenQuestion, GoldenSetError, load_golden
 from manifest import ManifestError, load_manifest
 
-# Published bay-map slugs for this set. part_is_correct stays unset.
-# Adding an id here would pretend a bay map exists.
 PROVISIONAL_PART_IDS: frozenset[str] = frozenset(
     {
         "alternator",
@@ -40,10 +32,9 @@ PROVISIONAL_PART_IDS: frozenset[str] = frozenset(
     }
 )
 
-# Room under the authoring target of 50 so a later text drop can
-# refuse a write instead of inventing pages to refill the count.
-TOTAL_MIN = 45
-TOTAL_MAX = 55
+_QUESTION_TARGET = 50
+TOTAL_MIN = _QUESTION_TARGET - 5
+TOTAL_MAX = _QUESTION_TARGET + 5
 ANSWERABLE_MIN = 10
 UNANSWERABLE_SPEC_MIN = 10
 PART_ID_MIN = 10
@@ -60,7 +51,6 @@ _PIN_NUMBER_RE = re.compile(r"\b(?:pin|terminal)\s+\d+\b", re.IGNORECASE)
 _LONG_DIGIT_RE = re.compile(r"(?<![A-Za-z0-9])\d{5,}(?![A-Za-z0-9])")
 _PART_NUMBER_RE = re.compile(r"(?<![A-Za-z0-9])\d+-\d+(?![A-Za-z0-9])")
 
-# Bare "L" is intentionally absent. A single letter is not a unit.
 _UNIT_WORDS = (
     "N\u00b7m",
     "Nm",
@@ -85,8 +75,12 @@ _UNIT_WORDS = (
     "quart",
 )
 _NUMBER_UNIT_RE = re.compile(
-    r"(?<![A-Za-z0-9])(?:\d{1,3}(?:,\d{3})+|\d+)"
-    r"(?:\s*(?:" + "|".join(re.escape(unit) for unit in _UNIT_WORDS) + r")|\s+C)\b",
+    r"(?<![A-Za-z0-9])(?:\d{1,3}(?:,\d{3})+|\d+)\s*"
+    r"(?:" + "|".join(re.escape(unit) for unit in _UNIT_WORDS) + r")\b",
+    re.IGNORECASE,
+)
+_CELSIUS_RE = re.compile(
+    r"(?<![A-Za-z0-9])(?:\d{1,3}(?:,\d{3})+|\d+)\s+C\b",
     re.IGNORECASE,
 )
 
@@ -271,8 +265,6 @@ class LoadedCorpus:
 
 @dataclass(frozen=True)
 class RowRejection:
-    """One row, one reason. No page text, so a spec cannot ride along."""
-
     question_id: str
     reason: RejectReason
 
@@ -313,11 +305,10 @@ class GateError(Exception):
 
 
 class CorpusMissing(GateError):
-    """chunks.jsonl is absent. The text check did not run."""
+    pass
 
 
 def load_inventory(manifest_path: Path) -> Inventory:
-    """Ingest rows only. A non-integer page count on an ingest row is a GateError."""
     try:
         documents = load_manifest(manifest_path)
     except ManifestError as exc:
@@ -342,7 +333,6 @@ def load_inventory(manifest_path: Path) -> Inventory:
 
 
 def load_corpus(chunks_path: Path, inventory: Inventory) -> LoadedCorpus:
-    """Page text for ingest docs. A missing file means the text check did not run."""
     if not chunks_path.is_file():
         raise CorpusMissing(f"{chunks_path} is not on disk. Page text was not checked.")
     pages: dict[tuple[str, int], str] = {}
@@ -365,7 +355,6 @@ def load_corpus(chunks_path: Path, inventory: Inventory) -> LoadedCorpus:
 def screen_questions(
     questions: Sequence[GoldenQuestion], inventory: Inventory
 ) -> ScreenResult:
-    """Structural admission. Does not read page text."""
     kept: list[GoldenQuestion] = []
     rejected: list[RowRejection] = []
     for question in questions:
@@ -385,7 +374,6 @@ def screen_questions(
 def gate_golden(
     questions: Sequence[GoldenQuestion], corpus: LoadedCorpus
 ) -> GateResult:
-    """Structural screen, then text checks. A failing page drops the whole row."""
     screen = screen_questions(questions, corpus.inventory)
     kept: list[GoldenQuestion] = []
     rejected = list(screen.rejected)
@@ -408,7 +396,6 @@ def commit_golden(
     questions: Sequence[GoldenQuestion],
     corpus: LoadedCorpus,
 ) -> GateResult:
-    """Replace the file only when every row is admitted and the quotas hold."""
     result = gate_golden(questions, corpus)
     if result.rejected or not result.quotas.ok:
         raise GateError("golden gate refused the write", result)
@@ -420,7 +407,6 @@ def commit_golden(
 
 
 def render_golden(questions: Sequence[GoldenQuestion]) -> str:
-    """Canonical JSONL. Omits part_id when absent and omits ci when false."""
     if not questions:
         return ""
     lines: list[str] = []
@@ -442,7 +428,6 @@ def render_golden(questions: Sequence[GoldenQuestion]) -> str:
 
 
 def format_report(result: GateResult) -> str:
-    """Reject lines and totals. Never includes page text."""
     lines = [f"{row.question_id} {row.reason.value}" for row in result.rejected]
     quotas = result.quotas
     lines.append(
@@ -453,7 +438,6 @@ def format_report(result: GateResult) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    """CLI shell. Missing chunks exit 2 and write nothing."""
     parser = argparse.ArgumentParser(
         description="Admit golden rows whose cited page text supports them."
     )
@@ -553,7 +537,6 @@ def _first_text_reason(
 
 
 def _asks_for_spec(question: str) -> bool:
-    """Whether the question asks for a measurement. Bare timing does not count."""
     tokens = _words(question)
     if any(token in _SPEC_WORDS for token in tokens):
         return True
@@ -564,7 +547,6 @@ def _asks_for_spec(question: str) -> bool:
 
 
 def _spec_stored_in_question(question: str) -> bool:
-    """Whether the question text itself holds a value the manuals should keep."""
     if _has_spec_shape(question):
         return True
     if _PIN_NUMBER_RE.search(question) is not None:
@@ -621,7 +603,6 @@ def _subject_tokens(question: str) -> frozenset[str]:
 
 
 def _topic_supported(question: str, page_texts: Sequence[str]) -> bool:
-    """At least two subject words in the union, and one on every cited page."""
     subjects = _subject_tokens(question)
     if len(subjects) < 2:
         return False
@@ -635,10 +616,10 @@ def _topic_supported(question: str, page_texts: Sequence[str]) -> bool:
 
 
 def _has_spec_shape(text: str) -> bool:
-    """Whether page text has a number with a unit, or the stand-in FAKE-SPEC."""
     return (
         _FAKE_SPEC_RE.search(text) is not None
         or _NUMBER_UNIT_RE.search(text) is not None
+        or _CELSIUS_RE.search(text) is not None
     )
 
 

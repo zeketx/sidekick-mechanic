@@ -1,5 +1,3 @@
-"""Behavior tests for the golden gate. Fake chunks only."""
-
 from __future__ import annotations
 
 import json
@@ -356,14 +354,11 @@ def test_cli_missing_chunks_exits_2(tmp_path: Path) -> None:
 
 
 def test_cli_dry_run_does_not_write(tmp_path: Path) -> None:
-    # Manifest document ids are lowercase, so this fixture cannot use FAKE-DOC.
-    manifest = tmp_path / "MANUALS.md"
     chunks = tmp_path / "chunks.jsonl"
     golden = tmp_path / "golden.jsonl"
-    _write_manifest(manifest)
-    _write_chunks(chunks, doc_id="fake-doc")
+    _write_chunks(chunks, doc_id="2jz-ge-rm")
     golden.write_text(
-        render_golden(_quota_set(doc_id="fake-doc")),
+        render_golden(_quota_set(doc_id="2jz-ge-rm")),
         encoding="utf-8",
         newline="\n",
     )
@@ -373,7 +368,7 @@ def test_cli_dry_run_does_not_write(tmp_path: Path) -> None:
     code = main(
         [
             "--manifest",
-            str(manifest),
+            str(_MANIFEST),
             "--chunks",
             str(chunks),
             "--golden",
@@ -465,15 +460,6 @@ def _quota_set(doc_id: str = "FAKE-DOC") -> tuple[GoldenQuestion, ...]:
             )
         )
     return tuple(questions)
-
-
-def _write_manifest(path: Path) -> None:
-    path.write_text(
-        "| ID | Title | Edition | Page count | SHA-256 | Status |\n"
-        "| --- | --- | --- | --- | --- | --- |\n"
-        "| fake-doc | Fake manual | FAKE | 999 | TBD | ingest |\n",
-        encoding="utf-8",
-    )
 
 
 def _write_chunks(path: Path, *, doc_id: str) -> None:
