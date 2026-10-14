@@ -78,6 +78,7 @@ def test_chat_missing_index_returns_general_advice(
     assert payload["kind"] == "general_advice"
     assert payload["honesty"] == ADVICE_HONESTY
     assert payload["steps"][0].startswith("FAKE-STEP")
+    assert "Land Cruiser" not in payload["steps"][0]
     assert "text" not in payload
     assert DEFAULT_FAKE_TEXT not in payload["steps"][0]
 

@@ -275,6 +275,28 @@ def test_missing_chunks_file_fails_build(tmp_path: Path) -> None:
     assert not index_path.exists()
 
 
+def test_automatic_stays_a_content_term_for_search(tmp_path: Path) -> None:
+    index_path = tmp_path / "index.sqlite"
+    build_index(
+        (
+            Chunk(
+                doc_id="FAKE-DOC",
+                page=999,
+                text=(
+                    "FAKE-HEADING: AUTOMATIC TRANSMISSION "
+                    "FAKE-AT-OIL-COOLER union nuts."
+                ),
+            ),
+        ),
+        index_path,
+    )
+
+    with Fts5Index.open(index_path) as index:
+        hits = index.search("automatic")
+
+    assert [(hit.doc_id, hit.page) for hit in hits] == [("FAKE-DOC", 999)]
+
+
 def test_bm25_label_weight_beats_a_text_only_match() -> None:
     connection = sqlite3.connect(":memory:")
     connection.row_factory = sqlite3.Row

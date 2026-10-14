@@ -42,8 +42,9 @@ RESULTS_DIR = BACKEND / "eval" / "results"
 
 CHAT_BODY = {"messages": [{"role": "user", "text": "Why is it hard to start?"}]}
 INVALID_BODY = {"messages": []}
-# No index on this server. The product asks for general advice instead of
-# inventing a cited procedure. The step is the fake client's stand-in.
+# No index on this server, and this request sends no garage. The product asks
+# for general advice instead of inventing a cited procedure. The step is the
+# fake client's stand-in. It does not name a truck.
 FAKE_ANSWER = {
     "kind": "general_advice",
     "honesty": ADVICE_HONESTY,
