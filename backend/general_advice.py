@@ -76,6 +76,27 @@ _RELATED_WEAK_TERMS = frozenset(
         "onto",
     }
 )
+# How fast or where. Omitting one of these is still the same fault.
+# Requiring one of them hides that fault and keeps a different part.
+_CONDITION_TERMS = frozenset(
+    {
+        "freeway",
+        "highway",
+        "high",
+        "idle",
+        "low",
+        "speed",
+        "speeds",
+    }
+)
+RELEVANCE_HEADER = "Related page check:\n"
+_RELEVANCE_INSTRUCTIONS = (
+    "You decide whether each manual snippet is about the same problem as the question. "
+    "A snippet is related when it describes that problem, even if it leaves out how fast or where. "
+    "A snippet is not related when it is a different part or a different job that only shares a word. "
+    "If you are unsure, it is not related. "
+    'Reply with one JSON object {"related": [boolean, ...]} in snippet order and no other text.'
+)
 
 
 class _Page(Protocol):
@@ -106,7 +127,7 @@ def advise_on_miss(
         "safety": SAFETY_NOTE,
         "steps": steps,
         "garage": garage_basis(conversation),
-        "related": related_citations(question, hits),
+        "related": related_citations(question, hits, client),
     }
     validate_answer(payload)
     return payload
@@ -175,11 +196,14 @@ def garage_basis(conversation: Conversation) -> dict[str, Any]:
     return basis
 
 
-def related_citations(question: str, hits: Sequence[_Page]) -> list[dict[str, Any]]:
-    focus = _focus_terms(question)
-    if not focus:
+def related_citations(
+    question: str,
+    hits: Sequence[_Page],
+    client: LLMClient,
+) -> list[dict[str, Any]]:
+    if not _focus_terms(question):
         return []
-    kept: list[dict[str, Any]] = []
+    eligible: list[dict[str, Any]] = []
     seen: set[tuple[str, int]] = set()
     for hit in hits:
         doc_id = hit.doc_id
@@ -194,13 +218,67 @@ def related_citations(question: str, hits: Sequence[_Page]) -> list[dict[str, An
         snippet = cap_snippet(hit.text)
         if not snippet.strip() or not snippet_matches_page(snippet, hit.text):
             continue
-        # The chip shows this prefix. A focus term later in the page still
-        # leaves an off-topic heading on the card.
-        if not all(term_in_text(term, snippet) for term in focus):
-            continue
+        # The chip shows this prefix. A later sentence is not what the card shows.
         seen.add(key)
-        kept.append({"doc_id": doc_id, "page": page, "snippet": snippet})
-    return kept
+        eligible.append({"doc_id": doc_id, "page": page, "snippet": snippet})
+    if not eligible:
+        return []
+    flags = _related_flags(client, question, [item["snippet"] for item in eligible])
+    return [item for item, keep in zip(eligible, flags, strict=True) if keep]
+
+
+def in_process_related(question: str, snippets: Sequence[str]) -> list[bool]:
+    # Keyless stand-in for the relevance completion. Fault words must match.
+    # How fast or where can be missing. No fault word means not related.
+    claims = tuple(
+        term
+        for term in _focus_terms(question)
+        if term.casefold() not in _CONDITION_TERMS
+    )
+    if not claims:
+        return [False] * len(snippets)
+    return [all(term_in_text(term, snippet) for term in claims) for snippet in snippets]
+
+
+def _related_flags(
+    client: LLMClient,
+    question: str,
+    snippets: Sequence[str],
+) -> list[bool]:
+    try:
+        result = client.complete(_relevance_turns(question, snippets))
+    except LLMError:
+        return [False] * len(snippets)
+    return _parse_related_flags(result.text, len(snippets))
+
+
+def _relevance_turns(question: str, snippets: Sequence[str]) -> list[ChatTurn]:
+    payload = json.dumps(
+        {"question": question, "snippets": list(snippets)},
+        ensure_ascii=False,
+    )
+    return [
+        ChatTurn(role="system", content=_RELEVANCE_INSTRUCTIONS),
+        ChatTurn(role="user", content=RELEVANCE_HEADER + payload),
+    ]
+
+
+def _parse_related_flags(raw: str, count: int) -> list[bool]:
+    none = [False] * count
+    try:
+        payload = json.loads(_unwrap_markdown_fence(raw.strip()))
+    except json.JSONDecodeError:
+        return none
+    if not isinstance(payload, dict):
+        return none
+    flags = payload.get("related")
+    if (
+        not isinstance(flags, list)
+        or len(flags) != count
+        or not all(isinstance(flag, bool) for flag in flags)
+    ):
+        return none
+    return list(flags)
 
 
 def truck_prompt_line(conversation: Conversation) -> str:

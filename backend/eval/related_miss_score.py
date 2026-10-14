@@ -34,6 +34,7 @@ _KNOCK = "FAKE-HEADING: the engine knocks when you accelerate under load."
 _SPEED_ONLY = "FAKE-HEADING: vehicle speed sensor."
 _BRAKE_FLUID = "FAKE-HEADING: brake fluid level on the fixture."
 _SQUEAL = "FAKE-HEADING: the brakes squeal at low speed on the fixture."
+_SQUEAL_SHORT = "FAKE-HEADING: the brakes squeal."
 _ALIGN = "FAKE-HEADING: steering wheel alignment specification."
 _VIBRATE = "FAKE-HEADING: the steering wheel vibrates on the freeway."
 
@@ -175,6 +176,22 @@ def cases() -> tuple[MissCase, ...]:
             "alignment_alone_is_not_vibration",
             "The steering wheel vibrates on the freeway",
             (_page("FAKE-DOC-ALIGN", _ALIGN, on_topic=False),),
+            shared_word_miss=True,
+        ),
+        MissCase(
+            "short_squeal_page_is_the_symptom",
+            "My brakes squeal at low speed",
+            (_page("FAKE-DOC-SQUEAL-SHORT", _SQUEAL_SHORT, on_topic=True),),
+            shared_word_miss=True,
+        ),
+        MissCase(
+            "squeal_drops_speed_sensor_and_alignment",
+            "My brakes squeal at low speed",
+            (
+                _page("FAKE-DOC-SPEED", _SPEED_ONLY, on_topic=False),
+                _page("FAKE-DOC-ALIGN", _ALIGN, on_topic=False),
+                _page("FAKE-DOC-SQUEAL-SHORT", _SQUEAL_SHORT, on_topic=True),
+            ),
             shared_word_miss=True,
         ),
     )
