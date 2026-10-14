@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
 from typing import Any
 
 import pytest
@@ -165,6 +166,19 @@ def test_page_provider_failure_is_the_unavailable_answer() -> None:
     response = client.post("/chat", json=_page_turn())
 
     assert response.json() == UNAVAILABLE_ANSWER
+
+
+def test_page_provider_failure_logs_the_error(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.WARNING, logger="sidekick.llm")
+    client = _client(page_client=FakeLLMClient(error=LLMError("provider down")))
+
+    response = client.post("/chat", json=_page_turn())
+
+    assert response.json() == UNAVAILABLE_ANSWER
+    assert "kind=" in caplog.text
+    assert "provider down" in caplog.text
 
 
 def test_plug_photo_turn_answers_with_the_verdict_sentence() -> None:

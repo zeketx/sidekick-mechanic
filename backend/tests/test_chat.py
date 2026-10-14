@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Any
 
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 
@@ -20,7 +22,13 @@ from chat_models import (
 )
 from contract import load_answer_fixture, validate_answer
 from general_advice import ADVICE_HONESTY
-from llm import DEFAULT_FAKE_TEXT, FakeLLMClient, LLMError
+from llm import (
+    DEFAULT_FAKE_TEXT,
+    FakeLLMClient,
+    LLMError,
+    LLMSettings,
+    OpenAICompatibleClient,
+)
 from producer import (
     UNAVAILABLE_ANSWER,
     AnswerProducer,
@@ -91,6 +99,39 @@ def test_chat_llm_error_returns_contract_valid_error_answer() -> None:
     payload = response.json()
     validate_answer(payload)
     assert payload == UNAVAILABLE_ANSWER
+
+
+def test_chat_timeout_logs_the_provider_kind_and_hides_the_key(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ReadTimeout("Bearer sk-SUPERSECRETKEY12")
+
+    http = httpx.Client(transport=httpx.MockTransport(handler))
+    llm = OpenAICompatibleClient(
+        LLMSettings(
+            api_key="fake-test-key",
+            base_url="https://example.test/v1",
+            model="fake-gpt-test",
+            timeout_seconds=1.0,
+            max_retries=0,
+        ),
+        http_client=http,
+        sleep=lambda _: None,
+    )
+    caplog.set_level(logging.WARNING, logger="sidekick.llm")
+
+    response = _client(LlmAnswerProducer(llm)).post(
+        "/chat",
+        json={"messages": [{"role": "user", "text": "The radiator is leaking."}]},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == UNAVAILABLE_ANSWER
+    assert "kind=timeout" in caplog.text
+    assert "SUPERSECRETKEY" not in caplog.text
+    assert "fake-test-key" not in caplog.text
+    assert "Bearer" not in caplog.text
 
 
 def test_chat_uses_injected_producer() -> None:
