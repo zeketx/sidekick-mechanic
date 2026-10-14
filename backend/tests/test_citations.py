@@ -24,6 +24,7 @@ from safety import SAFETY_NOTE
 _DOC = "FAKE-DOC-2JZ"
 _PAGE = 999
 _SNIPPET = "FAKE-SNIPPET: no real spec."
+_FAKE_PART_PAGE = "FAKE-PAGE: the fake part."
 _QUESTION = "Where is the fake part?"
 _ANSWER = "The fake page names the fixture part."
 _UNAVAILABLE = {
@@ -231,21 +232,21 @@ def test_empty_citations_array_discards_model_text_and_uses_hits() -> None:
     )
     fake = FakeLLMClient(script=(grounded, steps))
     producer = LlmAnswerProducer(
-        fake, retriever=_Retriever((_Hit(_DOC, _PAGE, _SNIPPET),))
+        fake, retriever=_Retriever((_Hit(_DOC, _PAGE, _FAKE_PART_PAGE),))
     )
 
     payload = producer.produce(_conversation())
 
     assert payload == _advice(
-        related=[{"doc_id": _DOC, "page": _PAGE, "snippet": _SNIPPET}]
+        related=[{"doc_id": _DOC, "page": _PAGE, "snippet": _FAKE_PART_PAGE}]
     )
     assert "nope" not in json.dumps(payload)
     assert "MODEL-PICKED" not in json.dumps(payload)
     advice = fake.calls[1][0].content
     assert ADVICE_STEPS_HEADER in advice
     assert "Retrieved pages:" not in advice
-    assert _SNIPPET not in advice
-    assert _SNIPPET in fake.calls[0][0].content
+    assert _FAKE_PART_PAGE not in advice
+    assert _FAKE_PART_PAGE in fake.calls[0][0].content
 
 
 def test_prose_completion_is_unavailable() -> None:
@@ -388,13 +389,13 @@ def test_blank_text_with_empty_citations_is_general_advice() -> None:
         )
     )
     producer = LlmAnswerProducer(
-        fake, retriever=_Retriever((_Hit(_DOC, _PAGE, _SNIPPET),))
+        fake, retriever=_Retriever((_Hit(_DOC, _PAGE, _FAKE_PART_PAGE),))
     )
 
     payload = producer.produce(_conversation())
 
     assert payload == _advice(
-        related=[{"doc_id": _DOC, "page": _PAGE, "snippet": _SNIPPET}]
+        related=[{"doc_id": _DOC, "page": _PAGE, "snippet": _FAKE_PART_PAGE}]
     )
 
 

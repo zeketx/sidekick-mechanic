@@ -73,6 +73,22 @@ _RELATED_WEAK_TERMS = frozenset(
         "looks",
         "looked",
         "looking",
+        "above",
+        "across",
+        "along",
+        "around",
+        "behind",
+        "below",
+        "between",
+        "during",
+        "inside",
+        "near",
+        "onto",
+        "outside",
+        "through",
+        "under",
+        "while",
+        "within",
     }
 )
 
@@ -195,7 +211,7 @@ def related_citations(question: str, hits: Sequence[_Page]) -> list[dict[str, An
             continue
         # The chip shows this prefix. A focus term later in the page still
         # leaves an off-topic heading on the card.
-        if not any(term_in_text(term, snippet) for term in focus):
+        if not all(term_in_text(term, snippet) for term in focus):
             continue
         seen.add(key)
         kept.append({"doc_id": doc_id, "page": page, "snippet": snippet})

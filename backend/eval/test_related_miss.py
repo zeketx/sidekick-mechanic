@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 
 from chat_models import Conversation, GarageContext, GarageFactContext, Message
+from eval.related_miss_score import cases
 from general_advice import advise_on_miss, truck_prompt_line
 from llm import FakeLLMClient
 
@@ -106,6 +107,18 @@ def test_garage_summary_names_the_vehicle_and_an_empty_garage_does_not() -> None
     assert "do not name a vehicle" in bare.calls[0][0].content
     assert without["steps"] == [_STEP]
     assert without["garage"] == {"source": "none"}
+
+
+def test_scored_cases_keep_on_topic_pages_in_input_order() -> None:
+    for case in cases():
+        hits = tuple(_Hit(page.doc_id, page.page, page.text) for page in case.pages)
+        payload, _fake = _ask(case.question, hits)
+        assert payload["related"] == [
+            {"doc_id": page.doc_id, "page": page.page, "snippet": page.text}
+            for page in case.pages
+            if page.on_topic
+        ]
+        assert payload["steps"] == [_STEP]
 
 
 def test_fan_later_than_the_shown_prefix_is_not_related() -> None:

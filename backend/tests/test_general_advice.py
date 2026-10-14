@@ -22,7 +22,7 @@ from llm import RETRIEVED_PAGES_HEADER, FakeLLMClient
 from safety import SAFETY_NOTE
 
 _STEP = "FAKE-STEP: check the fixture connection before the fixture motor."
-_HIT_SNIPPET = "FAKE-SNIPPET from the fixture motor hit."
+_HIT_SNIPPET = "FAKE-SNIPPET: the fixture motor can stumble."
 
 
 class _Hit:

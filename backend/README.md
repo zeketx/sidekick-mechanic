@@ -13,8 +13,8 @@ of that page. Whitespace may collapse. A rearrangement of the page's tokens is
 not a quote. An empty search, a missing index file, or a JSON object with an
 empty `citations` array asks for general advice (`kind: general_advice`).
 The reply says the manual does not cover the question, then lists one to
-five cheap checks. A related page from that search is kept only when it
-shares a focus term with the question. Related pages are not the pages that
+five cheap checks. A related page from that search is kept only when every
+focus term appears in the opening snippet. Related pages are not the pages that
 answered. A missing index does call the model for those checks.
 Engine-wiring questions (ECM, injectors, ignition coils, VVT, EFI, the 2JZ
 engine harness) search `is300-engine-wiring` and cite that EWD. While
@@ -32,8 +32,8 @@ API key, `FakeLLMClient` answers from the retrieved pages. Each
 citation is `doc_id`, `page`, and a snippet copied from that page, so the
 provenance check can keep it. The answer text is a local stand-in, not a model
 procedure. An empty search calls the client for general advice. A related
-page from that search is kept only when it shares a focus term with the
-question. The model writes the checks, cheapest first, and names a vehicle
+page from that search is kept only when every focus term appears in the
+opening snippet. The model writes the checks, cheapest first, and names a vehicle
 only when the garage summary includes one. The stand-in step starts with
 `FAKE-STEP` and is not a real procedure. Do not
 treat the stand-in, or an empty-citation reply, as a real procedure.
