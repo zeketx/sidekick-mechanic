@@ -69,7 +69,6 @@ backend/eval/bay_map.json
 # Regenerated ingestion output (see backend/ingest.py)
 backend/.ingest/
 
-# Hillclimb decision logs stay local.
 .audit/
 
 # Verification process lock. Proof files under .cursor/skills/verify-*/evidence stay.

@@ -1,13 +1,3 @@
-"""Score related pages on a manual miss.
-
-One command prints the metric. Lower is better. The target is zero.
-
-related_errors counts an off-topic page that was shown, an on-topic page that
-was missing, and an on-topic pair shown in the wrong order. pages_judged is
-the work count. Easy cases already agree with a single shared word. Hard
-cases share words with the question and name a different subject.
-"""
-
 from __future__ import annotations
 
 import json
@@ -61,7 +51,7 @@ class MissCase:
     case_id: str
     question: str
     pages: tuple[LabeledPage, ...]
-    band: str
+    shared_word_miss: bool
 
 
 @dataclass(frozen=True)
@@ -76,14 +66,12 @@ def _page(doc_id: str, text: str, *, on_topic: bool, page: int = 999) -> Labeled
 
 
 def cases() -> tuple[MissCase, ...]:
-    """Frozen workload. Page numbers are fake. Wording is fixture text."""
-
     return (
         MissCase(
             "fan_oil_only",
             "My automatic fan is not turning on at start time",
             (_page("FAKE-DOC", _OIL, on_topic=False),),
-            "easy",
+            shared_word_miss=False,
         ),
         MissCase(
             "fan_keeps_the_fan_page",
@@ -92,7 +80,7 @@ def cases() -> tuple[MissCase, ...]:
                 _page("FAKE-DOC", _OIL, on_topic=False),
                 _page("FAKE-DOC-FAN", _FAN, on_topic=True),
             ),
-            "easy",
+            shared_word_miss=False,
         ),
         MissCase(
             "motor_keeps_the_motor_page",
@@ -101,7 +89,7 @@ def cases() -> tuple[MissCase, ...]:
                 _page("FAKE-DOC", _OIL, on_topic=False),
                 _page("FAKE-DOC-MOTOR", _MOTOR, on_topic=True),
             ),
-            "easy",
+            shared_word_miss=False,
         ),
         MissCase(
             "radiator_keeps_the_page_without_onto",
@@ -110,19 +98,19 @@ def cases() -> tuple[MissCase, ...]:
                 _page("FAKE-DOC", _OIL, on_topic=False),
                 _page("FAKE-DOC-RADIATOR", _RADIATOR, on_topic=True),
             ),
-            "easy",
+            shared_word_miss=False,
         ),
         MissCase(
             "fan_past_the_prefix",
             "My automatic fan is not turning on at start time",
             (_page("FAKE-DOC", _LATE_FAN, on_topic=False),),
-            "easy",
+            shared_word_miss=False,
         ),
         MissCase(
             "highway_symptom_page_alone",
             "My truck shakes at highway speed",
             (_page("FAKE-DOC-SHAKE", _SHAKE, on_topic=True),),
-            "easy",
+            shared_word_miss=False,
         ),
         MissCase(
             "highway_speed_sensors_only",
@@ -132,7 +120,7 @@ def cases() -> tuple[MissCase, ...]:
                 _page("FAKE-DOC-BRAKE-SPEED", _SPEED_BRAKE, on_topic=False),
                 _page("FAKE-DOC-REAR-SPEED", _SPEED_REAR, on_topic=False),
             ),
-            "hard",
+            shared_word_miss=True,
         ),
         MissCase(
             "highway_keeps_the_shake_page",
@@ -143,7 +131,7 @@ def cases() -> tuple[MissCase, ...]:
                 _page("FAKE-DOC-REAR-SPEED", _SPEED_REAR, on_topic=False),
                 _page("FAKE-DOC-SHAKE", _SHAKE, on_topic=True),
             ),
-            "hard",
+            shared_word_miss=True,
         ),
         MissCase(
             "highway_two_shake_pages",
@@ -153,7 +141,7 @@ def cases() -> tuple[MissCase, ...]:
                 _page("FAKE-DOC-SHAKE", _SHAKE, on_topic=True),
                 _page("FAKE-DOC-SHAKE-BENCH", _SHAKE_BENCH, on_topic=True),
             ),
-            "hard",
+            shared_word_miss=True,
         ),
         MissCase(
             "knock_sensor_is_not_the_knock",
@@ -162,7 +150,7 @@ def cases() -> tuple[MissCase, ...]:
                 _page("FAKE-DOC-KNOCK-SENSOR", _KNOCK_SENSOR, on_topic=False),
                 _page("FAKE-DOC-KNOCK", _KNOCK, on_topic=True),
             ),
-            "hard",
+            shared_word_miss=True,
         ),
         MissCase(
             "squeal_is_not_a_speed_or_fluid_page",
@@ -172,7 +160,7 @@ def cases() -> tuple[MissCase, ...]:
                 _page("FAKE-DOC-FLUID", _BRAKE_FLUID, on_topic=False),
                 _page("FAKE-DOC-SQUEAL", _SQUEAL, on_topic=True),
             ),
-            "hard",
+            shared_word_miss=True,
         ),
         MissCase(
             "vibration_is_not_alignment",
@@ -181,13 +169,13 @@ def cases() -> tuple[MissCase, ...]:
                 _page("FAKE-DOC-ALIGN", _ALIGN, on_topic=False),
                 _page("FAKE-DOC-VIBRATE", _VIBRATE, on_topic=True),
             ),
-            "hard",
+            shared_word_miss=True,
         ),
         MissCase(
             "alignment_alone_is_not_vibration",
             "The steering wheel vibrates on the freeway",
             (_page("FAKE-DOC-ALIGN", _ALIGN, on_topic=False),),
-            "hard",
+            shared_word_miss=True,
         ),
     )
 
@@ -199,8 +187,8 @@ class Score:
     on_topic_missed: int
     order_errors: int
     pages_judged: int
-    easy_errors: int
-    hard_errors: int
+    shared_word_miss_errors: int
+    other_errors: int
     lines: tuple[str, ...]
 
 
@@ -209,8 +197,8 @@ def score_once() -> Score:
     on_topic_missed = 0
     order_errors = 0
     pages_judged = 0
-    easy_errors = 0
-    hard_errors = 0
+    shared_word_miss_errors = 0
+    other_errors = 0
     lines: list[str] = []
     for case in cases():
         shown, missed, order = _case_errors(case)
@@ -219,12 +207,12 @@ def score_once() -> Score:
         on_topic_missed += missed
         order_errors += order
         pages_judged += len(case.pages)
-        if case.band == "easy":
-            easy_errors += case_errors
+        if case.shared_word_miss:
+            shared_word_miss_errors += case_errors
         else:
-            hard_errors += case_errors
+            other_errors += case_errors
         lines.append(
-            f"case {case.case_id} band {case.band} "
+            f"case {case.case_id} shared_word_miss {case.shared_word_miss} "
             f"off_shown {shown} missed {missed} order {order}"
         )
     return Score(
@@ -233,8 +221,8 @@ def score_once() -> Score:
         on_topic_missed=on_topic_missed,
         order_errors=order_errors,
         pages_judged=pages_judged,
-        easy_errors=easy_errors,
-        hard_errors=hard_errors,
+        shared_word_miss_errors=shared_word_miss_errors,
+        other_errors=other_errors,
         lines=tuple(lines),
     )
 
@@ -277,8 +265,8 @@ def main() -> None:
     print(f"order_errors {first.order_errors}")
     print(f"pages_judged {first.pages_judged}")
     print(f"cases {len(cases())}")
-    print(f"easy_errors {first.easy_errors}")
-    print(f"hard_errors {first.hard_errors}")
+    print(f"shared_word_miss_errors {first.shared_word_miss_errors}")
+    print(f"other_errors {first.other_errors}")
     for line in first.lines:
         print(line)
 
