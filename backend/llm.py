@@ -329,11 +329,11 @@ def _in_process_related_text(messages: list[ChatTurn]) -> str | None:
         if not isinstance(payload, dict):
             return json.dumps({"related": []})
         question = payload.get("question")
-        snippets = payload.get("snippets")
-        if not isinstance(question, str) or not isinstance(snippets, list):
-            return json.dumps({"related": []})
-        texts = [item if isinstance(item, str) else "" for item in snippets]
-        return json.dumps({"related": in_process_related(question, texts)})
+        snippet = payload.get("snippet")
+        if not isinstance(question, str) or not isinstance(snippet, str):
+            return "no"
+        flags = in_process_related(question, [snippet])
+        return "yes" if flags and flags[0] else "no"
     return None
 
 

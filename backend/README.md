@@ -15,8 +15,10 @@ empty `citations` array asks for general advice (`kind: general_advice`).
 The reply says the manual does not cover the question, then lists one to
 five cheap checks. Related pages are a second search on the fault words,
 with speed and place words left out, over a wider candidate pool than the
-answer. A page from that pool is kept only when a
-relevance check says the opening snippet is the same problem. The part
+answer. That pool stays in search order. Only the first eight openings are
+judged, one page at a time, yes or no. At most three yes pages are shown,
+best first. A page is kept when that check says the opening is the same
+problem. The part
 that has the fault, or a part whose name says it stops that fault, still
 counts when the fault word is missing. Words for how fast or where can be
 missing. A different job that only shares a word is not kept. A failed
@@ -38,9 +40,9 @@ API key, `FakeLLMClient` answers from the retrieved pages. Each
 citation is `doc_id`, `page`, and a snippet copied from that page, so the
 provenance check can keep it. The answer text is a local stand-in, not a model
 procedure. An empty search calls the client for general advice. Related
-pages search again on the fault words, ignoring how fast or where. When a
-snippet remains, that same client is asked whether the opening is the same
-problem. With no API key the stand-in keeps a page that names the fault
+pages search again on the fault words, ignoring how fast or where. The
+first eight openings are judged one page at a time. At most three yes pages
+are shown, best first. With no API key the stand-in keeps a page that names the fault
 or the part that has it, and it drops a different job that only shares a
 word. It ignores words for how fast or where. A failed check shows no page.
 The model writes the checks, cheapest first, and names a vehicle

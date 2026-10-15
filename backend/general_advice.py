@@ -95,17 +95,21 @@ _CONDITION_TERMS = frozenset(
     }
 )
 RELEVANCE_HEADER = "Related page check:\n"
+RELATED_JUDGE_LIMIT = 8
+RELATED_KEEP_LIMIT = 3
 _RELEVANCE_INSTRUCTIONS = (
-    "You decide whether each manual snippet is about the same problem as the question. "
-    "A snippet is related when it names that fault, the part that has the fault, "
+    "You answer yes or no about one manual page. "
+    "The question is the owner's problem. The snippet is the opening of that one page. "
+    "Answer yes when the page names that fault, the part that has the fault, "
     "or a part whose name says it stops that fault. "
     "It may leave out how fast or where, and it does not have to repeat every word. "
-    "A part in the same assembly as the fault is related even when the fault word is missing. "
-    "A snippet is not related when it is a different job that only shares a word, "
+    "A part in the same assembly as the fault is yes even when the fault word is missing. "
+    "Answer no when the page is a different job that only shares a word, "
     "such as a sensor, a fluid level, or an alignment. "
-    "A different system is not related. "
-    'Reply with one JSON object {"related": [boolean, ...]} in snippet order and no other text.'
+    "A different system is no. "
+    "Reply with one word, yes or no, and no other text."
 )
+_YES_NO = re.compile(r"^(yes|no)\b", re.IGNORECASE)
 # The keyless stand-in has no model. These name a different job than the fault.
 # Procedure words such as inspection stay out, so the wearing part can still match.
 _DIFFERENT_JOB = frozenset({"alignment", "fluid", "sensor", "switch"})
@@ -252,10 +256,14 @@ def related_citations(
         # The chip shows this prefix. A later sentence is not what the card shows.
         seen.add(key)
         eligible.append({"doc_id": doc_id, "page": page, "snippet": snippet})
-    if not eligible:
-        return []
-    flags = _related_flags(client, question, [item["snippet"] for item in eligible])
-    return [item for item, keep in zip(eligible, flags, strict=True) if keep]
+    # Callers pass the pool best first. A long list makes the yes/no unreliable.
+    kept: list[dict[str, Any]] = []
+    for item in eligible[:RELATED_JUDGE_LIMIT]:
+        if _page_is_related(client, question, item["snippet"]):
+            kept.append(item)
+        if len(kept) == RELATED_KEEP_LIMIT:
+            break
+    return kept
 
 
 def in_process_related(question: str, snippets: Sequence[str]) -> list[bool]:
@@ -322,21 +330,17 @@ def _snippet_tokens(snippet: str) -> set[str]:
     return {token.lower() for token in re.findall(r"[A-Za-z0-9]+", snippet)}
 
 
-def _related_flags(
-    client: LLMClient,
-    question: str,
-    snippets: Sequence[str],
-) -> list[bool]:
+def _page_is_related(client: LLMClient, question: str, snippet: str) -> bool:
     try:
-        result = client.complete(_relevance_turns(question, snippets))
+        result = client.complete(_relevance_turns(question, snippet))
     except LLMError:
-        return [False] * len(snippets)
-    return _parse_related_flags(result.text, len(snippets))
+        return False
+    return _parse_yes_no(result.text)
 
 
-def _relevance_turns(question: str, snippets: Sequence[str]) -> list[ChatTurn]:
+def _relevance_turns(question: str, snippet: str) -> list[ChatTurn]:
     payload = json.dumps(
-        {"question": question, "snippets": list(snippets)},
+        {"question": question, "snippet": snippet},
         ensure_ascii=False,
     )
     return [
@@ -345,22 +349,14 @@ def _relevance_turns(question: str, snippets: Sequence[str]) -> list[ChatTurn]:
     ]
 
 
-def _parse_related_flags(raw: str, count: int) -> list[bool]:
-    none = [False] * count
-    try:
-        payload = json.loads(_unwrap_markdown_fence(raw.strip()))
-    except json.JSONDecodeError:
-        return none
-    if not isinstance(payload, dict):
-        return none
-    flags = payload.get("related")
-    if (
-        not isinstance(flags, list)
-        or len(flags) != count
-        or not all(isinstance(flag, bool) for flag in flags)
-    ):
-        return none
-    return list(flags)
+def _parse_yes_no(raw: str) -> bool:
+    text = _unwrap_markdown_fence(raw.strip()).strip().casefold()
+    match = _YES_NO.match(text)
+    if match is None:
+        return False
+    if match.group(1).casefold() == "yes" and re.search(r"\bno\b", text):
+        return False
+    return match.group(1).casefold() == "yes"
 
 
 def truck_prompt_line(conversation: Conversation) -> str:

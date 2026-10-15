@@ -414,7 +414,7 @@ def test_empty_citations_still_attach_the_demo_outline() -> None:
         [
             _result('{"text":"no page","citations":[]}'),
             _result(json.dumps({"steps": [step]})),
-            _result(json.dumps({"related": [True]})),
+            _result("yes"),
         ]
     )
     response = _demo_client(LlmAnswerProducer(fake, retriever=_Pages())).post(

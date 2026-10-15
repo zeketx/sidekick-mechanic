@@ -168,7 +168,7 @@ def test_relevance_true_keeps_the_page_and_a_bad_check_shows_none() -> None:
             return LLMResult(text=self.second, model="fake", usage=None)
 
     hits = (_Hit("FAKE-DOC", 999, _HIT_SNIPPET),)
-    writer = _Writer(json.dumps({"related": [True]}))
+    writer = _Writer("yes")
     kept = advise_on_miss(writer, _conversation(), hits)
     assert kept is not None
     assert kept["related"] == [
@@ -176,20 +176,75 @@ def test_relevance_true_keeps_the_page_and_a_bad_check_shows_none() -> None:
     ]
     assert kept["steps"] == [_STEP]
     instructions = writer.calls[1][0].content
+    assert "one manual page" in instructions
     assert "same assembly" in instructions
-    assert "does not have to repeat every word" in instructions
-    assert "If you are unsure, it is not related." not in instructions
+    assert "yes or no" in instructions
 
     for second in (
         "not json",
-        json.dumps({"related": [True, False]}),
-        json.dumps({"related": [1]}),
+        "yes no",
+        "1",
         LLMError("relevance failed"),
     ):
         payload = advise_on_miss(_Writer(second), _conversation(), hits)
         assert payload is not None
         assert payload["related"] == []
         assert payload["steps"] == [_STEP]
+
+
+def _ranked_hits(count: int) -> tuple[_Hit, ...]:
+    return tuple(
+        _Hit(
+            f"FAKE-DOC-{index}",
+            999,
+            f"FAKE-SNIPPET: FAKE-DOC-{index} ranked page.",
+        )
+        for index in range(count)
+    )
+
+
+class _YesPages:
+    def __init__(self, yes_ids: set[str]) -> None:
+        self.yes_ids = yes_ids
+        self.calls: list[list[ChatTurn]] = []
+
+    def complete(self, messages: list[ChatTurn]) -> LLMResult:
+        self.calls.append(list(messages))
+        if len(self.calls) == 1:
+            return LLMResult(
+                text=json.dumps({"steps": [_STEP]}),
+                model="fake",
+                usage=None,
+            )
+        asked = messages[-1].content
+        answer = "yes" if any(doc_id in asked for doc_id in self.yes_ids) else "no"
+        return LLMResult(text=answer, model="fake", usage=None)
+
+
+def test_related_keep_stops_at_three_best_first() -> None:
+    hits = _ranked_hits(10)
+    writer = _YesPages({hit.doc_id for hit in hits})
+    payload = advise_on_miss(writer, _conversation(), hits)
+    assert payload is not None
+    assert [item["doc_id"] for item in payload["related"]] == [
+        "FAKE-DOC-0",
+        "FAKE-DOC-1",
+        "FAKE-DOC-2",
+    ]
+    judged = "\n".join(turn.content for call in writer.calls for turn in call)
+    assert "FAKE-DOC-3" not in judged
+    assert "FAKE-DOC-8" not in judged
+    assert "FAKE-DOC-9" not in judged
+
+
+def test_related_keep_shows_one_yes_inside_the_window() -> None:
+    hits = _ranked_hits(10)
+    writer = _YesPages({"FAKE-DOC-4", "FAKE-DOC-9"})
+    payload = advise_on_miss(writer, _conversation(), hits)
+    assert payload is not None
+    assert [item["doc_id"] for item in payload["related"]] == ["FAKE-DOC-4"]
+    judged = "\n".join(turn.content for call in writer.calls for turn in call)
+    assert "FAKE-DOC-9" not in judged
 
 
 def test_writer_failure_is_none() -> None:
