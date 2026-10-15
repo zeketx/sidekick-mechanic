@@ -20,7 +20,7 @@ from typing import Any, Protocol, runtime_checkable
 from chat_models import Conversation, garage_prompt_block
 from contract import load_answer_fixture, validate_answer
 from demo import DEMO_SYSTEM_PROMPT, resolve_demo_answer
-from general_advice import advise_on_miss
+from general_advice import advise_on_miss, related_search_text
 from llm import (
     RETRIEVED_PAGES_HEADER,
     ChatTurn,
@@ -36,6 +36,7 @@ from part_resolver import BayMapView, complete_selection, resolve_answer
 from retrieval import (
     DEFAULT_K,
     INDEX_FILENAME,
+    RELATED_CANDIDATE_K,
     SNIPPET_LIMIT,
     Fts5Index,
     RetrievalError,
@@ -279,7 +280,9 @@ class LlmAnswerProducer:
         conversation: Conversation,
         hits: Sequence[_RetrievedPage],
     ) -> dict[str, Any]:
-        advice = advise_on_miss(self._client, conversation, hits)
+        advice = advise_on_miss(
+            self._client, conversation, _related_hits(self, conversation, hits)
+        )
         if advice is None:
             return dict(UNAVAILABLE_ANSWER)
         return self._with_part_highlight(advice, conversation)
@@ -326,13 +329,14 @@ class _IndexRetriever:
         k: int = DEFAULT_K,
         *,
         doc_id: str | None = None,
+        match_any: bool = False,
     ) -> tuple[RetrievedChunk, ...]:
         path = self._index_path if self._index_path is not None else _index_path()
         if not path.is_file():
             raise _IndexMissing(str(path))
         index = Fts5Index.open(path)
         try:
-            return index.search(query, k, doc_id=doc_id)
+            return index.search(query, k, doc_id=doc_id, match_any=match_any)
         finally:
             index.close()
 
@@ -359,6 +363,31 @@ def _with_garage(system: str, conversation: Conversation) -> str:
     if not block:
         return system
     return f"{system}\n\n{block}"
+
+
+def _related_hits(
+    producer: LlmAnswerProducer,
+    conversation: Conversation,
+    grounded: Sequence[_RetrievedPage],
+) -> Sequence[_RetrievedPage]:
+    retriever = producer._retriever
+    if retriever is None:
+        return grounded
+    question = _retrieval_query(conversation)
+    text = related_search_text(question)
+    doc_id = _ENGINE_WIRING_DOC_ID if _is_engine_wiring(text) else None
+    try:
+        if isinstance(retriever, _IndexRetriever):
+            found = retriever.search(
+                text, RELATED_CANDIDATE_K, doc_id=doc_id, match_any=True
+            )
+        else:
+            found = retriever.search(text, RELATED_CANDIDATE_K)
+            if doc_id is not None:
+                found = tuple(hit for hit in found if hit.doc_id == doc_id)
+    except (_IndexMissing, RetrievalError, sqlite3.Error):
+        return grounded
+    return found if found else grounded
 
 
 def _search_hits(retriever: Retriever, query: str) -> tuple[RetrievedChunk, ...]:
