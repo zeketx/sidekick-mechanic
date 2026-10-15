@@ -69,6 +69,8 @@ backend/eval/bay_map.json
 # Regenerated ingestion output (see backend/ingest.py)
 backend/.ingest/
 
+.audit/
+
 # Verification process lock. Proof files under .cursor/skills/verify-*/evidence stay.
 .cursor/skills/verify-backend/run/
 .cursor/skills/verify-ios/run/

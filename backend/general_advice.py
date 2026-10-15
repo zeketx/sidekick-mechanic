@@ -20,7 +20,12 @@ from llm import (
     log_answer_rejection,
     log_llm_failure,
 )
-from retrieval import cap_snippet, content_terms, snippet_matches_page, term_in_text
+from retrieval import (
+    _surface_variants,
+    cap_snippet,
+    content_terms,
+    snippet_matches_page,
+)
 from safety import SAFETY_NOTE
 
 ADVICE_HONESTY = "Not in your manual. Here's what usually causes this."
@@ -79,14 +84,66 @@ _RELATED_WEAK_TERMS = frozenset(
         "looks",
         "looked",
         "looking",
+        "onto",
     }
 )
+# How fast or where. Omitting one of these is still the same fault.
+# Requiring one of them hides that fault and keeps a different part.
+_CONDITION_TERMS = frozenset(
+    {
+        "freeway",
+        "highway",
+        "high",
+        "idle",
+        "low",
+        "speed",
+        "speeds",
+    }
+)
+RELEVANCE_HEADER = "Related page check:\n"
+RELATED_JUDGE_LIMIT = 8
+RELATED_KEEP_LIMIT = 3
+_RELEVANCE_INSTRUCTIONS = (
+    "You answer yes or no about one manual page. "
+    "The question is the owner's problem. The snippet is the opening of that one page. "
+    "Answer yes when the page names that fault, the part that has the fault, "
+    "or a part whose name says it stops that fault. "
+    "It may leave out how fast or where, and it does not have to repeat every word. "
+    "A part in the same assembly as the fault is yes even when the fault word is missing. "
+    "Answer no when the page is a different job that only shares a word, "
+    "such as a sensor, a fluid level, or an alignment. "
+    "A different system is no. "
+    "Reply with one word, yes or no, and no other text."
+)
+_YES_NO = re.compile(r"^(yes|no)\b", re.IGNORECASE)
+# The keyless stand-in has no model. These name a different job than the fault.
+# Procedure words such as inspection stay out, so the wearing part can still match.
+_DIFFERENT_JOB = frozenset({"alignment", "fluid", "sensor", "switch"})
+_DETECTOR_TAILS = frozenset({"sensor", "switch"})
 
 
 class _Page(Protocol):
     doc_id: str
     page: int
     text: str
+
+
+def related_search_text(question: str) -> str:
+    """Query for related pages. Fault words stay. Speed and place drop out.
+
+    An empty remainder keeps the original question, so a speed-only question
+    still searches.
+    """
+
+    kept = [
+        term
+        for term in content_terms(question)
+        if term.casefold() not in _CONDITION_TERMS
+        and term.casefold() not in _RELATED_WEAK_TERMS
+    ]
+    if not kept:
+        return question
+    return " ".join(kept)
 
 
 def advise_on_miss(
@@ -113,7 +170,7 @@ def advise_on_miss(
         "safety": SAFETY_NOTE,
         "steps": steps,
         "garage": garage_basis(conversation),
-        "related": related_citations(question, hits),
+        "related": related_citations(question, hits, client),
     }
     validate_answer(payload)
     return payload
@@ -182,11 +239,14 @@ def garage_basis(conversation: Conversation) -> dict[str, Any]:
     return basis
 
 
-def related_citations(question: str, hits: Sequence[_Page]) -> list[dict[str, Any]]:
-    focus = _focus_terms(question)
-    if not focus:
+def related_citations(
+    question: str,
+    hits: Sequence[_Page],
+    client: LLMClient,
+) -> list[dict[str, Any]]:
+    if not _focus_terms(question):
         return []
-    kept: list[dict[str, Any]] = []
+    eligible: list[dict[str, Any]] = []
     seen: set[tuple[str, int]] = set()
     for hit in hits:
         doc_id = hit.doc_id
@@ -201,13 +261,110 @@ def related_citations(question: str, hits: Sequence[_Page]) -> list[dict[str, An
         snippet = cap_snippet(hit.text)
         if not snippet.strip() or not snippet_matches_page(snippet, hit.text):
             continue
-        # The chip shows this prefix. A focus term later in the page still
-        # leaves an off-topic heading on the card.
-        if not any(term_in_text(term, snippet) for term in focus):
-            continue
+        # The chip shows this prefix. A later sentence is not what the card shows.
         seen.add(key)
-        kept.append({"doc_id": doc_id, "page": page, "snippet": snippet})
+        eligible.append({"doc_id": doc_id, "page": page, "snippet": snippet})
+    # Callers pass the pool best first. A long list makes the yes/no unreliable.
+    kept: list[dict[str, Any]] = []
+    for item in eligible[:RELATED_JUDGE_LIMIT]:
+        if _page_is_related(client, question, item["snippet"]):
+            kept.append(item)
+        if len(kept) == RELATED_KEEP_LIMIT:
+            break
     return kept
+
+
+def in_process_related(question: str, snippets: Sequence[str]) -> list[bool]:
+    # Keyless stand-in for the relevance completion. The fault word or the
+    # part that has it is enough. How fast or where can be missing.
+    # A different job that only shares a word is not related.
+    claims = tuple(
+        term
+        for term in _focus_terms(question)
+        if term.casefold() not in _CONDITION_TERMS
+    )
+    if not claims:
+        return [False] * len(snippets)
+    fault = claims[-1]
+    assembly = claims[:-1]
+    return [_snippet_is_related(snippet, fault, assembly) for snippet in snippets]
+
+
+def _snippet_is_related(
+    snippet: str,
+    fault: str,
+    assembly: Sequence[str],
+) -> bool:
+    fault_hit = _fault_is_present(fault, snippet)
+    assembly_hit = any(_term_in_snippet(term, snippet) for term in assembly)
+    if not fault_hit and not assembly_hit:
+        return False
+    if fault_hit:
+        return True
+    folds = {fault.casefold(), *(term.casefold() for term in assembly)}
+    tokens = _snippet_tokens(snippet)
+    return not any(token in _DIFFERENT_JOB and token not in folds for token in tokens)
+
+
+def _fault_is_present(fault: str, snippet: str) -> bool:
+    if not _term_in_snippet(fault, snippet):
+        return False
+    # "knock sensor" names the detector, not the fault.
+    variants = "|".join(re.escape(variant) for variant in _match_variants(fault))
+    pattern = re.compile(
+        rf"\b(?:{variants})\s+(?:{'|'.join(sorted(_DETECTOR_TAILS))})\b",
+        re.IGNORECASE,
+    )
+    return _term_in_snippet(fault, pattern.sub(" ", snippet))
+
+
+def _term_in_snippet(term: str, snippet: str) -> bool:
+    tokens = _snippet_tokens(snippet)
+    return any(variant.casefold() in tokens for variant in _match_variants(term))
+
+
+def _match_variants(term: str) -> tuple[str, ...]:
+    variants = list(_surface_variants(term))
+    # "brakes" ends in "es", so the shared stemmer yields "brak" and misses "brake".
+    low = term.casefold()
+    if low.endswith("es") and len(low) > 4:
+        singular = term[:-1]
+        if singular.casefold() not in {item.casefold() for item in variants}:
+            variants.append(singular)
+    return tuple(variants)
+
+
+def _snippet_tokens(snippet: str) -> set[str]:
+    return {token.lower() for token in re.findall(r"[A-Za-z0-9]+", snippet)}
+
+
+def _page_is_related(client: LLMClient, question: str, snippet: str) -> bool:
+    try:
+        result = client.complete(_relevance_turns(question, snippet))
+    except LLMError:
+        return False
+    return _parse_yes_no(result.text)
+
+
+def _relevance_turns(question: str, snippet: str) -> list[ChatTurn]:
+    payload = json.dumps(
+        {"question": question, "snippet": snippet},
+        ensure_ascii=False,
+    )
+    return [
+        ChatTurn(role="system", content=_RELEVANCE_INSTRUCTIONS),
+        ChatTurn(role="user", content=RELEVANCE_HEADER + payload),
+    ]
+
+
+def _parse_yes_no(raw: str) -> bool:
+    text = _unwrap_markdown_fence(raw.strip()).strip().casefold()
+    match = _YES_NO.match(text)
+    if match is None:
+        return False
+    if match.group(1).casefold() == "yes" and re.search(r"\bno\b", text):
+        return False
+    return match.group(1).casefold() == "yes"
 
 
 def truck_prompt_line(conversation: Conversation) -> str:

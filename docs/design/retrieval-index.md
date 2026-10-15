@@ -69,6 +69,7 @@ Do not start that port in this issue. Re-evaluate only if M2 eval shows lexical 
 
 - Lexical FTS5, not embeddings. Workshop queries are part names, symptoms, and procedure words. Exact tokens matter more than cosine similarity for page-anchored citations.
 - AND of content tokens first, OR fallback if that MATCH is empty. Stopwords and model tokens (`2JZ`, `GE`) are dropped so the identification page does not beat a spec page. Precision tuning stays lexical FTS5; no embeddings.
+- Related pages on a miss search again. That query drops speed and place words and matches any remaining fault word, then keeps a wider pool than the answer's top 5. Only the first eight of that ranked pool are judged, one page at a time, and at most three are shown. The answer search itself stays AND-then-OR at k=5.
 - `score` is `-bm25(chunks, 0, 0, 8, 1)` so callers can sort descending. Raw FTS5 `bm25()` is lower-is-better; we do not expose that sign. The two leading zeros are the unindexed `doc_id` and `page` columns.
 - Full page text in `RetrievedChunk.text`. #20 snippets and the spec guard (#21) need the retrieved page, not a truncated preview.
 - Rebuild replaces the file. Manuals change as a whole; incremental upsert can wait.

@@ -136,11 +136,13 @@ FAKE_USAGE = TokenUsage(prompt_tokens=1, completion_tokens=1, total_tokens=2)
 class FakeLLMClient:
     """In-process stub. Used in tests and when no API key is configured.
 
-    ``text`` forces one completion for every call. With ``text`` omitted, a
-    ``script`` pops the next string on each call. Otherwise a go-deeper prompt
-    restates that one page, a general-advice prompt returns step JSON, a
-    grounded chat prompt becomes citation JSON from the retrieved pages, and
-    any other prompt returns ``DEFAULT_FAKE_TEXT``.
+    A related-page check is answered in process before ``text`` or ``script``,
+    so those fixtures stay on the steps call. ``text`` forces one completion
+    for every other call. With ``text`` omitted, a ``script`` pops the next
+    string on each call. Otherwise a go-deeper prompt restates that one page,
+    a general-advice prompt returns step JSON, a grounded chat prompt becomes
+    citation JSON from the retrieved pages, and any other prompt returns
+    ``DEFAULT_FAKE_TEXT``.
     """
 
     def __init__(
@@ -160,6 +162,9 @@ class FakeLLMClient:
         self.calls.append(list(messages))
         if self.error is not None:
             raise self.error
+        related = _in_process_related_text(messages)
+        if related is not None:
+            return LLMResult(text=related, model="fake", usage=self.usage)
         if self.text is not None:
             chosen = self.text
         elif self.script is not None:
@@ -415,6 +420,28 @@ def _parse_completion(response: httpx.Response, *, fallback_model: str) -> LLMRe
     return LLMResult(
         text=content, model=model_name, usage=_parse_usage(payload.get("usage"))
     )
+
+
+def _in_process_related_text(messages: list[ChatTurn]) -> str | None:
+    from general_advice import RELEVANCE_HEADER, in_process_related
+
+    for turn in messages:
+        if RELEVANCE_HEADER not in turn.content:
+            continue
+        raw = turn.content.split(RELEVANCE_HEADER, 1)[1]
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError:
+            return json.dumps({"related": []})
+        if not isinstance(payload, dict):
+            return json.dumps({"related": []})
+        question = payload.get("question")
+        snippet = payload.get("snippet")
+        if not isinstance(question, str) or not isinstance(snippet, str):
+            return "no"
+        flags = in_process_related(question, [snippet])
+        return "yes" if flags and flags[0] else "no"
+    return None
 
 
 def _fake_completion_text(messages: list[ChatTurn]) -> str:
