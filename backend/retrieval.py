@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Protocol
 
 DEFAULT_K = 5
+RELATED_CANDIDATE_K = 40
 CHUNKS_FILENAME = "chunks.jsonl"
 INDEX_FILENAME = "index.sqlite"
 _CANDIDATE_K = 40
@@ -126,6 +127,7 @@ class Fts5Index:
         k: int = DEFAULT_K,
         *,
         doc_id: str | None = None,
+        match_any: bool = False,
     ) -> tuple[RetrievedChunk, ...]:
         if k < 1:
             raise RetrievalError(f"k must be >= 1, got {k}")
@@ -134,11 +136,20 @@ class Fts5Index:
             return ()
         and_match = _fts_and_query(terms)
         or_match = _fts_or_query(terms)
-        rows = _match_rows(self._connection, and_match, k=_CANDIDATE_K, doc_id=doc_id)
-        if not rows:
+        # Related pages ask for any fault word. AND would hide a pad page
+        # once some other page already contains every fault word.
+        if match_any:
             rows = _match_rows(
                 self._connection, or_match, k=_CANDIDATE_K, doc_id=doc_id
             )
+        else:
+            rows = _match_rows(
+                self._connection, and_match, k=_CANDIDATE_K, doc_id=doc_id
+            )
+            if not rows:
+                rows = _match_rows(
+                    self._connection, or_match, k=_CANDIDATE_K, doc_id=doc_id
+                )
         if not rows:
             return ()
         ranked = _rerank(self._connection, query, terms, rows, doc_id=doc_id)
@@ -176,9 +187,7 @@ def load_chunks_jsonl(path: Path) -> tuple[Chunk, ...]:
         chunk = _chunk_from_json(raw, line_number)
         key = (chunk.doc_id, chunk.page)
         if key in seen:
-            raise RetrievalError(
-                f"duplicate chunk {chunk.doc_id} page {chunk.page}"
-            )
+            raise RetrievalError(f"duplicate chunk {chunk.doc_id} page {chunk.page}")
         seen.add(key)
         chunks.append(chunk)
     return tuple(chunks)
@@ -307,9 +316,7 @@ def _chunk_from_json(raw: str, line_number: int) -> Chunk:
         page = payload["page"]
         text = payload["text"]
     except KeyError as exc:
-        raise RetrievalError(
-            f"JSONL line {line_number} missing {exc.args[0]}"
-        ) from exc
+        raise RetrievalError(f"JSONL line {line_number} missing {exc.args[0]}") from exc
     if not isinstance(doc_id, str) or not isinstance(text, str):
         raise RetrievalError(f"JSONL line {line_number} has the wrong types")
     if not isinstance(page, int) or isinstance(page, bool):
@@ -378,8 +385,7 @@ def _fts_or_query(terms: tuple[str, ...]) -> str | None:
         return None
     quoted = [f'"{term}"' for term in terms]
     phrases = [
-        f'"{terms[index]} {terms[index + 1]}"'
-        for index in range(len(terms) - 1)
+        f'"{terms[index]} {terms[index + 1]}"' for index in range(len(terms) - 1)
     ]
     return " OR ".join(quoted + phrases)
 
@@ -439,8 +445,7 @@ def _rerank(
     n_docs = _chunk_count(connection, doc_id)
     idf = {term.lower(): _idf(connection, term, n_docs, doc_id) for term in terms}
     phrases = [
-        f"{terms[index]} {terms[index + 1]}".lower()
-        for index in range(len(terms) - 1)
+        f"{terms[index]} {terms[index + 1]}".lower() for index in range(len(terms) - 1)
     ]
     scored: list[tuple[float, sqlite3.Row]] = []
     for row in rows:

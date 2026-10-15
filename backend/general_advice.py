@@ -118,6 +118,24 @@ class _Page(Protocol):
     text: str
 
 
+def related_search_text(question: str) -> str:
+    """Query for related pages. Fault words stay. Speed and place drop out.
+
+    An empty remainder keeps the original question, so a speed-only question
+    still searches.
+    """
+
+    kept = [
+        term
+        for term in content_terms(question)
+        if term.casefold() not in _CONDITION_TERMS
+        and term.casefold() not in _RELATED_WEAK_TERMS
+    ]
+    if not kept:
+        return question
+    return " ".join(kept)
+
+
 def advise_on_miss(
     client: LLMClient,
     conversation: Conversation,

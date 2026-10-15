@@ -13,7 +13,9 @@ of that page. Whitespace may collapse. A rearrangement of the page's tokens is
 not a quote. An empty search, a missing index file, or a JSON object with an
 empty `citations` array asks for general advice (`kind: general_advice`).
 The reply says the manual does not cover the question, then lists one to
-five cheap checks. A related page from that search is kept only when a
+five cheap checks. Related pages are a second search on the fault words,
+with speed and place words left out, over a wider candidate pool than the
+answer. A page from that pool is kept only when a
 relevance check says the opening snippet is the same problem. The part
 that has the fault, or a part whose name says it stops that fault, still
 counts when the fault word is missing. Words for how fast or where can be
@@ -35,7 +37,8 @@ a blank completion return a provider error (`kind: error`,
 API key, `FakeLLMClient` answers from the retrieved pages. Each
 citation is `doc_id`, `page`, and a snippet copied from that page, so the
 provenance check can keep it. The answer text is a local stand-in, not a model
-procedure. An empty search calls the client for general advice. When a
+procedure. An empty search calls the client for general advice. Related
+pages search again on the fault words, ignoring how fast or where. When a
 snippet remains, that same client is asked whether the opening is the same
 problem. With no API key the stand-in keeps a page that names the fault
 or the part that has it, and it drops a different job that only shares a
