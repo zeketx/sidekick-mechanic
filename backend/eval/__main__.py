@@ -18,7 +18,7 @@ from eval.harness import (
 from eval.iou import IouError
 from eval.labels import HandLabelError
 from eval.report import render_job_summary, write_metrics_document
-from eval.runner import RunnerError
+from eval.runner import HttpBackendRunner, RunnerError
 from spec_guard import SpecGuardUncitedCounter
 
 
@@ -57,34 +57,54 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Regenerate docs/METRICS.md from this run.",
     )
+    parser.add_argument(
+        "--backend",
+        default=None,
+        help=(
+            "Score POST /chat on this base URL instead of the in-process "
+            "fake model. Example: http://127.0.0.1:8001"
+        ),
+    )
     args = parser.parse_args(argv)
+    runner = HttpBackendRunner(args.backend) if args.backend else None
     try:
-        payload = run_harness(
-            args.golden,
-            output_dir=args.output_dir,
-            ci_only=args.ci,
-            date=args.date,
-            uncited_counter=SpecGuardUncitedCounter(),
-        )
-    except (GoldenSetError, RunnerError, HandLabelError, IouError, BayMapError) as exc:
-        print(f"eval failed: {exc}", file=sys.stderr)
-        return 1
-    results_path = args.output_dir / f"{payload['date']}.json"
-    summary = render_job_summary(payload)
-    print(summary, end="")
-    print(f"Wrote {results_path}")
-    if args.summary_file is not None:
-        _append_summary(args.summary_file, summary)
-    if args.metrics:
-        destination = write_metrics_document(results_path)
-        print(f"Wrote {destination}")
-    try:
-        require_no_unmapped_highlights(payload)
-        require_citation_accuracy_when_retrieved(payload)
-    except (UnmappedHighlightError, CitationAccuracyError) as exc:
-        print(f"eval failed: {exc}", file=sys.stderr)
-        return 1
-    return 0
+        try:
+            payload = run_harness(
+                args.golden,
+                runner=runner,
+                output_dir=args.output_dir,
+                ci_only=args.ci,
+                date=args.date,
+                uncited_counter=SpecGuardUncitedCounter(),
+            )
+        except (
+            GoldenSetError,
+            RunnerError,
+            HandLabelError,
+            IouError,
+            BayMapError,
+        ) as exc:
+            print(f"eval failed: {exc}", file=sys.stderr)
+            return 1
+        results_path = args.output_dir / f"{payload['date']}.json"
+        summary = render_job_summary(payload)
+        print(summary, end="")
+        print(f"Wrote {results_path}")
+        if args.summary_file is not None:
+            _append_summary(args.summary_file, summary)
+        if args.metrics:
+            destination = write_metrics_document(results_path)
+            print(f"Wrote {destination}")
+        try:
+            require_no_unmapped_highlights(payload)
+            require_citation_accuracy_when_retrieved(payload)
+        except (UnmappedHighlightError, CitationAccuracyError) as exc:
+            print(f"eval failed: {exc}", file=sys.stderr)
+            return 1
+        return 0
+    finally:
+        if runner is not None:
+            runner.close()
 
 
 def _append_summary(path: Path, summary: str) -> None:

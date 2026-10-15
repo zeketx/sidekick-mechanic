@@ -237,6 +237,23 @@ class LlmAnswerProducer:
             return ()
         return tuple(hit.text for hit in hits if (hit.doc_id, hit.page) in cited_pages)
 
+    def searched_pages(
+        self, conversation: Conversation
+    ) -> tuple[tuple[str, int], ...] | None:
+        """Pages this turn searched, best first. None when this producer has no index."""
+
+        retriever = self._retriever
+        if retriever is None:
+            return None
+        query = _retrieval_query(conversation)
+        if _chassis_wiring_blocked(query):
+            return ()
+        try:
+            hits = _search_hits(retriever, query)
+        except (_IndexMissing, RetrievalError, sqlite3.Error):
+            return ()
+        return tuple((hit.doc_id, hit.page) for hit in hits)
+
     def _ungrounded(self, conversation: Conversation) -> dict[str, Any]:
         system = _with_garage(
             DEMO_SYSTEM_PROMPT if conversation.demo is not None else SYSTEM_PROMPT,
@@ -363,6 +380,27 @@ def _with_garage(system: str, conversation: Conversation) -> str:
     if not block:
         return system
     return f"{system}\n\n{block}"
+
+
+def format_searched_pages(pages: tuple[tuple[str, int], ...]) -> str:
+    if not pages:
+        return "-"
+    return ",".join(f"{doc_id}:{page}" for doc_id, page in pages)
+
+
+def parse_searched_pages(value: str) -> tuple[tuple[str, int], ...]:
+    if value == "-":
+        return ()
+    hits: list[tuple[str, int]] = []
+    for item in value.split(","):
+        doc_id, separator, page_text = item.rpartition(":")
+        if separator != ":" or not doc_id or not page_text.isdigit():
+            raise ValueError("retrieval header is not pages")
+        page = int(page_text)
+        if page < 1:
+            raise ValueError("retrieval header is not pages")
+        hits.append((doc_id, page))
+    return tuple(hits)
 
 
 def _related_hits(

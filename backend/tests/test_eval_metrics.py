@@ -89,11 +89,54 @@ def test_citation_is_inaccurate_with_no_citations_or_a_refusal() -> None:
     assert citation_is_accurate([FAKE_PAGE], _refusal()) is False
 
 
-def test_refusal_matches_only_the_contract_shape() -> None:
+def test_refusal_counts_a_contract_refusal_or_plain_advice() -> None:
     assert is_correct_refusal(_refusal()) is True
     assert is_correct_refusal(WIRING_NOT_INGESTED_REFUSAL) is True
+    assert is_correct_refusal(_advice()) is True
+    related = _advice()
+    related["related"] = [_citation(FAKE_PAGE)]
+    assert is_correct_refusal(related) is True
     assert is_correct_refusal(_answer(text="Not found in the manual.")) is False
-    assert is_correct_refusal(_advice()) is False
+    assert is_correct_refusal(_answer(citations=[_citation(FAKE_PAGE)])) is False
+    dishonest = _advice()
+    dishonest["honesty"] = "Not found."
+    assert is_correct_refusal(dishonest) is False
+    cited_advice = _advice()
+    cited_advice["citations"] = [_citation(FAKE_PAGE)]
+    assert is_correct_refusal(cited_advice) is False
+
+
+def test_gap_path_still_requires_a_step() -> None:
+    advice = _advice()
+    advice["steps"] = []
+
+    assert is_correct_refusal(advice) is True
+    assert gap_path_ok(advice) is False
+
+
+def test_not_in_manual_score_is_half_when_one_reply_cites_a_page() -> None:
+    advice = score_case(
+        question_id="fake-miss",
+        answerable=False,
+        expected=[],
+        part_id=None,
+        answer=_advice(),
+        latency_ms=1,
+        retrieval=None,
+    )
+    cited = score_case(
+        question_id="fake-cited-miss",
+        answerable=False,
+        expected=[],
+        part_id=None,
+        answer=_answer(citations=[_citation(FAKE_PAGE)]),
+        latency_ms=1,
+        retrieval=None,
+    )
+
+    assert advice.refusal_correct is True
+    assert cited.refusal_correct is False
+    assert aggregate_metrics([advice, cited]).refusal_correctness == 0.5
 
 
 def test_gap_path_covers_a_refusal_or_general_advice_and_not_a_found_answer() -> None:

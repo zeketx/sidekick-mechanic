@@ -135,7 +135,17 @@ def render_job_summary(payload: dict[str, Any]) -> str:
         title,
         "",
     ]
-    if not retrieval_ran(payload):
+    if payload.get("runner") == "http_backend" and not retrieval_ran(payload):
+        lines.extend(
+            [
+                (
+                    "Citation and refusal scores come from POST /chat. "
+                    "Recall@5 was not measured. The chat response has no hit list."
+                ),
+                "",
+            ]
+        )
+    elif not retrieval_ran(payload):
         lines.extend(
             [
                 "Smoke test: retrieval did not run. Exit 0 is not a quality result.",

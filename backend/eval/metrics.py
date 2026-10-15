@@ -33,7 +33,10 @@ METRIC_DEFINITIONS: dict[str, str] = {
     ),
     "refusal correctness": (
         "Fraction of unanswerable questions returned as a contract refusal "
-        "(kind refusal, reason not_found_in_manual)."
+        "(kind refusal, reason not_found_in_manual) or as general advice "
+        "whose honesty line says the manual does not cover it and which "
+        "does not cite pages. Related pages are not citations. A found "
+        "answer that cites a page scores 0."
     ),
     "gap coverage": (
         "Fraction of unanswerable questions that returned either a contract "
@@ -200,17 +203,28 @@ def citation_is_accurate(expected: Sequence[Page], answer: Mapping[str, Any]) ->
     return True
 
 
-def is_correct_refusal(answer: Mapping[str, Any]) -> bool:
+def _is_contract_refusal(answer: Mapping[str, Any]) -> bool:
     return (
         answer.get("kind") == "refusal"
         and answer.get("reason") == "not_found_in_manual"
     )
 
 
+def is_correct_refusal(answer: Mapping[str, Any]) -> bool:
+    if _is_contract_refusal(answer):
+        return True
+    if answer.get("kind") != "general_advice":
+        return False
+    if answer.get("honesty") != ADVICE_HONESTY:
+        return False
+    citations = answer.get("citations")
+    return not isinstance(citations, list) or not citations
+
+
 def gap_path_ok(answer: Mapping[str, Any]) -> bool:
     """True for a contract refusal or general advice with the honesty line and steps."""
 
-    if is_correct_refusal(answer):
+    if _is_contract_refusal(answer):
         return True
     if answer.get("kind") != "general_advice":
         return False
@@ -287,7 +301,7 @@ def score_case(
         raise ValueError(f"{question_id} latency is negative")
     kind = answer.get("kind")
     if not isinstance(kind, str):
-        raise ValueError(f"{question_id} answer is missing kind")
+        raise ValueError(f"{question_id} answer is missing kind")  # noqa: TRY004
     recall = recall_at_5(expected, retrieval) if answerable else None
     return CaseScore(
         id=question_id,
