@@ -14,9 +14,11 @@ not a quote. An empty search, a missing index file, or a JSON object with an
 empty `citations` array asks for general advice (`kind: general_advice`).
 The reply says the manual does not cover the question, then lists one to
 five cheap checks. A related page from that search is kept only when a
-relevance check says the opening snippet is the same problem. Words for how
-fast or where can be missing. A different part that only shares a word is
-not kept. A failed or unsure check shows no page. Related pages are not
+relevance check says the opening snippet is the same problem. The part
+that has the fault, or a part whose name says it stops that fault, still
+counts when the fault word is missing. Words for how fast or where can be
+missing. A different job that only shares a word is not kept. A failed
+check shows no page. Related pages are not
 the pages that answered. A missing index does call the model for those checks.
 Engine-wiring questions (ECM, injectors, ignition coils, VVT, EFI, the 2JZ
 engine harness) search `is300-engine-wiring` and cite that EWD. While
@@ -35,9 +37,10 @@ citation is `doc_id`, `page`, and a snippet copied from that page, so the
 provenance check can keep it. The answer text is a local stand-in, not a model
 procedure. An empty search calls the client for general advice. When a
 snippet remains, that same client is asked whether the opening is the same
-problem. With no API key the stand-in keeps a page when every fault word is
-in the opening snippet, and it ignores words for how fast or where. A failed
-check shows no page. The model writes the checks, cheapest first, and names a vehicle
+problem. With no API key the stand-in keeps a page that names the fault
+or the part that has it, and it drops a different job that only shares a
+word. It ignores words for how fast or where. A failed check shows no page.
+The model writes the checks, cheapest first, and names a vehicle
 only when the garage summary includes one. The stand-in step starts with
 `FAKE-STEP` and is not a real procedure. Do not
 treat the stand-in, or an empty-citation reply, as a real procedure.

@@ -14,7 +14,12 @@ from typing import Any, Protocol
 from chat_models import Conversation, garage_prompt_block
 from contract import validate_answer
 from llm import ChatTurn, LLMClient, LLMError
-from retrieval import cap_snippet, content_terms, snippet_matches_page, term_in_text
+from retrieval import (
+    _surface_variants,
+    cap_snippet,
+    content_terms,
+    snippet_matches_page,
+)
 from safety import SAFETY_NOTE
 
 ADVICE_HONESTY = "Not in your manual. Here's what usually causes this."
@@ -92,11 +97,19 @@ _CONDITION_TERMS = frozenset(
 RELEVANCE_HEADER = "Related page check:\n"
 _RELEVANCE_INSTRUCTIONS = (
     "You decide whether each manual snippet is about the same problem as the question. "
-    "A snippet is related when it describes that problem, even if it leaves out how fast or where. "
-    "A snippet is not related when it is a different part or a different job that only shares a word. "
-    "If you are unsure, it is not related. "
+    "A snippet is related when it names that fault, the part that has the fault, "
+    "or a part whose name says it stops that fault. "
+    "It may leave out how fast or where, and it does not have to repeat every word. "
+    "A part in the same assembly as the fault is related even when the fault word is missing. "
+    "A snippet is not related when it is a different job that only shares a word, "
+    "such as a sensor, a fluid level, or an alignment. "
+    "A different system is not related. "
     'Reply with one JSON object {"related": [boolean, ...]} in snippet order and no other text.'
 )
+# The keyless stand-in has no model. These name a different job than the fault.
+# Procedure words such as inspection stay out, so the wearing part can still match.
+_DIFFERENT_JOB = frozenset({"alignment", "fluid", "sensor", "switch"})
+_DETECTOR_TAILS = frozenset({"sensor", "switch"})
 
 
 class _Page(Protocol):
@@ -228,8 +241,9 @@ def related_citations(
 
 
 def in_process_related(question: str, snippets: Sequence[str]) -> list[bool]:
-    # Keyless stand-in for the relevance completion. Fault words must match.
-    # How fast or where can be missing. No fault word means not related.
+    # Keyless stand-in for the relevance completion. The fault word or the
+    # part that has it is enough. How fast or where can be missing.
+    # A different job that only shares a word is not related.
     claims = tuple(
         term
         for term in _focus_terms(question)
@@ -237,7 +251,57 @@ def in_process_related(question: str, snippets: Sequence[str]) -> list[bool]:
     )
     if not claims:
         return [False] * len(snippets)
-    return [all(term_in_text(term, snippet) for term in claims) for snippet in snippets]
+    fault = claims[-1]
+    assembly = claims[:-1]
+    return [_snippet_is_related(snippet, fault, assembly) for snippet in snippets]
+
+
+def _snippet_is_related(
+    snippet: str,
+    fault: str,
+    assembly: Sequence[str],
+) -> bool:
+    fault_hit = _fault_is_present(fault, snippet)
+    assembly_hit = any(_term_in_snippet(term, snippet) for term in assembly)
+    if not fault_hit and not assembly_hit:
+        return False
+    if fault_hit:
+        return True
+    folds = {fault.casefold(), *(term.casefold() for term in assembly)}
+    tokens = _snippet_tokens(snippet)
+    return not any(token in _DIFFERENT_JOB and token not in folds for token in tokens)
+
+
+def _fault_is_present(fault: str, snippet: str) -> bool:
+    if not _term_in_snippet(fault, snippet):
+        return False
+    # "knock sensor" names the detector, not the fault.
+    variants = "|".join(re.escape(variant) for variant in _match_variants(fault))
+    pattern = re.compile(
+        rf"\b(?:{variants})\s+(?:{'|'.join(sorted(_DETECTOR_TAILS))})\b",
+        re.IGNORECASE,
+    )
+    return _term_in_snippet(fault, pattern.sub(" ", snippet))
+
+
+def _term_in_snippet(term: str, snippet: str) -> bool:
+    tokens = _snippet_tokens(snippet)
+    return any(variant.casefold() in tokens for variant in _match_variants(term))
+
+
+def _match_variants(term: str) -> tuple[str, ...]:
+    variants = list(_surface_variants(term))
+    # "brakes" ends in "es", so the shared stemmer yields "brak" and misses "brake".
+    low = term.casefold()
+    if low.endswith("es") and len(low) > 4:
+        singular = term[:-1]
+        if singular.casefold() not in {item.casefold() for item in variants}:
+            variants.append(singular)
+    return tuple(variants)
+
+
+def _snippet_tokens(snippet: str) -> set[str]:
+    return {token.lower() for token in re.findall(r"[A-Za-z0-9]+", snippet)}
 
 
 def _related_flags(

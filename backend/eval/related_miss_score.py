@@ -35,6 +35,8 @@ _SPEED_ONLY = "FAKE-HEADING: vehicle speed sensor."
 _BRAKE_FLUID = "FAKE-HEADING: brake fluid level on the fixture."
 _SQUEAL = "FAKE-HEADING: the brakes squeal at low speed on the fixture."
 _SQUEAL_SHORT = "FAKE-HEADING: the brakes squeal."
+_PAD = "FAKE-HEADING: brake pad."
+_SHIM = "FAKE-HEADING: anti-squeal shim."
 _ALIGN = "FAKE-HEADING: steering wheel alignment specification."
 _VIBRATE = "FAKE-HEADING: the steering wheel vibrates on the freeway."
 
@@ -191,6 +193,26 @@ def cases() -> tuple[MissCase, ...]:
                 _page("FAKE-DOC-SPEED", _SPEED_ONLY, on_topic=False),
                 _page("FAKE-DOC-ALIGN", _ALIGN, on_topic=False),
                 _page("FAKE-DOC-SQUEAL-SHORT", _SQUEAL_SHORT, on_topic=True),
+            ),
+            shared_word_miss=True,
+        ),
+        MissCase(
+            "squeal_keeps_the_pad_and_the_shim",
+            "Brakes squeal at low speed",
+            (
+                _page("FAKE-DOC-PAD", _PAD, on_topic=True),
+                _page("FAKE-DOC-SHIM", _SHIM, on_topic=True),
+                _page("FAKE-DOC-SPEED", _SPEED_ONLY, on_topic=False),
+            ),
+            shared_word_miss=True,
+        ),
+        MissCase(
+            "highway_shake_drops_the_speed_sensors",
+            "My truck shakes at highway speed",
+            (
+                _page("FAKE-DOC-AT-SPEED", _SPEED_AT, on_topic=False),
+                _page("FAKE-DOC-BRAKE-SPEED", _SPEED_BRAKE, on_topic=False),
+                _page("FAKE-DOC-REAR-SPEED", _SPEED_REAR, on_topic=False),
             ),
             shared_word_miss=True,
         ),

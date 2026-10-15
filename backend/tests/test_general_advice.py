@@ -168,14 +168,17 @@ def test_relevance_true_keeps_the_page_and_a_bad_check_shows_none() -> None:
             return LLMResult(text=self.second, model="fake", usage=None)
 
     hits = (_Hit("FAKE-DOC", 999, _HIT_SNIPPET),)
-    kept = advise_on_miss(
-        _Writer(json.dumps({"related": [True]})), _conversation(), hits
-    )
+    writer = _Writer(json.dumps({"related": [True]}))
+    kept = advise_on_miss(writer, _conversation(), hits)
     assert kept is not None
     assert kept["related"] == [
         {"doc_id": "FAKE-DOC", "page": 999, "snippet": _HIT_SNIPPET}
     ]
     assert kept["steps"] == [_STEP]
+    instructions = writer.calls[1][0].content
+    assert "same assembly" in instructions
+    assert "does not have to repeat every word" in instructions
+    assert "If you are unsure, it is not related." not in instructions
 
     for second in (
         "not json",
