@@ -15,7 +15,7 @@ from enum import Enum, StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
-from llm import ChatTurn, ImageInput, LLMClient, LLMError
+from llm import ChatTurn, ImageInput, LLMClient, LLMError, log_llm_failure
 
 SHAPES: tuple[str, ...] = ("rectangular", "round", "oval", "other", "unclear")
 COLORS: tuple[str, ...] = (
@@ -197,7 +197,8 @@ def check_plug(
     ]
     try:
         result = vision.complete(turns)
-    except LLMError:
+    except LLMError as exc:
+        log_llm_failure(exc)
         return PlugUnsure(UnsureReason.VISION_UNAVAILABLE)
     looks = _parse_looks(result.text)
     if looks is None:

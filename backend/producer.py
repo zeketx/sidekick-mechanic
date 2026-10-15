@@ -28,6 +28,8 @@ from llm import (
     LLMError,
     TokenUsage,
     build_llm_client,
+    log_answer_rejection,
+    log_llm_failure,
 )
 from manifest import ManifestError, load_manifest
 from part_resolver import BayMapView, complete_selection, resolve_answer
@@ -194,11 +196,13 @@ class LlmAnswerProducer:
             return dict(UNAVAILABLE_ANSWER)
         parsed = _parse_grounded_completion(text)
         if parsed is None:
+            log_answer_rejection("grounded_json")
             return dict(UNAVAILABLE_ANSWER)
         if parsed.citation_count == 0:
             return self._advice_or_unavailable(conversation, hits)
         citations = _filter_citations(parsed.citations, hits)
         if not citations:
+            log_answer_rejection("citation_mismatch")
             return dict(UNAVAILABLE_ANSWER)
         return self._with_part_highlight(
             {"kind": "answer", "text": parsed.text, "citations": citations},
@@ -266,7 +270,8 @@ class LlmAnswerProducer:
         started = time.perf_counter()
         try:
             result = self._client.complete(messages)
-        except LLMError:
+        except LLMError as exc:
+            log_llm_failure(exc)
             _log_request(
                 ok=False,
                 model="unknown",
@@ -282,6 +287,7 @@ class LlmAnswerProducer:
             usage=result.usage,
         )
         if not text:
+            log_answer_rejection("empty_completion")
             return None
         return text
 
@@ -318,7 +324,8 @@ class LlmAnswerProducer:
                 answer_text=payload["text"],
                 bay_map=bay_map,
             )
-        except LLMError:
+        except LLMError as exc:
+            log_llm_failure(exc)
             LOGGER.warning("part selection failed; answer has no highlight")
             return payload
         return resolve_answer(payload, selection_text, bay_map)
