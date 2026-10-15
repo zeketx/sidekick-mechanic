@@ -13,7 +13,13 @@ from typing import Any, Protocol
 
 from chat_models import Conversation, garage_prompt_block
 from contract import validate_answer
-from llm import ChatTurn, LLMClient, LLMError
+from llm import (
+    ChatTurn,
+    LLMClient,
+    LLMError,
+    log_answer_rejection,
+    log_llm_failure,
+)
 from retrieval import cap_snippet, content_terms, snippet_matches_page, term_in_text
 from safety import SAFETY_NOTE
 
@@ -94,10 +100,12 @@ def advise_on_miss(
     question = last.text if last is not None else ""
     try:
         result = client.complete(_turns(conversation))
-    except LLMError:
+    except LLMError as exc:
+        log_llm_failure(exc)
         return None
     steps = parse_steps(result.text)
     if steps is None:
+        log_answer_rejection("advice_steps")
         return None
     payload = {
         "kind": "general_advice",

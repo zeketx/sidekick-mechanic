@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import json
+import logging
+
+import pytest
 
 from chat_models import (
     Conversation,
@@ -156,3 +159,15 @@ def test_writer_failure_is_none() -> None:
         advise_on_miss(FakeLLMClient(text='{"steps": ["   "]}'), _conversation(), ())
         is None
     )
+
+
+def test_writer_failure_logs_parse_rejection(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.WARNING, logger="sidekick.llm")
+
+    assert advise_on_miss(FakeLLMClient(text="not json"), _conversation(), ()) is None
+
+    assert "kind=parse" in caplog.text
+    assert "detail=advice_steps" in caplog.text
+    assert "not json" not in caplog.text

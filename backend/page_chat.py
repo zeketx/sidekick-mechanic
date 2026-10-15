@@ -13,7 +13,7 @@ from typing import Any
 
 from chat_models import Conversation, PageRef, garage_prompt_block
 from go_deeper import excerpt_around_snippet
-from llm import ChatTurn, LLMClient, LLMError
+from llm import ChatTurn, LLMClient, LLMError, log_llm_failure
 from plug_check import check_plug, render_verdict
 from producer import UNAVAILABLE_ANSWER
 
@@ -84,10 +84,10 @@ def _explain(conversation: Conversation, page_text: str, llm: LLMClient) -> str 
     turns.extend(ChatTurn(role=m.role, content=m.text) for m in conversation.messages)
     try:
         result = llm.complete(turns)
-    except LLMError:
+    except LLMError as exc:
+        log_llm_failure(exc)
         return None
     reply = result.text.strip()
-    # The prompt asks for sentences. A JSON or fenced reply would reach Zeke raw.
     if not reply or reply.startswith(("{", "[", "```")):
         return None
     return reply

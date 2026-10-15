@@ -207,6 +207,23 @@ def test_invented_snippet_is_unavailable() -> None:
     assert payload == _UNAVAILABLE
 
 
+def test_invented_snippet_logs_citation_mismatch(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.WARNING, logger="sidekick.llm")
+    producer, _, _ = _producer(
+        _completion(_ANSWER, [_cited("FAKE-SNIPPET: invented and not on the page.")]),
+        (_Hit(_DOC, _PAGE, _SNIPPET),),
+    )
+
+    payload = producer.produce(_conversation())
+
+    assert payload == _UNAVAILABLE
+    assert "kind=parse" in caplog.text
+    assert "detail=citation_mismatch" in caplog.text
+    assert "invented" not in caplog.text
+
+
 def test_empty_search_returns_general_advice() -> None:
     fake = FakeLLMClient()
     producer = LlmAnswerProducer(fake, retriever=_Retriever(()))
@@ -257,6 +274,23 @@ def test_prose_completion_is_unavailable() -> None:
     payload = producer.produce(_conversation())
 
     assert payload == _UNAVAILABLE
+
+
+def test_prose_completion_logs_parse_rejection(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.WARNING, logger="sidekick.llm")
+    producer, _, _ = _producer(
+        "This prose is not a JSON object.",
+        (_Hit(_DOC, _PAGE, _SNIPPET),),
+    )
+
+    payload = producer.produce(_conversation())
+
+    assert payload == _UNAVAILABLE
+    assert "kind=parse" in caplog.text
+    assert "detail=grounded_json" in caplog.text
+    assert "This prose" not in caplog.text
 
 
 def test_llm_error_with_hits_is_unavailable() -> None:
