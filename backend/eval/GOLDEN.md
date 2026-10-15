@@ -37,4 +37,11 @@ No real bay map exists yet (#40). `part_id` values are `PROVISIONAL_PART_IDS` in
 
 ## Counts
 
-50 questions, 26 answerable, 24 unanswerable, 17 with a `part_id`, 10 with `ci` true.
+50 questions, 23 answerable, 27 unanswerable, 17 with a `part_id`, 10 with `ci` true.
+
+A Mac run of `python3 -m eval.golden_gate` against the ingested chunks rejected six rows. The fixes use that result and the ingest read of `manuals/2jz-ge-rm.pdf`.
+
+- `throttle-body-bracket-torque` cites page 159. That page's extracted text is the service-spec torque table and names the throttle body bracket. Page 153 does not name the bracket.
+- `vvti-ocv-bolt-torque` cites page 153 only. That page has the camshaft timing oil control valve row. Page 898 is the on-vehicle inspection section, not the bolt torque.
+- `dtc-p0011` stays on page 244. The chunk title is DTC P0011, camshaft timing. The question now uses those words. The old wording asked for a scanner code and a cause, and those words are not in the chunk.
+- `ect-sensor-resistance`, `ps-pump-bolt-torque`, and `alternator-bolt-torque` are refusals. Page 152 is SFI data for the fuel pump, injector, and MAF meter, and the printed coolant-temperature page has no resistance wording. No repair-manual page in that read showed the vane-pump mounting bolts or the alternator mounting bolts. A later page citation can make any of these answerable again.

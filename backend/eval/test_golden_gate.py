@@ -56,11 +56,11 @@ def test_committed_golden_passes_screen() -> None:
     assert screen.quotas.ok, "structural screen quotas failed"
     assert screen.quotas.reasons == (), "structural screen quota reasons"
     assert len(questions) == 50, "structural screen question count"
-    assert len(answerable) == 26, "structural screen answerable count"
-    assert len(unanswerable) == 24, "structural screen unanswerable count"
+    assert len(answerable) == 23, "structural screen answerable count"
+    assert len(unanswerable) == 27, "structural screen unanswerable count"
     assert screen.quotas.total == 50, "structural screen quota total"
-    assert screen.quotas.answerable == 26, "structural screen quota answerable"
-    assert screen.quotas.unanswerable_spec == 24, "structural screen unanswerable spec"
+    assert screen.quotas.answerable == 23, "structural screen quota answerable"
+    assert screen.quotas.unanswerable_spec == 27, "structural screen unanswerable spec"
     assert screen.quotas.part_rows == 17, "structural screen part rows"
     assert sum(question.part_id is not None for question in questions) == 17, (
         "structural screen part_id count"
@@ -105,6 +105,95 @@ def test_gate_rejects_page_that_does_not_name_the_subject() -> None:
     assert result.rejected == (
         RowRejection("thermostat-opening", RejectReason.TOPIC_NOT_IN_TEXT),
     )
+
+
+def test_service_spec_header_counts_when_the_value_is_on_its_own_line() -> None:
+    question = _answerable(
+        "bracket-torque",
+        question="What do the throttle body bracket bolts torque to?",
+        part_id="throttle-body",
+    )
+    result = gate_golden(
+        (question,),
+        _corpus(
+            {
+                ("FAKE-DOC", 999): (
+                    "Torque\nN\u00b7m kgf\u00b7cm ft\u00b7lbf\nThrottle body bracket\n999"
+                )
+            }
+        ),
+    )
+
+    assert result.rejected == ()
+    assert result.kept == (question,)
+
+
+def test_header_without_a_number_is_not_a_spec_shape() -> None:
+    question = _answerable(
+        "bracket-torque",
+        question="What do the throttle body bracket bolts torque to?",
+        part_id="throttle-body",
+    )
+    result = gate_golden(
+        (question,),
+        _corpus(
+            {
+                (
+                    "FAKE-DOC",
+                    999,
+                ): "Torque N\u00b7m kgf\u00b7cm ft\u00b7lbf throttle body bracket"
+            }
+        ),
+    )
+
+    assert result.rejected == (
+        RowRejection("bracket-torque", RejectReason.SPEC_SHAPE_MISSING),
+    )
+
+
+def test_inch_pound_unit_counts_as_a_spec_shape() -> None:
+    question = _answerable(
+        "ocv-bolt",
+        question="What's the torque on the VVT-i oil control valve bolt?",
+        part_id="oil-control-valve",
+    )
+    result = gate_golden(
+        (question,),
+        _corpus({("FAKE-DOC", 999): "oil control valve bolt 999 in.\u00b7lbf"}),
+    )
+
+    assert result.rejected == ()
+    assert result.kept == (question,)
+
+
+def test_dtc_wording_matches_the_diagnostic_title() -> None:
+    question = next(row for row in load_golden(GOLDEN_PATH) if row.id == "dtc-p0011")
+    inventory = Inventory(
+        ingest_ids=frozenset({"2jz-ge-rm"}),
+        page_counts={"2jz-ge-rm": 1959},
+    )
+    corpus = LoadedCorpus(
+        inventory=inventory,
+        pages={("2jz-ge-rm", 244): "DTC P0011 Camshaft Timing"},
+    )
+
+    result = gate_golden((question,), corpus)
+
+    assert result.rejected == ()
+    assert result.kept == (question,)
+
+
+def test_missing_mounting_torques_are_refusals() -> None:
+    questions = {row.id: row for row in load_golden(GOLDEN_PATH)}
+
+    for question_id in (
+        "ect-sensor-resistance",
+        "ps-pump-bolt-torque",
+        "alternator-bolt-torque",
+    ):
+        question = questions[question_id]
+        assert question.answerable is False
+        assert question.expected == ()
 
 
 def test_gate_rejects_spec_question_when_page_has_no_spec_shape() -> None:

@@ -52,6 +52,9 @@ _LONG_DIGIT_RE = re.compile(r"(?<![A-Za-z0-9])\d{5,}(?![A-Za-z0-9])")
 _PART_NUMBER_RE = re.compile(r"(?<![A-Za-z0-9])\d+-\d+(?![A-Za-z0-9])")
 
 _UNIT_WORDS = (
+    "in.\u00b7lbf",
+    "ft\u00b7lbf",
+    "kgf\u00b7cm",
     "N\u00b7m",
     "Nm",
     "N-m",
@@ -82,6 +85,14 @@ _NUMBER_UNIT_RE = re.compile(
 _CELSIUS_RE = re.compile(
     r"(?<![A-Za-z0-9])(?:\d{1,3}(?:,\d{3})+|\d+)\s+C\b",
     re.IGNORECASE,
+)
+# Service-spec tables put the units in the column header and the value on the part row.
+_TABLE_HEADER_RE = re.compile(
+    r"N\u00b7m(?:.|\n){0,80}?kgf\u00b7cm(?:.|\n){0,80}?ft\u00b7lbf",
+    re.IGNORECASE,
+)
+_BARE_NUMBER_RE = re.compile(
+    r"(?<![A-Za-z0-9])(?:\d{1,3}(?:,\d{3})+|\d+)(?![A-Za-z0-9])"
 )
 
 _SPEC_WORDS = frozenset(
@@ -616,10 +627,15 @@ def _topic_supported(question: str, page_texts: Sequence[str]) -> bool:
 
 
 def _has_spec_shape(text: str) -> bool:
+    if _FAKE_SPEC_RE.search(text) is not None:
+        return True
+    if _NUMBER_UNIT_RE.search(text) is not None:
+        return True
+    if _CELSIUS_RE.search(text) is not None:
+        return True
     return (
-        _FAKE_SPEC_RE.search(text) is not None
-        or _NUMBER_UNIT_RE.search(text) is not None
-        or _CELSIUS_RE.search(text) is not None
+        _TABLE_HEADER_RE.search(text) is not None
+        and _BARE_NUMBER_RE.search(text) is not None
     )
 
 
