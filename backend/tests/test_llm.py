@@ -296,6 +296,130 @@ def test_openai_client_retries_timeout_then_raises() -> None:
         client.complete([ChatTurn(role="user", content="Hi")])
 
 
+def test_invalid_provider_json_retries_then_returns_text() -> None:
+    pending: list[bytes | None] = [b"not-json", None]
+    sleeps: list[float] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        raw = pending.pop(0)
+        if raw is not None:
+            return httpx.Response(200, content=raw)
+        return httpx.Response(200, json=_openai_body("recovered"))
+
+    result = _openai_client(
+        handler, settings=_settings(max_retries=2), sleep=sleeps.append
+    ).complete([ChatTurn(role="user", content="The radiator is leaking.")])
+
+    assert result.text == "recovered"
+    assert sleeps == [0.25]
+
+
+def test_null_content_retries_then_returns_text() -> None:
+    bodies: list[dict[str, Any]] = [
+        {
+            "choices": [
+                {"index": 0, "message": {"role": "assistant", "content": None}}
+            ]
+        },
+        _openai_body("recovered"),
+    ]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=bodies.pop(0))
+
+    result = _openai_client(handler, settings=_settings(max_retries=1)).complete(
+        [ChatTurn(role="user", content="The truck shakes on the highway.")]
+    )
+
+    assert result.text == "recovered"
+
+
+def test_unreadable_provider_body_stops_at_the_retry_budget() -> None:
+    calls = {"n": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls["n"] += 1
+        return httpx.Response(200, content=b"not-json")
+
+    client = _openai_client(handler, settings=_settings(max_retries=2))
+    with pytest.raises(LLMError, match="provider failed after retries") as excinfo:
+        client.complete([ChatTurn(role="user", content="Hi")])
+
+    assert calls["n"] == 3
+    assert excinfo.value.kind == "parse"
+    assert "fake-test-key" not in str(excinfo.value)
+
+
+def test_rate_limit_logs_the_status_without_the_key(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(429, json={"error": "busy"})
+
+    client = _openai_client(handler, settings=_settings(max_retries=1))
+    caplog.set_level(logging.WARNING, logger="sidekick.llm")
+    payload = LlmAnswerProducer(client).produce(
+        _conversation("The radiator is leaking.")
+    )
+
+    assert payload == UNAVAILABLE_ANSWER
+    assert "kind=rate_limit" in caplog.text
+    assert "status=429" in caplog.text
+    assert "fake-test-key" not in caplog.text
+
+
+def test_provider_error_text_is_logged_without_the_key(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    secret = "test-key-not-real"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            429,
+            json={"error": {"message": f"slow down Bearer {secret}"}},
+        )
+
+    client = _openai_client(handler, settings=_settings(max_retries=0))
+    caplog.set_level(logging.WARNING, logger="sidekick.llm")
+    payload = LlmAnswerProducer(client).produce(
+        _conversation("The radiator is leaking.")
+    )
+
+    assert payload == UNAVAILABLE_ANSWER
+    assert "kind=rate_limit" in caplog.text
+    assert "status=429" in caplog.text
+    assert "slow down" in caplog.text
+    assert secret not in caplog.text
+    assert "Bearer" not in caplog.text
+
+
+def test_http_200_provider_error_is_retried() -> None:
+    bodies: list[dict[str, Any]] = [
+        {"error": {"message": "upstream overloaded", "code": 503}},
+        _openai_body("recovered"),
+    ]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=bodies.pop(0))
+
+    result = _openai_client(handler, settings=_settings(max_retries=1)).complete(
+        [ChatTurn(role="user", content="The truck shakes on the highway.")]
+    )
+
+    assert result.text == "recovered"
+
+
+def test_empty_completion_logs_parse_rejection(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.WARNING, logger="sidekick.llm")
+    payload = LlmAnswerProducer(FakeLLMClient(text="  ")).produce(_conversation())
+
+    assert payload == UNAVAILABLE_ANSWER
+    assert "kind=parse" in caplog.text
+    assert "detail=empty_completion" in caplog.text
+
+
 def test_openai_client_does_not_retry_client_errors() -> None:
     calls = {"n": 0}
 

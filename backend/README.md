@@ -364,7 +364,16 @@ the same `/v1/chat/completions` API).
 boundary. Provider failures (timeouts, exhausted retries, empty completions)
 return HTTP 200 with `kind: error` and `reason: provider_unavailable`.
 That is not a found answer. Token usage and latency are logged on logger
-`sidekick.llm`.
+`sidekick.llm`. A provider failure also logs `kind` (`timeout`,
+`rate_limit`, `http_status`, `transport`, or `parse`), the HTTP status when
+there is one, and a redacted detail. When the body has an `error` message,
+that text is part of the detail. The API key, `Authorization` header, and
+response body are not logged. A completion body that is not valid
+provider JSON, including empty content, is retried inside the same attempt
+budget as a timeout. A model reply that is not the expected answer JSON is
+logged as `kind=parse` with a fixed detail (`grounded_json`, `advice_steps`,
+`citation_mismatch`, or `empty_completion`) and is not sent again. A second
+full completion could run past the phone's 120 second budget.
 
 Environment variables (see `.env.example`):
 
@@ -374,7 +383,7 @@ Environment variables (see `.env.example`):
 | `SIDEKICK_LLM_BASE_URL` | `https://api.openai.com/v1` | Provider base URL, including `/v1` |
 | `SIDEKICK_LLM_MODEL` | `gpt-4o-mini` | Answer-provider model id. Not a pstack or poteto agent slug. |
 | `SIDEKICK_LLM_TIMEOUT_SECONDS` | `30` | Per-attempt HTTP timeout |
-| `SIDEKICK_LLM_MAX_RETRIES` | `2` | Retries after the first attempt on timeout, transport errors, 429, and 5xx |
+| `SIDEKICK_LLM_MAX_RETRIES` | `2` | Retries after the first attempt on timeout, transport errors, 429, 5xx, and an unreadable completion body |
 
 `FixtureAnswerProducer` remains for tests that need a committed contract fixture.
 

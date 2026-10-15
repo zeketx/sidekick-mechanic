@@ -6,6 +6,7 @@ import base64
 import json
 import logging
 import os
+import re
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
@@ -35,8 +36,57 @@ RETRYABLE_STATUS = frozenset({429, 500, 502, 503, 504})
 logger = logging.getLogger("sidekick.vision")
 
 
+FailureKind = Literal[
+    "timeout",
+    "rate_limit",
+    "http_status",
+    "transport",
+    "parse",
+    "unknown",
+]
+
+_SECRET = re.compile(r"(?i)bearer\s+\S+|sk-[A-Za-z0-9_-]+|api[_-]?key\s*[=:]\s*\S+")
+
+
 class LLMError(Exception):
     """Provider failed. Callers map this to a contract-valid error answer."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        kind: FailureKind = "unknown",
+        status_code: int | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.kind = kind
+        self.status_code = status_code
+
+
+def log_llm_failure(exc: BaseException) -> None:
+    kind = getattr(exc, "kind", "unknown")
+    status = getattr(exc, "status_code", None)
+    logging.getLogger("sidekick.llm").warning(
+        "llm provider failure kind=%s status=%s detail=%s",
+        kind,
+        "none" if status is None else status,
+        _redact(str(exc)),
+    )
+
+
+def log_answer_rejection(detail: str) -> None:
+    logging.getLogger("sidekick.llm").warning(
+        "llm answer rejected kind=parse detail=%s",
+        _redact(detail),
+    )
+
+
+def _redact(text: str, secret: str | None = None) -> str:
+    cleaned = text.replace("\n", " ").strip()
+    if secret:
+        cleaned = cleaned.replace(secret, "[redacted]")
+    cleaned = _SECRET.sub("[redacted]", cleaned)
+    return cleaned[:200]
 
 
 @dataclass(frozen=True)
@@ -143,30 +193,41 @@ class OpenAICompatibleClient:
         self._sleep = sleep
 
     def complete(self, messages: list[ChatTurn]) -> LLMResult:
-        last_error: Exception | None = None
+        last_error: LLMError | None = None
         attempts = self._settings.max_retries + 1
         started = time.monotonic()
+        secret = self._settings.api_key
         for attempt in range(attempts):
             try:
                 response = self._post(messages)
+            except httpx.TimeoutException as exc:
+                last_error = _transport_failure(exc, kind="timeout", secret=secret)
             except httpx.TransportError as exc:
-                last_error = exc
+                last_error = _transport_failure(exc, kind="transport", secret=secret)
             else:
                 if response.status_code in RETRYABLE_STATUS:
-                    last_error = LLMError(
-                        f"provider returned HTTP {response.status_code}"
-                    )
+                    last_error = _http_failure(response)
                 elif response.status_code >= 400:
-                    raise LLMError(f"provider returned HTTP {response.status_code}")
+                    raise _http_failure(response)
                 else:
-                    result = _parse_completion(
-                        response, fallback_model=self._settings.model
-                    )
-                    _log_vision_call(messages, result, started)
-                    return result
+                    try:
+                        result = _parse_completion(
+                            response, fallback_model=self._settings.model
+                        )
+                    except LLMError as exc:
+                        last_error = exc
+                    else:
+                        _log_vision_call(messages, result, started)
+                        return result
             if attempt + 1 < attempts:
                 self._sleep(0.25 * (2**attempt))
-        raise LLMError("provider failed after retries") from last_error
+        if last_error is None:
+            last_error = LLMError("provider failed after retries", kind="unknown")
+        raise LLMError(
+            f"provider failed after retries ({last_error.kind}: {last_error})",
+            kind=last_error.kind,
+            status_code=last_error.status_code,
+        ) from last_error
 
     def _post(self, messages: list[ChatTurn]) -> httpx.Response:
         url = f"{self._settings.base_url.rstrip('/')}/chat/completions"
@@ -289,25 +350,71 @@ def _int_setting(raw: str | None, default: int, *, name: str, minimum: int) -> i
     return value
 
 
+def _transport_failure(
+    exc: httpx.TransportError, *, kind: FailureKind, secret: str | None
+) -> LLMError:
+    return LLMError(_redact(f"{type(exc).__name__}: {exc}", secret), kind=kind)
+
+
+def _http_failure(response: httpx.Response) -> LLMError:
+    status = response.status_code
+    kind: FailureKind = "rate_limit" if status == 429 else "http_status"
+    try:
+        payload: object = response.json()
+    except ValueError:
+        payload = None
+    return LLMError(
+        _noted(f"provider returned HTTP {status}", _error_text(payload)),
+        kind=kind,
+        status_code=status,
+    )
+
+
+def _noted(message: str, detail: str | None) -> str:
+    if detail is None:
+        return message
+    return f"{message}: {detail}"
+
+
+def _error_text(payload: object) -> str | None:
+    if not isinstance(payload, dict):
+        return None
+    error = payload.get("error")
+    if isinstance(error, dict):
+        message = error.get("message")
+    elif isinstance(error, str):
+        message = error
+    else:
+        return None
+    if not isinstance(message, str) or not message.strip():
+        return None
+    return _redact(message)
+
+
+def _parse_failure(message: str) -> LLMError:
+    return LLMError(message, kind="parse")
+
+
 def _parse_completion(response: httpx.Response, *, fallback_model: str) -> LLMResult:
     try:
         payload = response.json()
     except ValueError as exc:
-        raise LLMError("provider returned invalid JSON") from exc
+        raise _parse_failure("provider returned invalid JSON") from exc
     if not isinstance(payload, dict):
-        raise LLMError("provider returned a non-object body")
+        raise _parse_failure("provider returned a non-object body")
+    detail = _error_text(payload)
     choices = payload.get("choices")
     if not isinstance(choices, list) or not choices:
-        raise LLMError("provider returned no choices")
+        raise _parse_failure(_noted("provider returned no choices", detail))
     first = choices[0]
     if not isinstance(first, dict):
-        raise LLMError("provider returned an invalid choice")
+        raise _parse_failure(_noted("provider returned an invalid choice", detail))
     message = first.get("message")
     if not isinstance(message, dict):
-        raise LLMError("provider returned an invalid message")
+        raise _parse_failure(_noted("provider returned an invalid message", detail))
     content = message.get("content")
     if not isinstance(content, str):
-        raise LLMError("provider returned empty content")
+        raise _parse_failure(_noted("provider returned empty content", detail))
     model = payload.get("model")
     model_name = model if isinstance(model, str) and model else fallback_model
     return LLMResult(

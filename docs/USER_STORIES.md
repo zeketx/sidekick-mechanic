@@ -4,7 +4,7 @@ Sidekick is a mechanic you text from your phone, for one truck. The demo truck i
 
 You describe a problem. It answers from the real manuals, shows the page, and can draw a line around a part on a photo.
 
-This file lists what the app can do. Each section starts with the annoying part, then the stories that help. Checked against `main` at `b1d3952` (12 Oct 2026), which includes the safety-gap fixes ([#135](https://github.com/zeketx/sidekick-mechanic/pull/135)) on top of a saved chat on each job ([#138](https://github.com/zeketx/sidekick-mechanic/pull/138)) and zooming a manual page plus Ask about this page ([#137](https://github.com/zeketx/sidekick-mechanic/pull/137)).
+This file lists what the app can do. Each section starts with the annoying part, then the stories that help. Checked against `main` at `e0352d4` (14 Oct 2026), which includes garage notes on each question ([#124](https://github.com/zeketx/sidekick-mechanic/pull/124)), cheap checks when the manual has no page ([#143](https://github.com/zeketx/sidekick-mechanic/pull/143)), and no related page when that page is off-topic ([#145](https://github.com/zeketx/sidekick-mechanic/pull/145)), on top of the safety-gap fixes ([#135](https://github.com/zeketx/sidekick-mechanic/pull/135)), a saved chat on each job ([#138](https://github.com/zeketx/sidekick-mechanic/pull/138)), and zooming a manual page plus Ask about this page ([#137](https://github.com/zeketx/sidekick-mechanic/pull/137)).
 
 **Keep it current.** If a pull request changes something a person can do in the app, update this file in that same pull request.
 
@@ -88,10 +88,15 @@ As a user, I can have a torque, a pin, a connector, or another number-with-a-uni
 Where: the reply, in place of the answer.
 Status: Shipped
 
-As a user, I can hear that the manual does not cover the question and then get the cheap checks first so that I have a place to start without a made-up procedure. The card is not the closed-book card. Chassis and engine from the garage can show, and TBD stays TBD. A related manual page can be opened from the card and from the job sheet, and is labeled as related, not as the page that answered.
+As a user, I can see "Not in your manual. Here's what usually causes this." and then the cheap checks, cheapest first, so that I have a place to start without a made-up procedure. The card has a wrench, not the closed book. Chassis and engine from the garage show as Truck and Engine. One can show without the other, and TBD stays TBD. If neither is written down, that line is left off. The same safety line sits above the numbered checks. If a check names a torque, a pin, or another spec, the reply says "Not found in the cited manual text" and names what it blocked. A wiring question the wiring manual can't back up still says that manual isn't loaded. A page that is about the question can be opened from the card and from the job sheet under Related pages, with a dashed label, and it is marked as related, not as the page that answered.
 
 Where: the reply, the card with the wrench, and the job sheet.
-Status: In review. [#143](https://github.com/zeketx/sidekick-mechanic/pull/143)
+Status: Shipped. [#143](https://github.com/zeketx/sidekick-mechanic/pull/143)
+
+As a user, I can see no related page rather than one about a different part, so that an off-topic page doesn't look like it belongs to the question. A page stays only when the opening that would be shown names the thing I asked about. A word that only shows up further down the page does not count. The checks still show.
+
+Where: Related pages, on the card and on the job sheet. The row is left off when nothing qualifies.
+Status: Shipped. [#145](https://github.com/zeketx/sidekick-mechanic/pull/145)
 
 As a user, I can have more ways of writing a torque caught, a missing manual come back as "not found", and "The mechanic is unavailable right now" show up as a failure instead of a normal reply so that none of those look like the book said it.
 
@@ -185,10 +190,10 @@ As a user, I can add a to-do, check it off, and remove it so that the little job
 Where: Garage, To-do, Add a to-do, and the checkbox on a line.
 Status: Shipped
 
-As a user, I can have the truck facts, the parts and papers, and the open to-dos go out with my question so that the reply can mention what I already wrote down. Photos and finished to-dos stay on the phone. A page it points at still has to come from a manual.
+As a user, I can have the truck facts, the parts and papers, and the open to-dos go out with my question, including when I ask about a page, so that the reply can mention what I already wrote down. Photos and finished to-dos stay on the phone. A very long note is shortened. Those notes are not a page in the book, and a page the reply points at still has to come from a manual.
 
-Where: Send. No new screen.
-Status: In review — [#124](https://github.com/zeketx/sidekick-mechanic/pull/124)
+Where: Send, and Ask about this page. No new screen.
+Status: Shipped. [#124](https://github.com/zeketx/sidekick-mechanic/pull/124)
 
 ## Your notes should still be there tomorrow
 
