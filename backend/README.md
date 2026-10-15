@@ -167,11 +167,17 @@ To score the same file against a backend that is already running:
 cd backend && python3 -m eval --backend http://127.0.0.1:8001
 ```
 
-That posts each question to `{backend}/chat`. Citation accuracy and refusal
-correctness come from those answers. Recall@5 stays empty, because the chat
-response has no hit list and citations are not hits. A user or key in the
-URL is not sent and is not written to the results file. The timeout is 120
-seconds. `make eval` does not pass `--backend`, so CI still uses the fake model.
+That posts each question to `{backend}/chat` with the request header
+`X-Sidekick-Eval: retrieval`. Citation accuracy comes from the answer.
+Refusal correctness counts a contract refusal, and also general advice whose
+honesty line says the manual does not cover the question. A found answer
+that cites a page does not count. Related pages on that advice are not
+citations. When the backend sends `X-Sidekick-Retrieval`, recall@5 uses
+those doc id and page pairs. The header is absent on a normal client, and
+the answer body stays the contract. The header value is not written to the
+results file. A user or key in the URL is not sent and is not written to
+the results file. The timeout is 120 seconds. `make eval` does not pass
+`--backend`, so CI still uses the fake model.
 
 The sample set is fake (`FAKE-*` document ids, page 999) so the harness and CI
 have rows before the real golden set exists. Do not put real manual pages in

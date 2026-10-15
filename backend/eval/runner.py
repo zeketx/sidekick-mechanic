@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 
 from app import create_app
 from llm import FakeLLMClient
-from producer import AnswerProducer, LlmAnswerProducer
+from producer import AnswerProducer, LlmAnswerProducer, parse_searched_pages
 
 _HTTP_TIMEOUT_S = 120.0
 
@@ -107,6 +107,7 @@ class HttpBackendRunner:
         try:
             response = self._client.post(
                 self._chat_url,
+                headers={"X-Sidekick-Eval": "retrieval"},
                 json={"messages": [{"role": "user", "text": question}]},
             )
         except httpx.HTTPError:
@@ -120,7 +121,21 @@ class HttpBackendRunner:
             raise RunnerError("POST /chat returned a non-object body") from None
         if not isinstance(payload, dict):
             raise RunnerError("POST /chat returned a non-object body")
-        return RunnerOutput(answer=payload, latency_ms=latency_ms, retrieval=None)
+        return RunnerOutput(
+            answer=payload,
+            latency_ms=latency_ms,
+            retrieval=_retrieval_header(response.headers.get("x-sidekick-retrieval")),
+        )
+
+
+def _retrieval_header(value: str | None) -> tuple[RetrievedHit, ...] | None:
+    if value is None:
+        return None
+    try:
+        pages = parse_searched_pages(value)
+    except ValueError:
+        raise RunnerError("retrieval header is not pages") from None
+    return tuple(RetrievedHit(doc_id, page) for doc_id, page in pages)
 
 
 def _chat_url(base_url: str) -> str:

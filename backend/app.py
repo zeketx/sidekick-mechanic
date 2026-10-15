@@ -8,11 +8,10 @@ safety.py. The note is not scanned. Refusals do not receive it.
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, Literal
 
-from pathlib import Path
-
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, PlainTextResponse, Response
 from jsonschema.exceptions import ValidationError
 from pydantic import BaseModel, ConfigDict, Field
@@ -30,7 +29,13 @@ from go_deeper import GoDeeperError, cited_page_text, go_deeper
 from llm import LLMClient, build_llm_client, build_vision_client
 from manual_pages import ManualPageError, is_servable_doc_id, page_png
 from page_chat import answer_about_page
-from producer import AnswerProducer, CitedChunkSource, default_producer
+from producer import (
+    AnswerProducer,
+    CitedChunkSource,
+    LlmAnswerProducer,
+    default_producer,
+    format_searched_pages,
+)
 from safety import apply_safety_preamble
 from spec_guard import guard_answer
 
@@ -145,7 +150,9 @@ def create_app(
     def answer_page_turn(
         conversation: Conversation, page: PageRef
     ) -> tuple[dict[str, Any], tuple[str, ...]]:
-        if not is_servable_doc_id(page.doc_id, manifest_path=application.state.manifest_path):
+        if not is_servable_doc_id(
+            page.doc_id, manifest_path=application.state.manifest_path
+        ):
             raise HTTPException(status_code=422, detail="unknown manual page")
         # Loaded once. The prompt and the guard see the same string.
         page_text = cited_page_text(
@@ -166,7 +173,9 @@ def create_app(
         return payload, evidence
 
     @application.post("/chat")
-    def post_chat(conversation: Conversation) -> dict[str, Any]:
+    def post_chat(
+        conversation: Conversation, request: Request, response: Response
+    ) -> dict[str, Any]:
         if conversation.demo is not None and not has_photo(conversation.demo.photo_id):
             raise HTTPException(status_code=422, detail="unknown demo photo")
         page = conversation.page
@@ -182,6 +191,10 @@ def create_app(
         guarded = guard_answer(payload, chunk_texts)
         # After the guard so the safety note is never scanned for specs.
         noted = apply_safety_preamble(guarded.answer)
+        if request.headers.get("x-sidekick-eval") == "retrieval":
+            pages = _debug_searched_pages(answer_producer, conversation, page)
+            if pages is not None:
+                response.headers["X-Sidekick-Retrieval"] = format_searched_pages(pages)
         try:
             return validate_answer(noted)
         except ValidationError as exc:
@@ -191,6 +204,16 @@ def create_app(
             ) from exc
 
     return application
+
+
+def _debug_searched_pages(
+    producer: AnswerProducer,
+    conversation: Conversation,
+    page: PageRef | None,
+) -> tuple[tuple[str, int], ...] | None:
+    if page is not None or not isinstance(producer, LlmAnswerProducer):
+        return None
+    return producer.searched_pages(conversation)
 
 
 app = create_app()

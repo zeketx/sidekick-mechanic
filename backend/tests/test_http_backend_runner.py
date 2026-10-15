@@ -14,6 +14,8 @@ from eval.__main__ import main
 from eval.harness import run_harness
 from eval.report import render_job_summary
 from eval.runner import HttpBackendRunner, RunnerError
+from general_advice import ADVICE_HONESTY
+from safety import SAFETY_NOTE
 
 FAKE_DATE = "2026-10-01"
 SECRET = "sk-SECRET"
@@ -159,6 +161,74 @@ def test_redirect_is_not_followed(monkeypatch: pytest.MonkeyPatch) -> None:
     assert seen == ["http://127.0.0.1:8001/chat"]
     assert str(exc.value) == "POST /chat returned 302"
     assert SECRET not in str(exc.value)
+
+
+def test_runner_scores_advice_and_recall_from_the_debug_header(
+    tmp_path: Path,
+) -> None:
+    advice = {
+        "kind": "general_advice",
+        "honesty": ADVICE_HONESTY,
+        "safety": SAFETY_NOTE,
+        "steps": ["FAKE-STEP: look at the fixture."],
+        "garage": {"source": "none"},
+        "related": [
+            {"doc_id": "FAKE-DOC", "page": 999, "snippet": "FAKE-SPEC"},
+        ],
+    }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.headers["x-sidekick-eval"] == "retrieval"
+        question = json.loads(request.content)["messages"][0]["text"]
+        if "FAKE-PART" in question:
+            body: dict[str, Any] = ANSWER
+            header = "FAKE-DOC:999"
+        else:
+            body = advice
+            header = "-"
+        return httpx.Response(
+            200,
+            json=body,
+            headers={"X-Sidekick-Retrieval": header},
+        )
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    runner = HttpBackendRunner("http://127.0.0.1:8001", client=client)
+    payload = run_harness(
+        _golden(tmp_path),
+        runner=runner,
+        output_dir=tmp_path,
+        date=FAKE_DATE,
+    )
+    written = (tmp_path / f"{FAKE_DATE}.json").read_text(encoding="utf-8")
+    client.close()
+
+    assert payload["metrics"]["citation_accuracy"] == 1.0
+    assert payload["metrics"]["refusal_correctness"] == 1.0
+    assert payload["metrics"]["recall_at_5"] == 1.0
+    assert payload["cases"][1]["refusal_correct"] is True
+    assert "FAKE-PAGE-TEXT" not in written
+    assert SECRET not in written
+
+
+def test_bad_retrieval_header_is_not_echoed() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(
+            200,
+            json=ANSWER,
+            headers={"X-Sidekick-Retrieval": SECRET},
+        )
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+    runner = HttpBackendRunner("http://127.0.0.1:8001", client=client)
+
+    with pytest.raises(RunnerError) as exc:
+        runner.run("Where is FAKE-PART?")
+
+    assert str(exc.value) == "retrieval header is not pages"
+    assert SECRET not in str(exc.value)
+    client.close()
 
 
 def test_harness_results_score_chat_and_omit_the_url(tmp_path: Path) -> None:

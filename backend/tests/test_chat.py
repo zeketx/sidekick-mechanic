@@ -27,6 +27,7 @@ from producer import (
     FixtureAnswerProducer,
     LlmAnswerProducer,
 )
+from retrieval import RetrievedChunk
 from safety import SAFETY_NOTE
 
 HAPPY_BODY = {
@@ -91,6 +92,37 @@ def test_chat_llm_error_returns_contract_valid_error_answer() -> None:
     payload = response.json()
     validate_answer(payload)
     assert payload == UNAVAILABLE_ANSWER
+
+
+def test_eval_header_returns_searched_pages_outside_the_body() -> None:
+    class _Search:
+        def search(self, query: str, k: int = 5) -> tuple[RetrievedChunk, ...]:
+            del query, k
+            return (
+                RetrievedChunk(
+                    doc_id="FAKE-DOC",
+                    page=999,
+                    text="FAKE-PAGE-TEXT",
+                    score=1.0,
+                    rank=1,
+                ),
+            )
+
+    client = _client(LlmAnswerProducer(FakeLLMClient(), retriever=_Search()))
+    plain = client.post("/chat", json=HAPPY_BODY)
+    debug = client.post(
+        "/chat",
+        json=HAPPY_BODY,
+        headers={"X-Sidekick-Eval": "retrieval"},
+    )
+
+    assert plain.status_code == 200
+    assert "x-sidekick-retrieval" not in plain.headers
+    assert "retrieval" not in plain.json()
+    assert debug.status_code == 200
+    validate_answer(debug.json())
+    assert "retrieval" not in debug.json()
+    assert debug.headers["x-sidekick-retrieval"] == "FAKE-DOC:999"
 
 
 def test_chat_uses_injected_producer() -> None:
