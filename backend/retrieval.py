@@ -17,6 +17,9 @@ RELATED_CANDIDATE_K = 40
 CHUNKS_FILENAME = "chunks.jsonl"
 INDEX_FILENAME = "index.sqlite"
 _CANDIDATE_K = 40
+# The strict AND pool hides a page that lacks one colloquial term once any
+# other page already contains every term. The broad pool is what rerank may see.
+_BROAD_CANDIDATE_K = 80
 _LABEL_BM25_WEIGHT = 8.0
 _TEXT_BM25_WEIGHT = 1.0
 
@@ -54,6 +57,9 @@ _STOPWORDS = frozenset(
     system systems
     read reads reading
     feed feeds
+    actually really working works job jobs
+    scanner scanners shows shown mean means
+    see seen new
     """.split()
 )
 _VEHICLE_QUERY_TOKENS = frozenset(
@@ -63,6 +69,18 @@ _SPEC_QUERY = re.compile(
     r"\b(?:torque|resistance|pressure|temperature|clearance|capacity|gap)\b",
     re.IGNORECASE,
 )
+# Shop wording to the heading the manual actually prints. Not page ids.
+_SHOP_EXPANSIONS: dict[str, tuple[str, ...]] = {
+    "tight": ("torque",),
+    "tighter": ("torque",),
+    "tightness": ("torque",),
+    "tighten": ("torque",),
+    "tightening": ("torque",),
+    "ohm": ("resistance",),
+    "ohms": ("resistance",),
+}
+_OIL_QUANTITY = re.compile(r"\bhow much\b", re.IGNORECASE)
+_OIL_WORD = re.compile(r"\boil\b", re.IGNORECASE)
 _TORQUE_SPEC = re.compile(r"\bTorque:")
 _EQUIPMENT_TORQUE = re.compile(r"Torque wrench", re.IGNORECASE)
 
@@ -131,6 +149,7 @@ class Fts5Index:
     ) -> tuple[RetrievedChunk, ...]:
         if k < 1:
             raise RetrievalError(f"k must be >= 1, got {k}")
+        query = broaden_query(query)
         terms = content_terms(query)
         if not terms:
             return ()
@@ -143,13 +162,28 @@ class Fts5Index:
                 self._connection, or_match, k=_CANDIDATE_K, doc_id=doc_id
             )
         else:
-            rows = _match_rows(
+            strict = _match_rows(
                 self._connection, and_match, k=_CANDIDATE_K, doc_id=doc_id
             )
-            if not rows:
-                rows = _match_rows(
-                    self._connection, or_match, k=_CANDIDATE_K, doc_id=doc_id
-                )
+            broad = _match_rows(
+                self._connection, or_match, k=_BROAD_CANDIDATE_K, doc_id=doc_id
+            )
+            merged = _merge_candidate_rows(strict, broad)
+            if not strict:
+                # Nothing contains every term. The broad pool is the old
+                # OR fallback, including a page that shares only a rare word.
+                rows = merged
+            else:
+                strict_keys = {
+                    (str(row["doc_id"]), int(row["page"])) for row in strict
+                }
+                rows = [
+                    row
+                    for row in merged
+                    if _keep_candidate(
+                        query, terms, row, strict_keys=strict_keys
+                    )
+                ]
         if not rows:
             return ()
         ranked = _rerank(self._connection, query, terms, rows, doc_id=doc_id)
@@ -256,20 +290,28 @@ def _last_whitespace_index(window: str) -> int | None:
     return None
 
 
-def snippet_matches_page(snippet: str, page_text: str) -> bool:
-    """True when snippet is a contiguous span of the page text.
+def quoted_span(snippet: str, page_text: str) -> str | None:
+    """The page's own span when `snippet` quotes those tokens in order.
 
-    Whitespace may collapse. Token order may not. A rearrangement of the
-    page's words is not a quote.
+    Non-letters may sit between tokens, and case may differ. A rearrangement
+    or an invented token returns None. Callers that display a quote should
+    prefer this span over the model's string.
     """
 
-    if not snippet.strip() or not page_text:
-        return False
-    if snippet in page_text:
-        return True
-    snip_ws = _WS.sub(" ", snippet).strip()
-    page_ws = _WS.sub(" ", page_text).strip()
-    return snip_ws in page_ws
+    tokens = _TOKEN.findall(snippet)
+    if not tokens or not page_text.strip():
+        return None
+    pattern = r"[^A-Za-z0-9]+".join(re.escape(token) for token in tokens)
+    match = re.search(pattern, page_text, flags=re.IGNORECASE)
+    if match is None:
+        return None
+    return match.group(0)
+
+
+def snippet_matches_page(snippet: str, page_text: str) -> bool:
+    """True when snippet quotes a contiguous token span of the page text."""
+
+    return quoted_span(snippet, page_text) is not None
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -360,6 +402,33 @@ def _require_fts5_schema(connection: sqlite3.Connection) -> None:
     del rows
 
 
+def broaden_query(query: str) -> str:
+    """Append manual headings the shop wording implies.
+
+    "How tight" never says torque, so the torque-table bonus never fires
+    and the AND query demands a word the spec page does not print.
+    """
+
+    tokens = [token.lower() for token in _TOKEN.findall(query)]
+    seen = set(tokens)
+    extra: list[str] = []
+    for token in tokens:
+        for added in _SHOP_EXPANSIONS.get(token, ()):
+            if added in seen:
+                continue
+            seen.add(added)
+            extra.append(added)
+    if (
+        _OIL_QUANTITY.search(query)
+        and _OIL_WORD.search(query)
+        and "capacity" not in seen
+    ):
+        extra.append("capacity")
+    if not extra:
+        return query
+    return f"{query} {' '.join(extra)}"
+
+
 def content_terms(query: str) -> tuple[str, ...]:
     terms: list[str] = []
     seen: set[str] = set()
@@ -434,6 +503,43 @@ def _match_rows(
         return []
 
 
+def _keep_candidate(
+    query: str,
+    terms: tuple[str, ...],
+    row: sqlite3.Row,
+    *,
+    strict_keys: set[tuple[str, int]],
+) -> bool:
+    """A partial page stays when it is a spec table or misses one term.
+
+    A two-word query such as "starter motor" does not keep a page that
+    only says starter. A longer shop question does keep the torque table
+    that lacks the colloquial words.
+    """
+
+    key = (str(row["doc_id"]), int(row["page"]))
+    if key in strict_keys:
+        return True
+    if _structural_bonus(query, row["text"]) > 0:
+        return True
+    if len(terms) < 4:
+        return False
+    hay = f"{row['labels']}\n{row['text']}".lower()
+    matched = sum(1 for term in terms if term_in_text(term, hay))
+    return matched >= len(terms) - 1
+
+
+def _merge_candidate_rows(*groups: list[sqlite3.Row]) -> list[sqlite3.Row]:
+    best: dict[tuple[str, int], sqlite3.Row] = {}
+    for rows in groups:
+        for row in rows:
+            key = (str(row["doc_id"]), int(row["page"]))
+            current = best.get(key)
+            if current is None or float(row["score"]) > float(current["score"]):
+                best[key] = row
+    return list(best.values())
+
+
 def _rerank(
     connection: sqlite3.Connection,
     query: str,
@@ -444,13 +550,10 @@ def _rerank(
 ) -> list[tuple[float, sqlite3.Row]]:
     n_docs = _chunk_count(connection, doc_id)
     idf = {term.lower(): _idf(connection, term, n_docs, doc_id) for term in terms}
-    phrases = [
-        f"{terms[index]} {terms[index + 1]}".lower() for index in range(len(terms) - 1)
-    ]
     scored: list[tuple[float, sqlite3.Row]] = []
     for row in rows:
         hay = f"{row['labels']}\n{row['text']}".lower()
-        phrase_hits = sum(1 for phrase in phrases if phrase in hay)
+        phrase_hits = _phrase_hit_count(terms, hay)
         coverage = 0.0
         for term in terms:
             if term_in_text(term, hay):
@@ -514,6 +617,22 @@ def _structural_bonus(query: str, text: str) -> float:
     return bonus
 
 
+def _phrase_hit_count(terms: tuple[str, ...], hay: str) -> int:
+    count = 0
+    for index in range(len(terms) - 1):
+        if _phrase_in_hay(terms[index], terms[index + 1], hay):
+            count += 1
+    return count
+
+
+def _phrase_in_hay(left: str, right: str, hay: str) -> bool:
+    for first in _surface_variants(left):
+        for second in _surface_variants(right):
+            if f"{first} {second}".lower() in hay:
+                return True
+    return False
+
+
 def term_in_text(term: str, hay: str) -> bool:
     tokens = {token.lower() for token in _TOKEN.findall(hay)}
     return any(variant.lower() in tokens for variant in _surface_variants(term))
@@ -522,14 +641,18 @@ def term_in_text(term: str, hay: str) -> bool:
 def _surface_variants(term: str) -> tuple[str, ...]:
     variants = [term]
     low = term.lower()
+    if len(low) <= 3:
+        return (term,)
     if low.endswith("ies") and len(low) > 4:
-        stem = term[:-3] + ("Y" if term[-4].isupper() else "y")
-        variants.append(stem)
-    elif low.endswith("es") and len(low) > 4:
+        variants.append(term[:-3] + ("Y" if term[-4].isupper() else "y"))
+    elif low.endswith(("sses", "xes", "zes", "ches", "shes")) and len(low) > 4:
         variants.append(term[:-2])
+    elif low.endswith("es") and len(low) > 4:
+        # "brakes" ends in "es". Dropping both letters leaves "brak".
+        variants.append(term[:-1])
     elif low.endswith("s") and not low.endswith("ss") and len(low) > 3:
         variants.append(term[:-1])
-    return tuple(variants)
+    return tuple(dict.fromkeys(variants))
 
 
 def _is_heading_line(line: str) -> bool:

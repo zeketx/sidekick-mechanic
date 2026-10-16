@@ -310,7 +310,7 @@ def _fault_is_present(fault: str, snippet: str) -> bool:
     if not _term_in_snippet(fault, snippet):
         return False
     # "knock sensor" names the detector, not the fault.
-    variants = "|".join(re.escape(variant) for variant in _match_variants(fault))
+    variants = "|".join(re.escape(variant) for variant in _surface_variants(fault))
     pattern = re.compile(
         rf"\b(?:{variants})\s+(?:{'|'.join(sorted(_DETECTOR_TAILS))})\b",
         re.IGNORECASE,
@@ -320,18 +320,7 @@ def _fault_is_present(fault: str, snippet: str) -> bool:
 
 def _term_in_snippet(term: str, snippet: str) -> bool:
     tokens = _snippet_tokens(snippet)
-    return any(variant.casefold() in tokens for variant in _match_variants(term))
-
-
-def _match_variants(term: str) -> tuple[str, ...]:
-    variants = list(_surface_variants(term))
-    # "brakes" ends in "es", so the shared stemmer yields "brak" and misses "brake".
-    low = term.casefold()
-    if low.endswith("es") and len(low) > 4:
-        singular = term[:-1]
-        if singular.casefold() not in {item.casefold() for item in variants}:
-            variants.append(singular)
-    return tuple(variants)
+    return any(variant.casefold() in tokens for variant in _surface_variants(term))
 
 
 def _snippet_tokens(snippet: str) -> set[str]:

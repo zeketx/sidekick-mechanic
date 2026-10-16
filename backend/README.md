@@ -136,7 +136,7 @@ python3 retrieval.py query "starter motor" --k 5
 prints top-k JSON lines with `doc_id`, `page`, `rank`, `score`, and `text`. The
 index stores a boosted `labels` column (headings and `NAME NO. N` components)
 plus page `text`, tokenized with FTS5 `porter unicode61`. Search drops
-stopwords and vehicle tokens, ANDs the rest, falls back to OR, then reranks.
+stopwords and vehicle tokens, unions an AND pool with a broader OR pool, then reranks. Shop wording gains the manual heading (`tight` → `torque`).
 Tests use generated `FAKE-*` chunks, not real manuals.
 
 Real-PDF ranking (optional, skips without `manuals/*.pdf`):
