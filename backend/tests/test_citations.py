@@ -181,7 +181,7 @@ def test_whitespace_normalized_snippet_is_kept() -> None:
     payload = producer.produce(_conversation())
 
     assert payload["kind"] == "answer"
-    assert payload["citations"][0]["snippet"] == "FAKE-SNIPPET: no real spec."
+    assert payload["citations"][0]["snippet"] == page_text
     assert snippet_matches_page("FAKE-SNIPPET: no real spec.", page_text)
 
 
@@ -194,11 +194,11 @@ def test_rearranged_snippet_is_replaced_with_the_page() -> None:
 
     payload = producer.produce(_conversation())
 
-    assert payload == {
-        "kind": "answer",
-        "text": _ANSWER,
-        "citations": [_cited(page_text)],
-    }
+    assert payload["kind"] == "answer"
+    assert payload["text"] == _ANSWER
+    chip = payload["citations"][0]["snippet"]
+    assert chip in page_text
+    assert chip != "FAKE-SNIPPET: no real spec."
 
 
 def test_invented_snippet_keeps_the_retrieved_page() -> None:
@@ -453,8 +453,23 @@ def test_case_changed_snippet_is_kept() -> None:
     assert payload == {
         "kind": "answer",
         "text": _ANSWER,
-        "citations": [_cited("fake-snippet: no real spec.")],
+        "citations": [_cited(_SNIPPET)],
     }
+
+
+def test_split_number_is_not_stored_as_the_model_wrote_it() -> None:
+    page_text = "Step 1. 8 Nm bolts on the fixture. FAKE-SPEC"
+    producer, _, _ = _producer(
+        _completion(_ANSWER, [_cited("1.8 Nm")]),
+        (_Hit(_DOC, _PAGE, page_text),),
+    )
+
+    payload = producer.produce(_conversation())
+
+    assert payload["kind"] == "answer"
+    chip = payload["citations"][0]["snippet"]
+    assert "1.8" not in chip
+    assert not any(token.isdigit() for token in chip.split())
 
 
 def test_repaired_page_still_refuses_a_number_the_page_lacks() -> None:

@@ -149,10 +149,12 @@ class Fts5Index:
     ) -> tuple[RetrievedChunk, ...]:
         if k < 1:
             raise RetrievalError(f"k must be >= 1, got {k}")
-        query = broaden_query(query)
         terms = content_terms(query)
         if not terms:
             return ()
+        # Related search stays on the owner's words. Shop headings are not
+        # fault words, and they must not fill the related-page judge window.
+        extras = () if match_any else expansion_terms(query)
         and_match = _fts_and_query(terms)
         or_match = _fts_or_query(terms)
         # Related pages ask for any fault word. AND would hide a pad page
@@ -168,25 +170,40 @@ class Fts5Index:
             broad = _match_rows(
                 self._connection, or_match, k=_BROAD_CANDIDATE_K, doc_id=doc_id
             )
-            merged = _merge_candidate_rows(strict, broad)
             if not strict:
-                # Nothing contains every term. The broad pool is the old
-                # OR fallback, including a page that shares only a rare word.
-                rows = merged
+                # Nothing contains every term. Do not add shop headings here.
+                # An empty AND plus "torque" would fill the pool with tables.
+                rows = broad
             else:
+                extra_rows = (
+                    _match_rows(
+                        self._connection,
+                        _fts_or_query((*terms, *extras)),
+                        k=_BROAD_CANDIDATE_K,
+                        doc_id=doc_id,
+                    )
+                    if extras
+                    else []
+                )
                 strict_keys = {
                     (str(row["doc_id"]), int(row["page"])) for row in strict
                 }
                 rows = [
                     row
-                    for row in merged
+                    for row in _merge_candidate_rows(strict, broad, extra_rows)
                     if _keep_candidate(
-                        query, terms, row, strict_keys=strict_keys
+                        query,
+                        terms,
+                        row,
+                        strict_keys=strict_keys,
+                        extras=extras,
                     )
                 ]
         if not rows:
             return ()
-        ranked = _rerank(self._connection, query, terms, rows, doc_id=doc_id)
+        ranked = _rerank(
+            self._connection, query, terms, rows, doc_id=doc_id, extras=extras
+        )
         return tuple(
             RetrievedChunk(
                 doc_id=row["doc_id"],
@@ -291,27 +308,120 @@ def _last_whitespace_index(window: str) -> int | None:
 
 
 def quoted_span(snippet: str, page_text: str) -> str | None:
-    """The page's own span when `snippet` quotes those tokens in order.
+    """The page's own slice when the snippet quotes it.
 
-    Non-letters may sit between tokens, and case may differ. A rearrangement
-    or an invented token returns None. Callers that display a quote should
-    prefer this span over the model's string.
+    Whitespace may collapse and case may differ. The match may not start or
+    end in the middle of a token, and punctuation has to match. "1.8" is not
+    a quote of "1. 8" or "180".
     """
 
-    tokens = _TOKEN.findall(snippet)
-    if not tokens or not page_text.strip():
+    if not snippet.strip() or not page_text.strip():
         return None
-    pattern = r"[^A-Za-z0-9]+".join(re.escape(token) for token in tokens)
-    match = re.search(pattern, page_text, flags=re.IGNORECASE)
-    if match is None:
+    collapsed, mapping = _collapse_with_map(page_text)
+    needle, _needle_map = _collapse_with_map(snippet)
+    if not collapsed or not needle:
         return None
-    return match.group(0)
+    hay = collapsed.casefold()
+    key = needle.casefold()
+    start = 0
+    while True:
+        found = hay.find(key, start)
+        if found < 0:
+            return None
+        end = found + len(key)
+        before_ok = found == 0 or not hay[found - 1].isalnum()
+        after_ok = end == len(hay) or not hay[end].isalnum()
+        if before_ok and after_ok and len(key) == len(needle):
+            page_start = mapping[found]
+            page_end = mapping[end - 1] + 1
+            return page_text[page_start:page_end]
+        start = found + 1
+
+
+def grounding_span(snippet: str, page_text: str) -> str:
+    """A span of the page we can show for this citation.
+
+    A real quote is returned as the page's own characters. Otherwise the
+    sentence that shares the quote's words, then a heading, then a line
+    with no digit. The opening of the page is not used when that opening
+    is a different measurement.
+    """
+
+    quoted = quoted_span(snippet, page_text)
+    if quoted:
+        return quoted
+    overlap = _best_overlap_sentence(snippet, page_text)
+    if overlap:
+        return overlap
+    labels = [line.strip() for line in extract_labels(page_text).splitlines()]
+    if labels:
+        return labels[0]
+    for line in page_text.splitlines():
+        stripped = line.strip()
+        if stripped and not re.search(r"\d", stripped):
+            return stripped
+    words = [token for token in _TOKEN.findall(page_text) if not token.isdigit()]
+    return " ".join(words[:12])
 
 
 def snippet_matches_page(snippet: str, page_text: str) -> bool:
-    """True when snippet quotes a contiguous token span of the page text."""
+    """True when snippet quotes a contiguous span of the page text."""
 
     return quoted_span(snippet, page_text) is not None
+
+
+def _collapse_with_map(text: str) -> tuple[str, list[int]]:
+    chars: list[str] = []
+    mapping: list[int] = []
+    index = 0
+    length = len(text)
+    while index < length:
+        if text[index].isspace():
+            if chars and chars[-1] != " ":
+                chars.append(" ")
+                mapping.append(index)
+            while index < length and text[index].isspace():
+                index += 1
+            continue
+        folded = text[index].casefold()
+        if len(folded) != 1:
+            chars.append(text[index])
+            mapping.append(index)
+        else:
+            chars.append(text[index])
+            mapping.append(index)
+        index += 1
+    while chars and chars[0] == " ":
+        chars.pop(0)
+        mapping.pop(0)
+    while chars and chars[-1] == " ":
+        chars.pop()
+        mapping.pop()
+    return "".join(chars), mapping
+
+
+def _best_overlap_sentence(snippet: str, page_text: str) -> str | None:
+    wanted = {
+        token.lower()
+        for token in _TOKEN.findall(snippet)
+        if len(token) > 2 and token.lower() not in _STOPWORDS
+    }
+    if not wanted:
+        return None
+    best = ""
+    best_score = 0
+    for sentence in re.split(r"\n+|(?<=[.!?])\s+", page_text):
+        cleaned = sentence.strip()
+        if not cleaned:
+            continue
+        tokens = {token.lower() for token in _TOKEN.findall(cleaned)}
+        score = len(wanted & tokens)
+        if score > best_score:
+            best_score = score
+            best = cleaned
+    if best_score >= 2 or (len(wanted) == 1 and best_score == 1):
+        return best
+    return None
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -402,11 +512,12 @@ def _require_fts5_schema(connection: sqlite3.Connection) -> None:
     del rows
 
 
-def broaden_query(query: str) -> str:
-    """Append manual headings the shop wording implies.
+def expansion_terms(query: str) -> tuple[str, ...]:
+    """Manual headings implied by shop wording.
 
-    "How tight" never says torque, so the torque-table bonus never fires
-    and the AND query demands a word the spec page does not print.
+    These are extra OR terms. They are not AND requirements and they do
+    not arm the heading bonus by themselves. "How much oil pressure" does
+    not become a capacity query.
     """
 
     tokens = [token.lower() for token in _TOKEN.findall(query)]
@@ -421,12 +532,11 @@ def broaden_query(query: str) -> str:
     if (
         _OIL_QUANTITY.search(query)
         and _OIL_WORD.search(query)
+        and _SPEC_QUERY.search(query) is None
         and "capacity" not in seen
     ):
         extra.append("capacity")
-    if not extra:
-        return query
-    return f"{query} {' '.join(extra)}"
+    return tuple(extra)
 
 
 def content_terms(query: str) -> tuple[str, ...]:
@@ -509,18 +619,21 @@ def _keep_candidate(
     row: sqlite3.Row,
     *,
     strict_keys: set[tuple[str, int]],
+    extras: tuple[str, ...],
 ) -> bool:
-    """A partial page stays when it is a spec table or misses one term.
+    """A partial page stays when it is the spec table for these part words.
 
     A two-word query such as "starter motor" does not keep a page that
-    only says starter. A longer shop question does keep the torque table
-    that lacks the colloquial words.
+    only says starter. A shop word such as "tight" does not keep every
+    torque table, only a table that also matches the part words.
     """
 
     key = (str(row["doc_id"]), int(row["page"]))
     if key in strict_keys:
         return True
     if _structural_bonus(query, row["text"]) > 0:
+        return True
+    if _expansion_bonus(row["labels"], row["text"], terms, extras) > 0:
         return True
     if len(terms) < 4:
         return False
@@ -547,6 +660,7 @@ def _rerank(
     rows: list[sqlite3.Row],
     *,
     doc_id: str | None,
+    extras: tuple[str, ...] = (),
 ) -> list[tuple[float, sqlite3.Row]]:
     n_docs = _chunk_count(connection, doc_id)
     idf = {term.lower(): _idf(connection, term, n_docs, doc_id) for term in terms}
@@ -562,6 +676,7 @@ def _rerank(
             8.0 * phrase_hits
             + 4.0 * coverage
             + _structural_bonus(query, row["text"])
+            + _expansion_bonus(row["labels"], row["text"], terms, extras)
             + float(row["score"])
         )
         scored.append((score, row))
@@ -602,6 +717,32 @@ def _idf(
     return math.log((n_docs + 1) / (df + 1))
 
 
+def _expansion_bonus(
+    labels: str,
+    text: str,
+    terms: tuple[str, ...],
+    extras: tuple[str, ...],
+) -> float:
+    """Heading bonus for a shop word, only when the page matches the part.
+
+    "Tight" may surface a torque table. The table still has to share the
+    part words. A brake question does not promote every torque page.
+    """
+
+    if not extras or not terms:
+        return 0.0
+    hay = f"{labels}\n{text}".lower()
+    matched = sum(1 for term in terms if term_in_text(term, hay))
+    if matched < max(1, (len(terms) + 1) // 2):
+        return 0.0
+    bonus = 0.0
+    if "torque" in extras and _TORQUE_SPEC.search(text):
+        bonus += 8.0
+    if "SERVICE DATA" in text or "SERVICE SPECIFICATIONS" in text:
+        bonus += 5.0
+    return bonus
+
+
 def _structural_bonus(query: str, text: str) -> float:
     bonus = 0.0
     if re.search(r"\btorque\b", query, re.IGNORECASE):
@@ -639,19 +780,26 @@ def term_in_text(term: str, hay: str) -> bool:
 
 
 def _surface_variants(term: str) -> tuple[str, ...]:
-    variants = [term]
+    variants = [term.lower()]
     low = term.lower()
     if len(low) <= 3:
-        return (term,)
+        return (low,)
     if low.endswith("ies") and len(low) > 4:
-        variants.append(term[:-3] + ("Y" if term[-4].isupper() else "y"))
-    elif low.endswith(("sses", "xes", "zes", "ches", "shes")) and len(low) > 4:
-        variants.append(term[:-2])
+        variants.append(low[:-3] + "y")
     elif low.endswith("es") and len(low) > 4:
-        # "brakes" ends in "es". Dropping both letters leaves "brak".
-        variants.append(term[:-1])
+        # "brakes" → "brake", not "brak". "gases" / "lenses" also keep
+        # the two-letter stem ("gas", "lens").
+        variants.append(low[:-1])
+        if low.endswith(("sses", "xes", "zes", "ches", "shes", "ses")):
+            variants.append(low[:-2])
     elif low.endswith("s") and not low.endswith("ss") and len(low) > 3:
-        variants.append(term[:-1])
+        variants.append(low[:-1])
+    if low.endswith("ing") and len(low) > 6 and len(low) - 3 >= 4:
+        # "tightening" matches "tighten". "timing" is too short to strip.
+        variants.append(low[:-3])
+    if low.endswith("ed") and len(low) > 5:
+        variants.append(low[:-2])
+        variants.append(low[:-1])
     return tuple(dict.fromkeys(variants))
 
 

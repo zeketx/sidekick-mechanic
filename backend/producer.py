@@ -43,7 +43,7 @@ from retrieval import (
     RetrievedChunk,
     Retriever,
     cap_snippet,
-    snippet_matches_page,
+    grounding_span,
 )
 
 DEFAULT_FIXTURE = "plain.json"
@@ -586,12 +586,9 @@ def _filter_citations(
         page_text = pages.get((doc_id, page))
         if page_text is None:
             continue
-        if snippet_matches_page(snippet, page_text):
-            stored = cap_snippet(snippet)
-        else:
-            # The page was retrieved. A quote that is not a span of it is
-            # not evidence the manual is missing, and it is not text we show.
-            stored = cap_snippet(page_text)
+        # Show the page's words. A model string that only looks like a quote
+        # ("1.8" for "1. 8") must not become the chip.
+        stored = cap_snippet(grounding_span(snippet, page_text))
         if not stored.strip():
             continue
         identity = (doc_id, page, stored)

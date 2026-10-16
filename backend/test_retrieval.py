@@ -202,6 +202,55 @@ def test_plural_es_matches_the_singular_token() -> None:
     assert term_in_text("brakes", "front brake pad") is True
     assert term_in_text("plugs", "spark plug") is True
     assert term_in_text("brakes", "unrelated brak only") is False
+    assert term_in_text("gases", "the gas line") is True
+    assert term_in_text("lenses", "headlight lens") is True
+    assert term_in_text("tightening", "Tighten the bolts in sequence") is True
+
+
+def test_tight_does_not_promote_an_unrelated_torque_table(tmp_path: Path) -> None:
+    rows = [
+        {
+            "doc_id": "FAKE-DOC-2JZ",
+            "page": 999,
+            "text": "The brakes feel tight when the pedal is low. FAKE-SPEC",
+        },
+        {
+            "doc_id": "FAKE-DOC-2JZ",
+            "page": 1000,
+            "text": "TORQUE SPECIFICATION\nCylinder head bolt\nTorque: 999 FAKE-SPEC\n",
+        },
+    ]
+    chunks = _write_chunks(tmp_path / "chunks.jsonl", rows)
+    index_path = tmp_path / "index.sqlite"
+    build_index(load_chunks_jsonl(chunks), index_path)
+
+    with Fts5Index.open(index_path) as index:
+        hits = index.search("The brakes feel tight", k=5)
+
+    assert [hit.page for hit in hits] == [999]
+
+
+def test_oil_pressure_question_does_not_require_capacity(tmp_path: Path) -> None:
+    rows = [
+        {
+            "doc_id": "FAKE-DOC-2JZ",
+            "page": 999,
+            "text": "Oil pressure at idle on the gauge. FAKE-SPEC",
+        },
+        {
+            "doc_id": "FAKE-DOC-2JZ",
+            "page": 1000,
+            "text": "SERVICE DATA\nOil capacity with filter FAKE-SPEC",
+        },
+    ]
+    chunks = _write_chunks(tmp_path / "chunks.jsonl", rows)
+    index_path = tmp_path / "index.sqlite"
+    build_index(load_chunks_jsonl(chunks), index_path)
+
+    with Fts5Index.open(index_path) as index:
+        hits = index.search("How much oil pressure should I see?", k=5)
+
+    assert hits[0].page == 999
 
 
 def test_injector_label_beats_generic_wire_pages(tmp_path: Path) -> None:

@@ -68,7 +68,7 @@ Do not start that port in this issue. Re-evaluate only if M2 eval shows lexical 
 ## Tradeoffs accepted
 
 - Lexical FTS5, not embeddings. Workshop queries are part names, symptoms, and procedure words. Exact tokens matter more than cosine similarity for page-anchored citations.
-- Answer search unions the AND pool (every content term) with a broader OR pool, then reranks. When some page already contains every term, a partial page is kept only if it carries a spec heading (`Torque:`, `SERVICE DATA`) or, on a question of four or more terms, misses only one term. A two-word query does not keep a page that matches only one word. When no page contains every term, the broad pool is the whole candidate set. Stopwords and model tokens (`2JZ`, `GE`) are dropped so the identification page does not beat a spec page. Shop words gain the heading the manual prints (`tight` → `torque`) so that bonus can fire. Precision tuning stays lexical FTS5; no embeddings.
+- Answer search unions the AND pool (every content term) with a broader OR pool, then reranks. When some page already contains every term, a partial page is kept only if it carries a spec heading the user actually said (`Torque:`, `SERVICE DATA`), misses only one term on a question of four or more terms, or matches a shop heading (`tight` → torque table) and the part words. A two-word query does not keep a page that matches only one word. When no page contains every term, the candidate set is the OR pool of the user's words only. Shop headings are not added to related-page search. Stopwords and model tokens (`2JZ`, `GE`) are dropped so the identification page does not beat a spec page. Precision tuning stays lexical FTS5; no embeddings.
 - Related pages on a miss search again. That query drops speed and place words and matches any remaining fault word, then keeps a wider pool than the answer's top 5. Only the first eight of that ranked pool are judged, one page at a time, and at most three are shown. The answer search returns at most 5 pages after the union rerank.
 - `score` is `-bm25(chunks, 0, 0, 8, 1)` so callers can sort descending. Raw FTS5 `bm25()` is lower-is-better; we do not expose that sign. The two leading zeros are the unindexed `doc_id` and `page` columns.
 - Full page text in `RetrievedChunk.text`. #20 snippets and the spec guard (#21) need the retrieved page, not a truncated preview.
@@ -93,12 +93,15 @@ Do not start that port in this issue. Re-evaluate only if M2 eval shows lexical 
 ## Next implementation step
 
 #20 calls `Retriever.search` before the model when the index file exists for that
-request. It keeps a citation only when `(doc_id, page)` was retrieved and the
-snippet is a contiguous span of that page, after whitespace is collapsed. A rearrangement of the page's tokens is not a quote. An empty
-search, or a JSON object with an empty citations array, asks for general
-advice (`kind: general_advice`) instead of a canned refusal. A completion
-that is not that JSON object, or a non-empty citation list
-that does not survive the check, returns a provider error
+request. It keeps a citation only when `(doc_id, page)` was retrieved. The
+chip is the page's own span. A quote may differ in case and whitespace. It
+may not rearrange tokens or change punctuation inside a number. A quote that
+is not a span is replaced with a sentence from that page that shares the
+quote's words, or a heading, not the opening measurement of a different
+section. An empty search, or a JSON object with an empty citations array,
+asks for general advice (`kind: general_advice`) instead of a canned refusal.
+A completion that is not that JSON object, or a non-empty citation list whose
+pages were not retrieved, returns a provider error
 (`kind: error`, `reason: provider_unavailable`). That payload is not a
 manual answer. #24 runs
 `search(question, k=5)`
