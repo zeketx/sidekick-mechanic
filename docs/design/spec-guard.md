@@ -49,7 +49,9 @@ Allowed:
 - Zero-width characters removed.
 - Unicode minus and dashes become `-`.
 - Spaces between digits removed (`9 999` matches `9999`).
-- Thousands-grouping commas removed (`9,999` matches `9999`). A comma followed by one or two digits stays, so `999,5` does not match `999.5`.
+- A dot between digits ignores spaces (`999. 9` matches `999.9`).
+- A hyphen between digits ignores spaces (`998 - 999` matches `998-999`).
+- Thousands-grouping commas removed (`9,999` matches `9999`). A space after the comma stays, so a table row `999 (998, 997)` is three numbers. A comma followed by one or two digits stays, so `999,5` does not match `999.5`.
 - Unit spelling aliases, including `N·m` / `N-m` / `newton meters` → `nm`, `ft-lb` / `ft lb` / `ft·lbf` / `ft-lbf` / `ft·lb` / `ft-pounds` → `ftlbf`, `in·lbf` → `inlbf`, `kgf·cm` → `kgfcm`, `kgf·cm^2` / `kgf/cm2` → `kgfcm2`, `volts` → `v`, `ohms` / `Ω` → `ohm`. `ft·lbf` does not match `feet` or `ft`, including when a footnote digit, an extra letter, or a unicode hyphen follows the token. A period with a space after it is a sentence boundary, not a joiner (`999 ft. lbf` is not torque). `kgf·cm` does not match `cm`, `kgf·m`, or `kgf·cm^2`.
 - Ohm signs are spelled out before casefolding so `MΩ` (megohm) does not match `mΩ` (milliohm). The refusal quotes that spelled-out form.
 - The exponent marker `e` is casefolded (`9.99e2` matches `9.99E2`). The exponent text otherwise stays (`9.99e+2` does not match `9.99e2`).
@@ -59,8 +61,9 @@ Not allowed, and tested:
 
 - Rounding or padding (`999.4` vs `999`, `999` vs `999.0`).
 - A different unit (`999 mm` vs `999 m`).
-- Ranges, leading minuses, and fractions as different numbers (`999-1000`, `-999`, and `9/9` do not match the bare number).
-- Matching a claim as a substring of a longer number.
+- A range written in the answer matching only an endpoint (`999-1000 Nm` does not match a chunk that only says `1000 Nm`).
+- Leading minuses and fractions as different numbers (`-999` and `9/9` do not match the bare number).
+- Matching a claim as a substring of a longer number (`999` does not match `1999` or `1999-2000`).
 
 A repeated normalized claim is one claim. The refusal quotes the first surface in the answer.
 
@@ -103,4 +106,6 @@ These are not extracted. A value written only in one of these forms is not block
 - Part numbers and wire colors.
 - Homoglyphs that NFKC does not fold.
 
-A fraction, range, or scientific form that the guard does extract must still match that same form in a chunk.
+A fraction or scientific form that the guard does extract must still match that same form in a chunk. A range in the answer must match that range. A bare number matches the same number, or either endpoint of a same-unit range in a chunk (`999 Nm` matches `998-999 Nm`). It does not match a longer number.
+
+A service-spec table whose header contains `N·m`, `kgf·cm`, and `ft·lbf`, and whose row is `999 (998, 997)`, supports `999 Nm`, `998 kgf·cm`, and `997 ft·lbf`. The same triple without that header is not a torque.

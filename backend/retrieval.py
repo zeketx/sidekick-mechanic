@@ -170,10 +170,23 @@ class Fts5Index:
             broad = _match_rows(
                 self._connection, or_match, k=_BROAD_CANDIDATE_K, doc_id=doc_id
             )
+            # A rare phrase ("fuel pressure", "tha e2") loses the OR window
+            # to pages that repeat a common word. Fetch those phrases on
+            # their own so rerank can see them. Shop headings stay out.
+            phrase_rows = _match_rows(
+                self._connection,
+                _fts_phrase_query(terms),
+                k=_CANDIDATE_K,
+                doc_id=doc_id,
+            )
+            anchor_rows = _match_rows(
+                self._connection,
+                _fts_anchor_query(terms),
+                k=_CANDIDATE_K,
+                doc_id=doc_id,
+            )
             if not strict:
-                # Nothing contains every term. Do not add shop headings here.
-                # An empty AND plus "torque" would fill the pool with tables.
-                rows = broad
+                rows = _merge_candidate_rows(broad, phrase_rows, anchor_rows)
             else:
                 extra_rows = (
                     _match_rows(
@@ -190,7 +203,9 @@ class Fts5Index:
                 }
                 rows = [
                     row
-                    for row in _merge_candidate_rows(strict, broad, extra_rows)
+                    for row in _merge_candidate_rows(
+                        strict, broad, extra_rows, phrase_rows, anchor_rows
+                    )
                     if _keep_candidate(
                         query,
                         terms,
@@ -383,13 +398,8 @@ def _collapse_with_map(text: str) -> tuple[str, list[int]]:
             while index < length and text[index].isspace():
                 index += 1
             continue
-        folded = text[index].casefold()
-        if len(folded) != 1:
-            chars.append(text[index])
-            mapping.append(index)
-        else:
-            chars.append(text[index])
-            mapping.append(index)
+        chars.append(text[index])
+        mapping.append(index)
         index += 1
     while chars and chars[0] == " ":
         chars.pop(0)
@@ -569,6 +579,24 @@ def _fts_or_query(terms: tuple[str, ...]) -> str | None:
     return " OR ".join(quoted + phrases)
 
 
+def _fts_phrase_query(terms: tuple[str, ...]) -> str | None:
+    phrases = [
+        f'"{terms[index]} {terms[index + 1]}"' for index in range(len(terms) - 1)
+    ]
+    if not phrases:
+        return None
+    return " OR ".join(phrases)
+
+
+def _fts_anchor_query(terms: tuple[str, ...]) -> str | None:
+    """Terms that contain a digit. "e2" and "p0011" must not lose the window."""
+
+    anchors = [term for term in terms if any(char.isdigit() for char in term)]
+    if not anchors:
+        return None
+    return " OR ".join(f'"{term}"' for term in anchors)
+
+
 def _match_rows(
     connection: sqlite3.Connection,
     match: str | None,
@@ -630,6 +658,11 @@ def _keep_candidate(
 
     key = (str(row["doc_id"]), int(row["page"]))
     if key in strict_keys:
+        return True
+    hay = f"{row['labels']}\n{row['text']}".lower()
+    # "oil control valve" stays even when a filler word is missing, as long
+    # as two query words sit next to each other. A one-word overlap does not.
+    if _phrase_hit_count(terms, hay) > 0:
         return True
     if _structural_bonus(query, row["text"]) > 0:
         return True
@@ -769,7 +802,9 @@ def _phrase_hit_count(terms: tuple[str, ...], hay: str) -> int:
 def _phrase_in_hay(left: str, right: str, hay: str) -> bool:
     for first in _surface_variants(left):
         for second in _surface_variants(right):
-            if f"{first} {second}".lower() in hay:
+            # "THA-E2" and "THA E2" are the same pair. Other words do not join them.
+            pattern = rf"{re.escape(first)}[\s\-]+{re.escape(second)}"
+            if re.search(pattern, hay, re.IGNORECASE):
                 return True
     return False
 

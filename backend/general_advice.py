@@ -335,6 +335,22 @@ def _page_is_related(client: LLMClient, question: str, snippet: str) -> bool:
     return _parse_yes_no(result.text)
 
 
+def answer_page_is_related(client: LLMClient, question: str, snippet: str) -> bool:
+    """Whether this page may support an answer. Same yes/no as a related page.
+
+    A judge failure keeps the page. Related chips hide a page when the judge
+    fails. An answer must not disappear because that check timed out.
+    """
+
+    if not _focus_terms(question):
+        return True
+    try:
+        result = client.complete(_relevance_turns(question, snippet))
+    except LLMError:
+        return True
+    return _parse_yes_no(result.text)
+
+
 def _relevance_turns(question: str, snippet: str) -> list[ChatTurn]:
     payload = json.dumps(
         {"question": question, "snippet": snippet},

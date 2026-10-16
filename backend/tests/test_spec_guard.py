@@ -178,6 +178,60 @@ def test_equivalent_spellings_pass(answer_text: str, chunk: str) -> None:
     assert result.answer["text"] == answer_text
 
 
+def test_split_decimal_and_range_endpoint_match_the_same_unit() -> None:
+    split = guard_answer(
+        _found("FAKE gap is 999.9 mm."),
+        ("FAKE gap 999. 9 mm",),
+    )
+    assert split.uncited == ()
+
+    endpoint = guard_answer(
+        _found("FAKE gap is 999.9 mm."),
+        ("FAKE gap 998.9-999.9 mm",),
+    )
+    assert endpoint.uncited == ()
+
+    en_dash = guard_answer(
+        _found("FAKE gap is 999.9 mm."),
+        ("FAKE gap 998.9\u2013999.9 mm",),
+    )
+    assert en_dash.uncited == ()
+
+    spaced = guard_answer(
+        _found("Resistance is 1400 ohms."),
+        ("FAKE 835 - 1,400 Ω",),
+    )
+    assert spaced.uncited == ()
+
+    longer = guard_answer(
+        _found("Torque is 999 Nm."),
+        ("FAKE torque is 1999-2000 Nm.",),
+    )
+    assert longer.uncited == ("999 Nm",)
+
+    range_is_not_the_endpoint = guard_answer(
+        _found("Torque is 999-1000 Nm."),
+        ("FAKE torque is 1000 Nm.",),
+    )
+    assert range_is_not_the_endpoint.uncited == ("999-1000 Nm",)
+
+
+def test_service_table_row_supports_each_header_unit() -> None:
+    table = "N·m (kgf·cm, ft·lbf)\nFAKE part 999 (998, 997)"
+    torque = guard_answer(_found("Torque is 999 Nm."), (table,))
+    assert torque.uncited == ()
+    kilogram = guard_answer(_found("Torque is 998 kgf·cm."), (table,))
+    assert kilogram.uncited == ()
+    foot = guard_answer(_found("Torque is 997 ft·lbf."), (table,))
+    assert foot.uncited == ()
+
+    bare = guard_answer(
+        _found("Torque is 999 Nm."),
+        ("FAKE part 999 (998, 997)",),
+    )
+    assert bare.uncited == ("999 Nm",)
+
+
 def test_foot_pound_torque_is_not_a_length_in_feet() -> None:
     refused = guard_answer(
         _found("FAKE-SPEC torque is 999 ft·lbf."),

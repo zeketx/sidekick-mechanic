@@ -7,10 +7,15 @@ Python 3.11+ and FastAPI. This is the RAG service for Sidekick Mechanic.
 `LlmAnswerProducer`, which calls an `LLMClient`. On each request, if
 `.ingest/index.sqlite` exists, the producer searches that FTS5 index and then
 calls the model. The model must reply with one JSON object. Each citation has
-`doc_id`, an integer `page`, and a `snippet` copied from that page. A citation
+`doc_id`, an integer `page`, and a `snippet` copied from that page. Before that call, each hit is judged with the same yes or no as a related
+page. A page that only shares a word is not given to the model. If none
+pass, the turn is general advice. A citation
 stays only when that page was in the hits and the snippet is a contiguous span
-of that page. Whitespace may collapse. A rearrangement of the page's tokens is
-not a quote. An empty search, a missing index file, or a JSON object with an
+of that page. When the answer states a measurement, a cited page that does
+not contain one of those measurements is dropped if another cited page does.
+Whitespace may collapse. A rearrangement of the page's tokens is
+not a quote. An empty search, a missing index file, no page that passes
+the yes/no check, or a JSON object with an
 empty `citations` array asks for general advice (`kind: general_advice`).
 The reply says the manual does not cover the question, then lists one to
 five cheap checks. Related pages are a second search on the fault words,

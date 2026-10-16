@@ -230,6 +230,78 @@ def test_tight_does_not_promote_an_unrelated_torque_table(tmp_path: Path) -> Non
     assert [hit.page for hit in hits] == [999]
 
 
+def _flood_rows(text: str, count: int = 90) -> list[dict[str, object]]:
+    return [
+        {"doc_id": "FAKE-DOC", "page": index, "text": text}
+        for index in range(1, count + 1)
+    ]
+
+
+def test_phrase_page_is_not_crowded_out_by_a_common_word(tmp_path: Path) -> None:
+    rows = _flood_rows("The fuel pump relay. A pressure switch is elsewhere. FAKE")
+    rows.append(
+        {
+            "doc_id": "FAKE-DOC",
+            "page": 999,
+            "text": "SERVICE DATA\nFuel pressure FAKE-SPEC",
+        }
+    )
+    chunks = _write_chunks(tmp_path / "chunks.jsonl", rows)
+    index_path = tmp_path / "index.sqlite"
+    build_index(load_chunks_jsonl(chunks), index_path)
+
+    with Fts5Index.open(index_path) as index:
+        hits = index.search("What fuel pressure should the fuel system hold?", k=5)
+
+    assert hits[0].page == 999
+
+
+def test_hyphenated_code_outranks_repeated_common_words(tmp_path: Path) -> None:
+    rows = _flood_rows("resistance intake air temp " * 12)
+    rows.append(
+        {
+            "doc_id": "FAKE-DOC",
+            "page": 999,
+            "text": "THA-E2 resistance of the intake air temp circuit FAKE-SPEC",
+        }
+    )
+    chunks = _write_chunks(tmp_path / "chunks.jsonl", rows)
+    index_path = tmp_path / "index.sqlite"
+    build_index(load_chunks_jsonl(chunks), index_path)
+
+    with Fts5Index.open(index_path) as index:
+        hits = index.search(
+            "What resistance should the MAF meter intake air temp circuit "
+            "THA E2 read when the air is cool?",
+            k=5,
+        )
+
+    assert 999 in {hit.page for hit in hits}
+    assert hits[0].page == 999
+
+
+def test_part_phrase_outranks_generic_torque_pages(tmp_path: Path) -> None:
+    rows = _flood_rows("Torque: 999 FAKE-SPEC bolt\n" * 4)
+    rows.append(
+        {
+            "doc_id": "FAKE-DOC",
+            "page": 999,
+            "text": "Oil control valve bolt\nTorque: 999 FAKE-SPEC\n",
+        }
+    )
+    chunks = _write_chunks(tmp_path / "chunks.jsonl", rows)
+    index_path = tmp_path / "index.sqlite"
+    build_index(load_chunks_jsonl(chunks), index_path)
+
+    with Fts5Index.open(index_path) as index:
+        hits = index.search(
+            "What's the torque on the VVT oil control valve bolt?",
+            k=5,
+        )
+
+    assert hits[0].page == 999
+
+
 def test_oil_pressure_question_does_not_require_capacity(tmp_path: Path) -> None:
     rows = [
         {
