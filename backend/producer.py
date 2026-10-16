@@ -67,6 +67,8 @@ _GROUNDED_INSTRUCTIONS = (
     "Do not add an ellipsis, quotes, or other characters. "
     f"The server shortens a snippet longer than {SNIPPET_LIMIT} characters. "
     "Use only a doc_id and page from the retrieved pages. "
+    "Cite only the retrieved pages that contain the facts you state. "
+    "Do not cite every retrieved page. "
     "If those pages do not support an answer, set citations to an empty array. "
     "text may be empty only in that case."
 )
@@ -582,9 +584,14 @@ def _filter_citations(
         page = citation["page"]
         snippet = citation["snippet"]
         page_text = pages.get((doc_id, page))
-        if page_text is None or not snippet_matches_page(snippet, page_text):
+        if page_text is None:
             continue
-        stored = cap_snippet(snippet)
+        if snippet_matches_page(snippet, page_text):
+            stored = cap_snippet(snippet)
+        else:
+            # The page was retrieved. A quote that is not a span of it is
+            # not evidence the manual is missing, and it is not text we show.
+            stored = cap_snippet(page_text)
         if not stored.strip():
             continue
         identity = (doc_id, page, stored)

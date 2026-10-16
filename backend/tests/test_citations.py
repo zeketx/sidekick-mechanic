@@ -185,7 +185,7 @@ def test_whitespace_normalized_snippet_is_kept() -> None:
     assert snippet_matches_page("FAKE-SNIPPET: no real spec.", page_text)
 
 
-def test_rearranged_snippet_is_not_a_citation() -> None:
+def test_rearranged_snippet_is_replaced_with_the_page() -> None:
     page_text = "spec. FAKE-SNIPPET: no real"
     producer, _, _ = _producer(
         _completion(_ANSWER, [_cited("FAKE-SNIPPET: no real spec.")]),
@@ -194,10 +194,14 @@ def test_rearranged_snippet_is_not_a_citation() -> None:
 
     payload = producer.produce(_conversation())
 
-    assert payload == _UNAVAILABLE
+    assert payload == {
+        "kind": "answer",
+        "text": _ANSWER,
+        "citations": [_cited(page_text)],
+    }
 
 
-def test_invented_snippet_is_unavailable() -> None:
+def test_invented_snippet_keeps_the_retrieved_page() -> None:
     producer, _, _ = _producer(
         _completion(_ANSWER, [_cited("FAKE-SNIPPET: invented and not on the page.")]),
         (_Hit(_DOC, _PAGE, _SNIPPET),),
@@ -205,15 +209,20 @@ def test_invented_snippet_is_unavailable() -> None:
 
     payload = producer.produce(_conversation())
 
-    assert payload == _UNAVAILABLE
+    assert payload == {
+        "kind": "answer",
+        "text": _ANSWER,
+        "citations": [_cited()],
+    }
+    assert "invented" not in payload["citations"][0]["snippet"]
 
 
-def test_invented_snippet_logs_citation_mismatch(
+def test_unretrieved_page_logs_citation_mismatch(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     caplog.set_level(logging.WARNING, logger="sidekick.llm")
     producer, _, _ = _producer(
-        _completion(_ANSWER, [_cited("FAKE-SNIPPET: invented and not on the page.")]),
+        _completion(_ANSWER, [_cited(page=998)]),
         (_Hit(_DOC, _PAGE, _SNIPPET),),
     )
 
@@ -222,7 +231,7 @@ def test_invented_snippet_logs_citation_mismatch(
     assert payload == _UNAVAILABLE
     assert "kind=parse" in caplog.text
     assert "detail=citation_mismatch" in caplog.text
-    assert "invented" not in caplog.text
+    assert "FAKE-SNIPPET" not in caplog.text
 
 
 def test_empty_search_returns_general_advice() -> None:
@@ -433,7 +442,7 @@ def test_blank_text_with_empty_citations_is_general_advice() -> None:
     )
 
 
-def test_case_changed_snippet_is_unavailable() -> None:
+def test_case_changed_snippet_is_kept() -> None:
     producer, _, _ = _producer(
         _completion(_ANSWER, [_cited("fake-snippet: no real spec.")]),
         (_Hit(_DOC, _PAGE, _SNIPPET),),
@@ -441,7 +450,33 @@ def test_case_changed_snippet_is_unavailable() -> None:
 
     payload = producer.produce(_conversation())
 
-    assert payload == _UNAVAILABLE
+    assert payload == {
+        "kind": "answer",
+        "text": _ANSWER,
+        "citations": [_cited("fake-snippet: no real spec.")],
+    }
+
+
+def test_repaired_page_still_refuses_a_number_the_page_lacks() -> None:
+    page_text = "FAKE-SNIPPET: no real spec."
+    producer, _, _ = _producer(
+        _completion(
+            "Torque is 999 Nm.",
+            [_cited("FAKE-SNIPPET: invented and not on the page.")],
+        ),
+        (_Hit(_DOC, _PAGE, page_text),),
+    )
+
+    response = TestClient(create_app(producer=producer)).post(
+        "/chat",
+        json={"messages": [{"role": "user", "text": _QUESTION}]},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["kind"] == "refusal"
+    assert body["reason"] == "not_found_in_manual"
+    assert "999" in body["text"]
 
 
 def test_long_snippet_cuts_back_from_a_mid_word_boundary() -> None:
