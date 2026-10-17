@@ -502,6 +502,22 @@ def test_env_example_documents_keys_without_secrets() -> None:
     assert "SIDEKICK_VISION_API_KEY=" in text
 
 
+def test_one_judge_attempt_does_not_use_the_answer_retries() -> None:
+    posts = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal posts
+        posts += 1
+        raise httpx.TimeoutException("read timeout")
+
+    client = _openai_client(handler, settings=_settings(max_retries=2))
+    with pytest.raises(LLMError, match="provider failed after retries"):
+        client.complete(
+            [ChatTurn(role="user", content="Hi")], timeout_s=8, attempts=1
+        )
+    assert posts == 1
+
+
 def test_server_retry_budget_fits_in_the_phone_timeout() -> None:
     attempts = DEFAULT_MAX_RETRIES + 1
     backoff = sum(0.25 * (2**attempt) for attempt in range(DEFAULT_MAX_RETRIES))

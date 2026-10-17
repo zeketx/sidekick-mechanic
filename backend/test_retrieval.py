@@ -19,6 +19,7 @@ from retrieval import (
     load_chunks_jsonl,
     main,
     snippet_matches_page,
+    term_in_text,
 )
 
 
@@ -61,6 +62,7 @@ def _build(tmp_path: Path) -> Path:
 def test_snippet_matches_page_requires_a_contiguous_span() -> None:
     page = "FAKE-SNIPPET:\nno   real spec. extra"
     assert snippet_matches_page("FAKE-SNIPPET: no real spec.", page) is True
+    assert snippet_matches_page("fake-snippet: no real spec.", page) is True
     assert snippet_matches_page("spec. FAKE-SNIPPET: no real", page) is False
     assert snippet_matches_page("invented FAKE-TOKEN", page) is False
 
@@ -103,6 +105,224 @@ def test_spark_plug_torque_beats_identification_and_tool_list(tmp_path: Path) ->
 
     assert hits[0].page == 999
     assert hits[0].doc_id == "FAKE-DOC-2JZ"
+
+
+def test_colloquial_tight_keeps_the_torque_page_in_the_top_five(tmp_path: Path) -> None:
+    rows = [
+        {
+            "doc_id": "FAKE-DOC-2JZ",
+            "page": 1000,
+            "text": (
+                "How tight the spark plugs go in the head after a job. "
+                "Torque is mentioned here. FAKE-SPEC"
+            ),
+        },
+        {
+            "doc_id": "FAKE-DOC-2JZ",
+            "page": 1001,
+            "text": "PREPARATION Spark plug Torque wrench tight head FAKE-SPEC",
+        },
+        {
+            "doc_id": "FAKE-DOC-2JZ",
+            "page": 999,
+            "text": "-IGNITION\nSpark plug\nTorque: 18 FAKE-SPEC\n",
+        },
+    ]
+    chunks = _write_chunks(tmp_path / "chunks.jsonl", rows)
+    index_path = tmp_path / "index.sqlite"
+    build_index(load_chunks_jsonl(chunks), index_path)
+
+    with Fts5Index.open(index_path) as index:
+        hits = index.search("How tight do the spark plugs go in the head?", k=5)
+
+    assert hits[0].page == 999
+    assert 1000 in {hit.page for hit in hits}
+
+
+def test_spec_page_missing_one_term_stays_in_the_top_five(tmp_path: Path) -> None:
+    rows = [
+        {
+            "doc_id": "FAKE-DOC-2JZ",
+            "page": 1000,
+            "text": (
+                "cylinder head bolt torque tightening sequence on this page FAKE-SPEC"
+            ),
+        },
+        {
+            "doc_id": "FAKE-DOC-2JZ",
+            "page": 999,
+            "text": (
+                "SERVICE DATA\nTORQUE SPECIFICATION\n"
+                "Cylinder head bolt\nTorque: 999 FAKE-SPEC\n"
+            ),
+        },
+    ]
+    chunks = _write_chunks(tmp_path / "chunks.jsonl", rows)
+    index_path = tmp_path / "index.sqlite"
+    build_index(load_chunks_jsonl(chunks), index_path)
+
+    with Fts5Index.open(index_path) as index:
+        hits = index.search(
+            "What's the cylinder head bolt torque and tightening sequence?",
+            k=5,
+        )
+
+    assert {hit.page for hit in hits} >= {999, 1000}
+
+
+def test_how_much_oil_keeps_the_capacity_page(tmp_path: Path) -> None:
+    rows = [
+        {
+            "doc_id": "FAKE-DOC-2JZ",
+            "page": 1000,
+            "text": (
+                "change the oil filter capacity somewhere in the engine FAKE-SPEC"
+            ),
+        },
+        {
+            "doc_id": "FAKE-DOC-2JZ",
+            "page": 999,
+            "text": "SERVICE DATA\nOil capacity with filter FAKE-SPEC",
+        },
+    ]
+    chunks = _write_chunks(tmp_path / "chunks.jsonl", rows)
+    index_path = tmp_path / "index.sqlite"
+    build_index(load_chunks_jsonl(chunks), index_path)
+
+    with Fts5Index.open(index_path) as index:
+        hits = index.search(
+            "How much oil does the engine take with a filter change?",
+            k=5,
+        )
+
+    assert 999 in {hit.page for hit in hits}
+
+
+def test_plural_es_matches_the_singular_token() -> None:
+    assert term_in_text("brakes", "front brake pad") is True
+    assert term_in_text("plugs", "spark plug") is True
+    assert term_in_text("brakes", "unrelated brak only") is False
+    assert term_in_text("gases", "the gas line") is True
+    assert term_in_text("lenses", "headlight lens") is True
+    assert term_in_text("tightening", "Tighten the bolts in sequence") is True
+
+
+def test_tight_does_not_promote_an_unrelated_torque_table(tmp_path: Path) -> None:
+    rows = [
+        {
+            "doc_id": "FAKE-DOC-2JZ",
+            "page": 999,
+            "text": "The brakes feel tight when the pedal is low. FAKE-SPEC",
+        },
+        {
+            "doc_id": "FAKE-DOC-2JZ",
+            "page": 1000,
+            "text": "TORQUE SPECIFICATION\nCylinder head bolt\nTorque: 999 FAKE-SPEC\n",
+        },
+    ]
+    chunks = _write_chunks(tmp_path / "chunks.jsonl", rows)
+    index_path = tmp_path / "index.sqlite"
+    build_index(load_chunks_jsonl(chunks), index_path)
+
+    with Fts5Index.open(index_path) as index:
+        hits = index.search("The brakes feel tight", k=5)
+
+    assert [hit.page for hit in hits] == [999]
+
+
+def _flood_rows(text: str, count: int = 90) -> list[dict[str, object]]:
+    return [
+        {"doc_id": "FAKE-DOC", "page": index, "text": text}
+        for index in range(1, count + 1)
+    ]
+
+
+def test_phrase_page_is_not_crowded_out_by_a_common_word(tmp_path: Path) -> None:
+    rows = _flood_rows("The fuel pump relay. A pressure switch is elsewhere. FAKE")
+    rows.append(
+        {
+            "doc_id": "FAKE-DOC",
+            "page": 999,
+            "text": "SERVICE DATA\nFuel pressure FAKE-SPEC",
+        }
+    )
+    chunks = _write_chunks(tmp_path / "chunks.jsonl", rows)
+    index_path = tmp_path / "index.sqlite"
+    build_index(load_chunks_jsonl(chunks), index_path)
+
+    with Fts5Index.open(index_path) as index:
+        hits = index.search("What fuel pressure should the fuel system hold?", k=5)
+
+    assert hits[0].page == 999
+
+
+def test_hyphenated_code_outranks_repeated_common_words(tmp_path: Path) -> None:
+    rows = _flood_rows("resistance intake air temp " * 12)
+    rows.append(
+        {
+            "doc_id": "FAKE-DOC",
+            "page": 999,
+            "text": "THA-E2 resistance of the intake air temp circuit FAKE-SPEC",
+        }
+    )
+    chunks = _write_chunks(tmp_path / "chunks.jsonl", rows)
+    index_path = tmp_path / "index.sqlite"
+    build_index(load_chunks_jsonl(chunks), index_path)
+
+    with Fts5Index.open(index_path) as index:
+        hits = index.search(
+            "What resistance should the MAF meter intake air temp circuit "
+            "THA E2 read when the air is cool?",
+            k=5,
+        )
+
+    assert 999 in {hit.page for hit in hits}
+    assert hits[0].page == 999
+
+
+def test_part_phrase_outranks_generic_torque_pages(tmp_path: Path) -> None:
+    rows = _flood_rows("Torque: 999 FAKE-SPEC bolt\n" * 4)
+    rows.append(
+        {
+            "doc_id": "FAKE-DOC",
+            "page": 999,
+            "text": "Oil control valve bolt\nTorque: 999 FAKE-SPEC\n",
+        }
+    )
+    chunks = _write_chunks(tmp_path / "chunks.jsonl", rows)
+    index_path = tmp_path / "index.sqlite"
+    build_index(load_chunks_jsonl(chunks), index_path)
+
+    with Fts5Index.open(index_path) as index:
+        hits = index.search(
+            "What's the torque on the VVT oil control valve bolt?",
+            k=5,
+        )
+
+    assert hits[0].page == 999
+
+
+def test_oil_pressure_question_does_not_require_capacity(tmp_path: Path) -> None:
+    rows = [
+        {
+            "doc_id": "FAKE-DOC-2JZ",
+            "page": 999,
+            "text": "Oil pressure at idle on the gauge. FAKE-SPEC",
+        },
+        {
+            "doc_id": "FAKE-DOC-2JZ",
+            "page": 1000,
+            "text": "SERVICE DATA\nOil capacity with filter FAKE-SPEC",
+        },
+    ]
+    chunks = _write_chunks(tmp_path / "chunks.jsonl", rows)
+    index_path = tmp_path / "index.sqlite"
+    build_index(load_chunks_jsonl(chunks), index_path)
+
+    with Fts5Index.open(index_path) as index:
+        hits = index.search("How much oil pressure should I see?", k=5)
+
+    assert hits[0].page == 999
 
 
 def test_injector_label_beats_generic_wire_pages(tmp_path: Path) -> None:

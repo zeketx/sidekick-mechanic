@@ -414,7 +414,6 @@ def test_empty_citations_still_attach_the_demo_outline() -> None:
         [
             _result('{"text":"no page","citations":[]}'),
             _result(json.dumps({"steps": [step]})),
-            _result("yes"),
         ]
     )
     response = _demo_client(LlmAnswerProducer(fake, retriever=_Pages())).post(
@@ -442,7 +441,7 @@ def test_empty_citations_still_attach_the_demo_outline() -> None:
     assert payload["highlight"]["demo"] is True
     assert "no page" not in payload["steps"][0]
     assert "not visible in this photo" not in json.dumps(payload)
-    assert len(fake.calls) == 3
+    assert len(fake.calls) == 2
 
 
 def test_general_advice_not_visible_keeps_the_checks() -> None:

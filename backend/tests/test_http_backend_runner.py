@@ -300,15 +300,53 @@ def test_cli_backend_scores_chat_and_hides_secrets(
     assert {str(url) for url in seen} == {"http://127.0.0.1:8001/chat"}
 
 
+def test_cli_timeout_reaches_the_http_client(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=_reply_for(request.content))
+
+    _patch_client(monkeypatch, handler, timeout=45.0)
+    code = main(
+        [
+            "--golden",
+            str(_golden(tmp_path)),
+            "--output-dir",
+            str(tmp_path),
+            "--date",
+            FAKE_DATE,
+            "--backend",
+            "http://127.0.0.1:8001",
+            "--timeout",
+            "45",
+        ]
+    )
+
+    assert code == 0
+
+
+def test_cli_rejects_a_non_positive_timeout(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    code = main(["--timeout", "0"])
+    captured = capsys.readouterr()
+
+    assert code == 1
+    assert "--timeout must be greater than 0" in captured.err
+
+
 def _patch_client(
     monkeypatch: pytest.MonkeyPatch,
     handler: Callable[[httpx.Request], httpx.Response],
+    timeout: float = 120.0,
 ) -> None:
     original = httpx.Client
 
     def factory(*args: Any, **kwargs: Any) -> httpx.Client:
         assert kwargs["trust_env"] is False
         assert kwargs["follow_redirects"] is False
+        assert kwargs["timeout"] == timeout
         kwargs["transport"] = httpx.MockTransport(handler)
         return original(*args, **kwargs)
 

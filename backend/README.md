@@ -7,16 +7,27 @@ Python 3.11+ and FastAPI. This is the RAG service for Sidekick Mechanic.
 `LlmAnswerProducer`, which calls an `LLMClient`. On each request, if
 `.ingest/index.sqlite` exists, the producer searches that FTS5 index and then
 calls the model. The model must reply with one JSON object. Each citation has
-`doc_id`, an integer `page`, and a `snippet` copied from that page. A citation
+`doc_id`, an integer `page`, and a `snippet` copied from that page. Before that call, each hit is checked for support. A heading or spec
+block that names the part is kept without a model call. A page that only
+shares a word, or that mentions the part only as a cause of a different
+fault, is dropped without a model call. Pages still undecided go out
+together in one call, with an 8 second timeout and one attempt. If none
+pass, the turn is general advice. A citation
 stays only when that page was in the hits and the snippet is a contiguous span
-of that page. Whitespace may collapse. A rearrangement of the page's tokens is
-not a quote. An empty search, a missing index file, or a JSON object with an
+of that page. When the answer states a measurement, a cited page that does
+not contain one of those measurements is dropped if another cited page does.
+Whitespace may collapse. A rearrangement of the page's tokens is
+not a quote. An empty search, a missing index file, no page that passes
+the yes/no check, or a JSON object with an
 empty `citations` array asks for general advice (`kind: general_advice`).
 The reply says the manual does not cover the question, then lists one to
 five cheap checks. Related pages are a second search on the fault words,
 with speed and place words left out, over a wider candidate pool than the
 answer. That pool stays in search order. Only the first eight openings are
-judged, one page at a time, yes or no. At most three yes pages are shown,
+judged. A heading that names the fault is kept without a model call, and a
+different fault that only mentions the part as a cause is dropped. The rest
+go out in one call, with an 8 second timeout and one attempt. At most three
+yes pages are shown,
 best first. A page is kept when that check says the opening is the same
 problem. The part
 that has the fault, or a part whose name says it stops that fault, still
@@ -41,7 +52,8 @@ citation is `doc_id`, `page`, and a snippet copied from that page, so the
 provenance check can keep it. The answer text is a local stand-in, not a model
 procedure. An empty search calls the client for general advice. Related
 pages search again on the fault words, ignoring how fast or where. The
-first eight openings are judged one page at a time. At most three yes pages
+first eight openings are judged in one call, after the obvious pages are
+decided locally. At most three yes pages
 are shown, best first. With no API key the stand-in keeps a page that names the fault
 or the part that has it, and it drops a different job that only shares a
 word. It ignores words for how fast or where. A failed check shows no page.
@@ -136,7 +148,7 @@ python3 retrieval.py query "starter motor" --k 5
 prints top-k JSON lines with `doc_id`, `page`, `rank`, `score`, and `text`. The
 index stores a boosted `labels` column (headings and `NAME NO. N` components)
 plus page `text`, tokenized with FTS5 `porter unicode61`. Search drops
-stopwords and vehicle tokens, ANDs the rest, falls back to OR, then reranks.
+stopwords and vehicle tokens, unions an AND pool with a broader OR pool, then reranks. Shop wording such as "tight" can surface a matching spec table. It does not pull in unrelated tables.
 Tests use generated `FAKE-*` chunks, not real manuals.
 
 Real-PDF ranking (optional, skips without `manuals/*.pdf`):
@@ -188,7 +200,8 @@ citations. When the backend sends `X-Sidekick-Retrieval`, recall@5 uses
 those doc id and page pairs. The header is absent on a normal client, and
 the answer body stays the contract. The header value is not written to the
 results file. A user or key in the URL is not sent and is not written to
-the results file. The timeout is 120 seconds. `make eval` does not pass
+the results file. The per-request timeout is 120 seconds. `--timeout`
+changes it, for example `--timeout 180`. `make eval` does not pass
 `--backend`, so CI still uses the fake model.
 
 The sample set is fake (`FAKE-*` document ids, page 999) so the harness and CI

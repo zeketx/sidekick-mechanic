@@ -21,6 +21,7 @@ from llm import (
     log_llm_failure,
 )
 from retrieval import (
+    _is_heading_line,
     _surface_variants,
     cap_snippet,
     content_terms,
@@ -104,16 +105,47 @@ RELEVANCE_HEADER = "Related page check:\n"
 RELATED_JUDGE_LIMIT = 8
 RELATED_KEEP_LIMIT = 3
 _RELEVANCE_INSTRUCTIONS = (
-    "You answer yes or no about one manual page. "
-    "The question is the owner's problem. The snippet is the opening of that one page. "
-    "Answer yes when the page names that fault, the part that has the fault, "
+    "You answer yes or no about manual pages. "
+    "The question is the owner's problem. Each snippet is the opening of one page. "
+    "Answer yes when that page's own job is the fault, the part that has the fault, "
     "or a part whose name says it stops that fault. "
     "It may leave out how fast or where, and it does not have to repeat every word. "
     "A part in the same assembly as the fault is yes even when the fault word is missing. "
     "Answer no when the page is a different job that only shares a word, "
     "such as a sensor, a fluid level, or an alignment. "
+    "Answer no when the page is a different problem and this fault or part "
+    "is only mentioned as a cause, a symptom, or an aside. "
     "A different system is no. "
-    "Reply with one word, yes or no, and no other text."
+    'Reply with one JSON object {"pages": [{"id": number, "answer": "yes" or "no"}]} '
+    "and no other text. One entry for every page, using the given id."
+)
+# One short call for the pages lexical checks cannot decide. The answer
+# call still uses the client's own timeout. This cap keeps the extra
+# call inside the phone's retry budget.
+JUDGE_TIMEOUT_S = 8.0
+_SPEC_HEADING = re.compile(
+    r"\b(?:torque:|service data|service specifications)\b",
+    re.IGNORECASE,
+)
+_CAUSE_RE = re.compile(
+    r"\b(?:caused by|possible causes?|due to|because of|abnormal)\b",
+    re.IGNORECASE,
+)
+_SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+|\n+")
+# A generic procedure title is not a different fault.
+_SUBJECT_BOILERPLATE = frozenset(
+    {
+        "check",
+        "data",
+        "fake",
+        "heading",
+        "inspection",
+        "page",
+        "procedure",
+        "service",
+        "spec",
+        "vehicle",
+    }
 )
 _YES_NO = re.compile(r"^(yes|no)\b", re.IGNORECASE)
 # The keyless stand-in has no model. These name a different job than the fault.
@@ -264,11 +296,20 @@ def related_citations(
         # The chip shows this prefix. A later sentence is not what the card shows.
         seen.add(key)
         eligible.append({"doc_id": doc_id, "page": page, "snippet": snippet})
-    # Callers pass the pool best first. A long list makes the yes/no unreliable.
+    # One call for the pages a lexical check cannot decide. Order stays
+    # the search order. At most three yes pages are shown.
+    window = eligible[:RELATED_JUDGE_LIMIT]
+    flags = judge_pages(
+        client,
+        question,
+        [item["snippet"] for item in window],
+        keep_on_error=False,
+    )
     kept: list[dict[str, Any]] = []
-    for item in eligible[:RELATED_JUDGE_LIMIT]:
-        if _page_is_related(client, question, item["snippet"]):
-            kept.append(item)
+    for item, flag in zip(window, flags):
+        if not flag:
+            continue
+        kept.append(item)
         if len(kept) == RELATED_KEEP_LIMIT:
             break
     return kept
@@ -295,6 +336,8 @@ def _snippet_is_related(
     fault: str,
     assembly: Sequence[str],
 ) -> bool:
+    if _mentioned_only_as_another_faults_cause(fault, assembly, snippet):
+        return False
     fault_hit = _fault_is_present(fault, snippet)
     assembly_hit = any(_term_in_snippet(term, snippet) for term in assembly)
     if not fault_hit and not assembly_hit:
@@ -310,7 +353,7 @@ def _fault_is_present(fault: str, snippet: str) -> bool:
     if not _term_in_snippet(fault, snippet):
         return False
     # "knock sensor" names the detector, not the fault.
-    variants = "|".join(re.escape(variant) for variant in _match_variants(fault))
+    variants = "|".join(re.escape(variant) for variant in _surface_variants(fault))
     pattern = re.compile(
         rf"\b(?:{variants})\s+(?:{'|'.join(sorted(_DETECTOR_TAILS))})\b",
         re.IGNORECASE,
@@ -320,41 +363,200 @@ def _fault_is_present(fault: str, snippet: str) -> bool:
 
 def _term_in_snippet(term: str, snippet: str) -> bool:
     tokens = _snippet_tokens(snippet)
-    return any(variant.casefold() in tokens for variant in _match_variants(term))
-
-
-def _match_variants(term: str) -> tuple[str, ...]:
-    variants = list(_surface_variants(term))
-    # "brakes" ends in "es", so the shared stemmer yields "brak" and misses "brake".
-    low = term.casefold()
-    if low.endswith("es") and len(low) > 4:
-        singular = term[:-1]
-        if singular.casefold() not in {item.casefold() for item in variants}:
-            variants.append(singular)
-    return tuple(variants)
+    return any(variant.casefold() in tokens for variant in _surface_variants(term))
 
 
 def _snippet_tokens(snippet: str) -> set[str]:
     return {token.lower() for token in re.findall(r"[A-Za-z0-9]+", snippet)}
 
 
-def _page_is_related(client: LLMClient, question: str, snippet: str) -> bool:
-    try:
-        result = client.complete(_relevance_turns(question, snippet))
-    except LLMError:
+def judge_pages(
+    client: LLMClient,
+    question: str,
+    snippets: Sequence[str],
+    *,
+    keep_on_error: bool,
+) -> list[bool]:
+    """Yes or no for each snippet. Lexical decisions do not call the model.
+
+    Pages that only share a word, and pages that mention the part only as
+    a cause of a different fault, are no. A page whose heading or spec
+    block names the part is yes. The rest go out together in one call.
+    ``keep_on_error`` is for an answer: a judge timeout must not hide the
+    manual. Related chips pass false and show nothing when the call fails.
+    """
+
+    if not snippets:
+        return []
+    decisions = [_lexical_support(question, snippet) for snippet in snippets]
+    unsure = [index for index, decision in enumerate(decisions) if decision == "unsure"]
+    judged: list[bool] = []
+    if unsure:
+        try:
+            judged = _batch_judge(
+                client, question, [snippets[index] for index in unsure]
+            )
+        except LLMError:
+            judged = [keep_on_error] * len(unsure)
+    flags: list[bool] = []
+    cursor = 0
+    for decision in decisions:
+        if decision == "yes":
+            flags.append(True)
+        elif decision == "no":
+            flags.append(False)
+        else:
+            flags.append(judged[cursor])
+            cursor += 1
+    return flags
+
+
+def _lexical_support(question: str, snippet: str) -> str:
+    claims = tuple(
+        term
+        for term in _focus_terms(question)
+        if term.casefold() not in _CONDITION_TERMS
+    )
+    if not claims:
+        return "yes"
+    fault = claims[-1]
+    assembly = claims[:-1]
+    if not _snippet_is_related(snippet, fault, assembly):
+        return "no"
+    if _focus_in_text(claims, _subject_text(snippet)):
+        return "yes"
+    if _SPEC_HEADING.search(snippet):
+        return "yes"
+    return "unsure"
+
+
+def _mentioned_only_as_another_faults_cause(
+    fault: str,
+    assembly: Sequence[str],
+    snippet: str,
+) -> bool:
+    """The page's job is a different fault, and this part is only a cause.
+
+    A heading that names the part is the page's own job. A generic
+    procedure title is not a different fault.
+    """
+
+    terms = (fault, *assembly)
+    if _focus_in_text(terms, _subject_text(snippet)):
         return False
-    return _parse_yes_no(result.text)
+    if not _names_a_different_job(snippet, terms):
+        return False
+    sentences = [
+        part.strip() for part in _SENTENCE_SPLIT.split(snippet) if part.strip()
+    ]
+    hits = [sentence for sentence in sentences if _focus_in_text(terms, sentence)]
+    if not hits:
+        return False
+    return all(_CAUSE_RE.search(sentence) for sentence in hits)
 
 
-def _relevance_turns(question: str, snippet: str) -> list[ChatTurn]:
+def _names_a_different_job(snippet: str, terms: Sequence[str]) -> bool:
+    subject = _opening_subject(snippet)
+    if _focus_in_text(terms, subject):
+        return False
+    words = [
+        token
+        for token in content_terms(subject)
+        if token.casefold() not in _SUBJECT_BOILERPLATE
+    ]
+    return len(words) >= 1
+
+
+def _subject_text(snippet: str) -> str:
+    headings = [
+        line.strip()
+        for line in snippet.splitlines()
+        if _is_heading_line(line.strip()) or line.strip().startswith("FAKE-HEADING")
+    ]
+    return " ".join([*headings, _opening_subject(snippet)])
+
+
+def _opening_subject(snippet: str) -> str:
+    stripped = snippet.strip()
+    if not stripped:
+        return ""
+    line = stripped.splitlines()[0].strip()
+    parts = _SENTENCE_SPLIT.split(line, maxsplit=1)
+    return parts[0][:180]
+
+
+def _focus_in_text(terms: Sequence[str], text: str) -> bool:
+    return any(_term_in_snippet(term, text) for term in terms)
+
+
+def _batch_judge(
+    client: LLMClient, question: str, snippets: Sequence[str]
+) -> list[bool]:
+    result = _complete_bounded(client, _relevance_turns(question, snippets))
+    parsed = _parse_batch(result.text, len(snippets))
+    if parsed is None:
+        raise LLMError("relevance judge returned no pages")
+    return parsed
+
+
+def _complete_bounded(client: LLMClient, messages: list[ChatTurn]) -> Any:
+    import inspect
+
+    params = inspect.signature(client.complete).parameters
+    kwargs: dict[str, Any] = {}
+    if "timeout_s" in params:
+        kwargs["timeout_s"] = JUDGE_TIMEOUT_S
+    if "attempts" in params:
+        kwargs["attempts"] = 1
+    return client.complete(messages, **kwargs)
+
+
+def _relevance_turns(question: str, snippets: Sequence[str]) -> list[ChatTurn]:
     payload = json.dumps(
-        {"question": question, "snippet": snippet},
+        {
+            "question": question,
+            "pages": [
+                {"id": index, "snippet": snippet}
+                for index, snippet in enumerate(snippets)
+            ],
+        },
         ensure_ascii=False,
     )
     return [
         ChatTurn(role="system", content=_RELEVANCE_INSTRUCTIONS),
         ChatTurn(role="user", content=RELEVANCE_HEADER + payload),
     ]
+
+
+def _parse_batch(raw: str, count: int) -> list[bool] | None:
+    try:
+        payload = json.loads(_unwrap_markdown_fence(raw.strip()))
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    pages = payload.get("pages")
+    if not isinstance(pages, list):
+        return None
+    by_id: dict[int, bool] = {}
+    for item in pages:
+        if not isinstance(item, dict):
+            continue
+        page_id = item.get("id")
+        answer = item.get("answer")
+        if isinstance(page_id, bool) or not isinstance(page_id, int):
+            continue
+        if not isinstance(answer, str):
+            continue
+        by_id[page_id] = _parse_yes_no(answer)
+    if not by_id:
+        return None
+    # Models sometimes number the first page 1. Shift only when every id
+    # matches that scheme, so a missing page stays a no.
+    one_based = {index + 1 for index in range(count)}
+    if 0 not in by_id and set(by_id) == one_based:
+        by_id = {index - 1: flag for index, flag in by_id.items()}
+    return [by_id.get(index, False) for index in range(count)]
 
 
 def _parse_yes_no(raw: str) -> bool:

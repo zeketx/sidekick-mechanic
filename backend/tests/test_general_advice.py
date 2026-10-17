@@ -18,7 +18,10 @@ from chat_models import (
 from general_advice import (
     ADVICE_HONESTY,
     ADVICE_STEPS_HEADER,
+    JUDGE_TIMEOUT_S,
+    RELEVANCE_HEADER,
     advise_on_miss,
+    judge_pages,
     parse_steps,
 )
 from llm import RETRIEVED_PAGES_HEADER, ChatTurn, FakeLLMClient, LLMError, LLMResult
@@ -152,6 +155,11 @@ def test_advice_prompt_omits_prior_assistant_text() -> None:
     assert "The fixture motor still will not start." in sent
 
 
+_UNSURE_PAGE = (
+    "FAKE-HEADING: inspection procedure.\nThe fixture motor can stumble."
+)
+
+
 def test_relevance_true_keeps_the_page_and_a_bad_check_shows_none() -> None:
     class _Writer:
         def __init__(self, second: str | Exception) -> None:
@@ -170,16 +178,18 @@ def test_relevance_true_keeps_the_page_and_a_bad_check_shows_none() -> None:
                 raise self.second
             return LLMResult(text=self.second, model="fake", usage=None)
 
-    hits = (_Hit("FAKE-DOC", 999, _HIT_SNIPPET),)
-    writer = _Writer("yes")
+    hits = (_Hit("FAKE-DOC", 999, _UNSURE_PAGE),)
+    yes = json.dumps({"pages": [{"id": 0, "answer": "yes"}]})
+    writer = _Writer(yes)
     kept = advise_on_miss(writer, _conversation(), hits)
     assert kept is not None
     assert kept["related"] == [
-        {"doc_id": "FAKE-DOC", "page": 999, "snippet": _HIT_SNIPPET}
+        {"doc_id": "FAKE-DOC", "page": 999, "snippet": _UNSURE_PAGE}
     ]
     assert kept["steps"] == [_STEP]
+    assert len(writer.calls) == 2
     instructions = writer.calls[1][0].content
-    assert "one manual page" in instructions
+    assert "only mentioned as a cause" in instructions
     assert "same assembly" in instructions
     assert "yes or no" in instructions
 
@@ -200,7 +210,8 @@ def _ranked_hits(count: int) -> tuple[_Hit, ...]:
         _Hit(
             f"FAKE-DOC-{index}",
             999,
-            f"FAKE-SNIPPET: FAKE-DOC-{index} ranked page.",
+            "FAKE-HEADING: inspection procedure.\n"
+            f"The fixture motor can stumble. FAKE-DOC-{index} ranked page.",
         )
         for index in range(count)
     )
@@ -219,9 +230,20 @@ class _YesPages:
                 model="fake",
                 usage=None,
             )
-        asked = messages[-1].content
-        answer = "yes" if any(doc_id in asked for doc_id in self.yes_ids) else "no"
-        return LLMResult(text=answer, model="fake", usage=None)
+        raw = messages[-1].content.split(RELEVANCE_HEADER, 1)[1]
+        payload = json.loads(raw)
+        pages = [
+            {
+                "id": item["id"],
+                "answer": (
+                    "yes" if any(doc_id in item["snippet"] for doc_id in self.yes_ids) else "no"
+                ),
+            }
+            for item in payload["pages"]
+        ]
+        return LLMResult(
+            text=json.dumps({"pages": pages}), model="fake", usage=None
+        )
 
 
 def test_related_keep_stops_at_three_best_first() -> None:
@@ -235,9 +257,10 @@ def test_related_keep_stops_at_three_best_first() -> None:
         "FAKE-DOC-2",
     ]
     judged = "\n".join(turn.content for call in writer.calls for turn in call)
-    assert "FAKE-DOC-3" not in judged
+    assert "FAKE-DOC-7" in judged
     assert "FAKE-DOC-8" not in judged
     assert "FAKE-DOC-9" not in judged
+    assert len(writer.calls) == 2
 
 
 def test_related_keep_shows_one_yes_inside_the_window() -> None:
@@ -269,3 +292,79 @@ def test_writer_failure_logs_parse_rejection(
     assert "kind=parse" in caplog.text
     assert "detail=advice_steps" in caplog.text
     assert "not json" not in caplog.text
+
+
+def test_a_heading_skips_the_model_and_a_cause_aside_is_no() -> None:
+    class _Boom:
+        def complete(self, messages: list[ChatTurn]) -> LLMResult:
+            raise AssertionError(messages)
+
+    flags = judge_pages(
+        _Boom(),
+        "The radiator fan is not spinning",
+        (
+            "FAKE-HEADING: radiator fan does not spin.",
+            (
+                "DTC P9999 FAKE engine overcooling.\n"
+                "Possible cause: abnormal radiator fan operation."
+            ),
+        ),
+        keep_on_error=True,
+    )
+
+    assert flags == [True, False]
+
+
+def test_one_based_batch_ids_and_a_failed_judge() -> None:
+    class _Client:
+        def __init__(self, text: str | Exception) -> None:
+            self.text = text
+            self.kwargs: dict[str, object] = {}
+
+        def complete(
+            self,
+            messages: list[ChatTurn],
+            *,
+            timeout_s: float | None = None,
+            attempts: int | None = None,
+        ) -> LLMResult:
+            self.kwargs = {"timeout_s": timeout_s, "attempts": attempts}
+            if isinstance(self.text, Exception):
+                raise self.text
+            return LLMResult(text=self.text, model="fake", usage=None)
+
+    unsure = (
+        "FAKE-HEADING: inspection procedure.\nThe radiator fan relay is open.",
+        "FAKE-HEADING: inspection procedure.\nThe radiator fan relay is closed.",
+    )
+    client = _Client(
+        json.dumps(
+            {
+                "pages": [
+                    {"id": 1, "answer": "yes"},
+                    {"id": 2, "answer": "no"},
+                ]
+            }
+        )
+    )
+    flags = judge_pages(
+        client,
+        "The radiator fan is not spinning",
+        unsure,
+        keep_on_error=False,
+    )
+
+    assert flags == [True, False]
+    assert client.kwargs == {"timeout_s": JUDGE_TIMEOUT_S, "attempts": 1}
+    assert judge_pages(
+        _Client(LLMError("timeout")),
+        "The radiator fan is not spinning",
+        unsure,
+        keep_on_error=True,
+    ) == [True, True]
+    assert judge_pages(
+        _Client(LLMError("timeout")),
+        "The radiator fan is not spinning",
+        unsure,
+        keep_on_error=False,
+    ) == [False, False]

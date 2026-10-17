@@ -20,7 +20,7 @@ from typing import Any, Protocol, runtime_checkable
 from chat_models import Conversation, garage_prompt_block
 from contract import load_answer_fixture, validate_answer
 from demo import DEMO_SYSTEM_PROMPT, resolve_demo_answer
-from general_advice import advise_on_miss, related_search_text
+from general_advice import advise_on_miss, judge_pages, related_search_text
 from llm import (
     RETRIEVED_PAGES_HEADER,
     ChatTurn,
@@ -43,8 +43,9 @@ from retrieval import (
     RetrievedChunk,
     Retriever,
     cap_snippet,
-    snippet_matches_page,
+    grounding_span,
 )
+from spec_guard import supporting_page_mask
 
 DEFAULT_FIXTURE = "plain.json"
 LOGGER = logging.getLogger("sidekick.llm")
@@ -67,6 +68,12 @@ _GROUNDED_INSTRUCTIONS = (
     "Do not add an ellipsis, quotes, or other characters. "
     f"The server shortens a snippet longer than {SNIPPET_LIMIT} characters. "
     "Use only a doc_id and page from the retrieved pages. "
+    "Cite only the retrieved pages that contain the facts you state. "
+    "Do not cite a neighboring page that does not contain those facts. "
+    "Do not cite every retrieved page. "
+    "State a number with a unit only when that number and unit appear on a page you cite. "
+    "A code definition or a procedure does not need an extra measurement. "
+    "When a page gives a range, you may state either endpoint with that same unit. "
     "If those pages do not support an answer, set citations to an empty array. "
     "text may be empty only in that case."
 )
@@ -189,6 +196,14 @@ class LlmAnswerProducer:
             if _wiring_not_ingested_miss(query):
                 return dict(WIRING_NOT_INGESTED_REFUSAL)
             return self._advice_or_unavailable(conversation, ())
+        # Same meaning check as a related page. A strong heading is kept
+        # without a model call. A page that only shares a word, or that
+        # mentions the part only as a cause of a different fault, is not
+        # support, so the model never cites it.
+        found = hits
+        hits = _relevant_hits(self._client, query, hits)
+        if not hits:
+            return self._advice_or_unavailable(conversation, found)
 
         text = self._complete(
             _chat_messages(conversation, _grounded_system_prompt(hits, conversation))
@@ -202,6 +217,7 @@ class LlmAnswerProducer:
         if parsed.citation_count == 0:
             return self._advice_or_unavailable(conversation, hits)
         citations = _filter_citations(parsed.citations, hits)
+        citations = _citations_that_support(parsed.text, citations, hits)
         if not citations:
             log_answer_rejection("citation_mismatch")
             return dict(UNAVAILABLE_ANSWER)
@@ -568,6 +584,50 @@ def _unwrap_markdown_fence(text: str) -> str:
     return inner.removesuffix("\n")
 
 
+_SUPPORT_CHARS = 1500
+
+
+def _relevant_hits(
+    client: LLMClient,
+    question: str,
+    hits: Sequence[_RetrievedPage],
+) -> tuple[_RetrievedPage, ...]:
+    usable: list[_RetrievedPage] = []
+    openings: list[str] = []
+    for hit in hits:
+        opening = hit.text[:_SUPPORT_CHARS]
+        if not opening.strip():
+            continue
+        usable.append(hit)
+        openings.append(opening)
+    flags = judge_pages(client, question, openings, keep_on_error=True)
+    return tuple(hit for hit, flag in zip(usable, flags) if flag)
+
+
+def _citations_that_support(
+    answer_text: str,
+    citations: Sequence[Mapping[str, Any]],
+    hits: Sequence[_RetrievedPage],
+) -> list[dict[str, Any]]:
+    """Drop a cited page that contains none of the stated measurements.
+
+    When the answer states no measurement, or no cited page contains one,
+    every citation stays. The spec guard still refuses a number that is
+    not on a cited page.
+    """
+
+    pages: dict[tuple[str, int], str] = {}
+    for hit in hits:
+        pages.setdefault((hit.doc_id, hit.page), hit.text)
+    texts = [
+        pages.get((citation["doc_id"], citation["page"]), "") for citation in citations
+    ]
+    mask = supporting_page_mask(answer_text, texts)
+    if mask is None:
+        return list(citations)
+    return [citation for citation, keep in zip(citations, mask) if keep]
+
+
 def _filter_citations(
     citations: Sequence[Mapping[str, Any]],
     hits: Sequence[_RetrievedPage],
@@ -582,9 +642,11 @@ def _filter_citations(
         page = citation["page"]
         snippet = citation["snippet"]
         page_text = pages.get((doc_id, page))
-        if page_text is None or not snippet_matches_page(snippet, page_text):
+        if page_text is None:
             continue
-        stored = cap_snippet(snippet)
+        # Show the page's words. A model string that only looks like a quote
+        # ("1.8" for "1. 8") must not become the chip.
+        stored = cap_snippet(grounding_span(snippet, page_text))
         if not stored.strip():
             continue
         identity = (doc_id, page, stored)

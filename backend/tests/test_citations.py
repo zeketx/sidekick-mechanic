@@ -74,6 +74,13 @@ def _advice(
     }
 
 
+def _grounded_call(fake: FakeLLMClient) -> list[ChatTurn]:
+    for call in fake.calls:
+        if any("Retrieved pages:" in turn.content for turn in call):
+            return call
+    raise AssertionError("no grounded call")
+
+
 def _cited(
     snippet: str = _SNIPPET,
     *,
@@ -108,7 +115,7 @@ def test_cited_answer_keeps_retrieved_snippet() -> None:
         "citations": [_cited()],
     }
     assert retriever.queries == [_QUESTION]
-    system = fake.calls[0][0]
+    system = _grounded_call(fake)[0]
     assert system.role == "system"
     assert "Do not invent torque" in system.content
     assert "If you do not know, say so." not in system.content
@@ -122,7 +129,7 @@ def test_cited_answer_keeps_retrieved_snippet() -> None:
     assert '"score"' not in system.content
     assert '"rank"' not in system.content
     assert "N·m" not in system.content
-    assert fake.calls[0][1] == ChatTurn(role="user", content=_QUESTION)
+    assert _grounded_call(fake)[1] == ChatTurn(role="user", content=_QUESTION)
 
 
 def test_cited_answer_keeps_pages_when_garage_notes_are_present() -> None:
@@ -145,7 +152,7 @@ def test_cited_answer_keeps_pages_when_garage_notes_are_present() -> None:
         "citations": [_cited()],
     }
     assert retriever.queries == [_QUESTION]
-    system = fake.calls[0][0].content
+    system = _grounded_call(fake)[0].content
     assert "already replaced" in system
     assert "Retrieved pages:" in system
     pages = system.split("Retrieved pages:\n", 1)[1]
@@ -181,11 +188,11 @@ def test_whitespace_normalized_snippet_is_kept() -> None:
     payload = producer.produce(_conversation())
 
     assert payload["kind"] == "answer"
-    assert payload["citations"][0]["snippet"] == "FAKE-SNIPPET: no real spec."
+    assert payload["citations"][0]["snippet"] == page_text
     assert snippet_matches_page("FAKE-SNIPPET: no real spec.", page_text)
 
 
-def test_rearranged_snippet_is_not_a_citation() -> None:
+def test_rearranged_snippet_is_replaced_with_the_page() -> None:
     page_text = "spec. FAKE-SNIPPET: no real"
     producer, _, _ = _producer(
         _completion(_ANSWER, [_cited("FAKE-SNIPPET: no real spec.")]),
@@ -194,10 +201,14 @@ def test_rearranged_snippet_is_not_a_citation() -> None:
 
     payload = producer.produce(_conversation())
 
-    assert payload == _UNAVAILABLE
+    assert payload["kind"] == "answer"
+    assert payload["text"] == _ANSWER
+    chip = payload["citations"][0]["snippet"]
+    assert chip in page_text
+    assert chip != "FAKE-SNIPPET: no real spec."
 
 
-def test_invented_snippet_is_unavailable() -> None:
+def test_invented_snippet_keeps_the_retrieved_page() -> None:
     producer, _, _ = _producer(
         _completion(_ANSWER, [_cited("FAKE-SNIPPET: invented and not on the page.")]),
         (_Hit(_DOC, _PAGE, _SNIPPET),),
@@ -205,15 +216,20 @@ def test_invented_snippet_is_unavailable() -> None:
 
     payload = producer.produce(_conversation())
 
-    assert payload == _UNAVAILABLE
+    assert payload == {
+        "kind": "answer",
+        "text": _ANSWER,
+        "citations": [_cited()],
+    }
+    assert "invented" not in payload["citations"][0]["snippet"]
 
 
-def test_invented_snippet_logs_citation_mismatch(
+def test_unretrieved_page_logs_citation_mismatch(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     caplog.set_level(logging.WARNING, logger="sidekick.llm")
     producer, _, _ = _producer(
-        _completion(_ANSWER, [_cited("FAKE-SNIPPET: invented and not on the page.")]),
+        _completion(_ANSWER, [_cited(page=998)]),
         (_Hit(_DOC, _PAGE, _SNIPPET),),
     )
 
@@ -222,7 +238,7 @@ def test_invented_snippet_logs_citation_mismatch(
     assert payload == _UNAVAILABLE
     assert "kind=parse" in caplog.text
     assert "detail=citation_mismatch" in caplog.text
-    assert "invented" not in caplog.text
+    assert "FAKE-SNIPPET" not in caplog.text
 
 
 def test_empty_search_returns_general_advice() -> None:
@@ -259,11 +275,17 @@ def test_empty_citations_array_discards_model_text_and_uses_hits() -> None:
     )
     assert "nope" not in json.dumps(payload)
     assert "MODEL-PICKED" not in json.dumps(payload)
-    advice = fake.calls[1][0].content
+    advice_calls = [
+        call
+        for call in fake.calls
+        if any(ADVICE_STEPS_HEADER in turn.content for turn in call)
+    ]
+    assert advice_calls
+    advice = advice_calls[0][0].content
     assert ADVICE_STEPS_HEADER in advice
     assert "Retrieved pages:" not in advice
     assert _FAKE_PART_PAGE not in advice
-    assert _FAKE_PART_PAGE in fake.calls[0][0].content
+    assert _FAKE_PART_PAGE in _grounded_call(fake)[0].content
 
 
 def test_prose_completion_is_unavailable() -> None:
@@ -433,7 +455,7 @@ def test_blank_text_with_empty_citations_is_general_advice() -> None:
     )
 
 
-def test_case_changed_snippet_is_unavailable() -> None:
+def test_case_changed_snippet_is_kept() -> None:
     producer, _, _ = _producer(
         _completion(_ANSWER, [_cited("fake-snippet: no real spec.")]),
         (_Hit(_DOC, _PAGE, _SNIPPET),),
@@ -441,7 +463,48 @@ def test_case_changed_snippet_is_unavailable() -> None:
 
     payload = producer.produce(_conversation())
 
-    assert payload == _UNAVAILABLE
+    assert payload == {
+        "kind": "answer",
+        "text": _ANSWER,
+        "citations": [_cited(_SNIPPET)],
+    }
+
+
+def test_split_number_is_not_stored_as_the_model_wrote_it() -> None:
+    page_text = "Step 1. 8 Nm bolts on the fixture. FAKE-SPEC"
+    producer, _, _ = _producer(
+        _completion(_ANSWER, [_cited("1.8 Nm")]),
+        (_Hit(_DOC, _PAGE, page_text),),
+    )
+
+    payload = producer.produce(_conversation())
+
+    assert payload["kind"] == "answer"
+    chip = payload["citations"][0]["snippet"]
+    assert "1.8" not in chip
+    assert not any(token.isdigit() for token in chip.split())
+
+
+def test_repaired_page_still_refuses_a_number_the_page_lacks() -> None:
+    page_text = "FAKE-SNIPPET: no real spec."
+    producer, _, _ = _producer(
+        _completion(
+            "Torque is 999 Nm.",
+            [_cited("FAKE-SNIPPET: invented and not on the page.")],
+        ),
+        (_Hit(_DOC, _PAGE, page_text),),
+    )
+
+    response = TestClient(create_app(producer=producer)).post(
+        "/chat",
+        json={"messages": [{"role": "user", "text": _QUESTION}]},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["kind"] == "refusal"
+    assert body["reason"] == "not_found_in_manual"
+    assert "999" in body["text"]
 
 
 def test_long_snippet_cuts_back_from_a_mid_word_boundary() -> None:
@@ -543,7 +606,7 @@ def test_newline_in_page_text_round_trips_through_the_prompt() -> None:
 
     payload = producer.produce(_conversation())
 
-    rendered = fake.calls[0][0].content.split("Retrieved pages:\n", 1)[1]
+    rendered = _grounded_call(fake)[0].content.split("Retrieved pages:\n", 1)[1]
     decoded = json.loads(rendered)
     assert decoded == [{"doc_id": _DOC, "page": _PAGE, "text": page_text}]
     assert payload == {
@@ -937,3 +1000,127 @@ def test_index_retriever_cites_a_fake_chunk(tmp_path: Path) -> None:
         "text": _ANSWER,
         "citations": [_cited()],
     }
+
+
+def test_shared_word_is_not_answer_support() -> None:
+    page = (
+        "Vibration method. Wiggle the connector to find an intermittent "
+        "electrical fault. FAKE-SPEC"
+    )
+    fake = FakeLLMClient()
+    producer = LlmAnswerProducer(fake, retriever=_Retriever((_Hit(_DOC, 27, page),)))
+
+    payload = producer.produce(_conversation("My truck shakes at highway speed"))
+
+    assert payload["kind"] == "general_advice"
+    assert payload["related"] == []
+    assert all(
+        "Retrieved pages:" not in turn.content for call in fake.calls for turn in call
+    )
+
+
+def test_squeal_cites_the_pad_page_and_not_a_different_job() -> None:
+    pad = "FAKE-HEADING: front brake pad and anti-squeal shim."
+    other = (
+        "Vibration method. Wiggle the connector to find an intermittent "
+        "electrical fault. FAKE-SPEC"
+    )
+    fake = FakeLLMClient()
+    producer = LlmAnswerProducer(
+        fake,
+        retriever=_Retriever((_Hit(_DOC, 999, other), _Hit(_DOC, 1000, pad))),
+    )
+
+    payload = producer.produce(_conversation("The brakes squeal"))
+
+    assert payload["kind"] == "answer"
+    assert [item["page"] for item in payload["citations"]] == [1000]
+    assert all(
+        "Related page check:" not in turn.content
+        for call in fake.calls
+        for turn in call
+    )
+
+
+def test_a_cause_of_a_different_fault_is_not_the_answer() -> None:
+    fan = "FAKE-HEADING: radiator fan does not spin."
+    aside = (
+        "DTC P9999 FAKE engine overcooling.\n"
+        "Possible cause: abnormal radiator fan operation."
+    )
+    fake = FakeLLMClient()
+    producer = LlmAnswerProducer(
+        fake,
+        retriever=_Retriever((_Hit(_DOC, 299, aside), _Hit(_DOC, 1000, fan))),
+    )
+
+    payload = producer.produce(_conversation("The radiator fan is not spinning"))
+
+    assert payload["kind"] == "answer"
+    assert [item["page"] for item in payload["citations"]] == [1000]
+    assert all(
+        "Related page check:" not in turn.content
+        for call in fake.calls
+        for turn in call
+    )
+
+
+def test_only_a_passing_cause_is_general_advice() -> None:
+    aside = (
+        "DTC P9999 FAKE engine overcooling.\n"
+        "Possible cause: abnormal radiator fan operation."
+    )
+    fake = FakeLLMClient()
+    producer = LlmAnswerProducer(
+        fake, retriever=_Retriever((_Hit(_DOC, 299, aside),))
+    )
+
+    payload = producer.produce(_conversation("The radiator fan is not spinning"))
+
+    assert payload["kind"] == "general_advice"
+    assert payload["related"] == []
+    assert all(
+        "Retrieved pages:" not in turn.content for call in fake.calls for turn in call
+    )
+
+
+def test_undecided_pages_are_judged_together() -> None:
+    first = (
+        "FAKE-HEADING: inspection procedure.\nThe radiator fan relay is open."
+    )
+    second = (
+        "FAKE-HEADING: inspection procedure.\nThe radiator fan relay is closed."
+    )
+    fake = FakeLLMClient()
+    producer = LlmAnswerProducer(
+        fake,
+        retriever=_Retriever((_Hit(_DOC, 1, first), _Hit(_DOC, 2, second))),
+    )
+
+    payload = producer.produce(_conversation("The radiator fan is not spinning"))
+
+    relevance = [
+        call
+        for call in fake.calls
+        if any("Related page check:" in turn.content for turn in call)
+    ]
+    assert len(relevance) == 1
+    assert payload["kind"] == "answer"
+    assert [item["page"] for item in payload["citations"]] == [1, 2]
+
+
+def test_citation_drops_a_page_that_lacks_the_stated_measurement() -> None:
+    spec = "FAKE-SPEC torque is 999 N·m."
+    neighbor = "FAKE-SPEC torque procedure for the fixture. No number here."
+    producer, _, _ = _producer(
+        _completion(
+            "Torque is 999 Nm.",
+            [_cited(spec), _cited(neighbor, page=1000)],
+        ),
+        (_Hit(_DOC, _PAGE, spec), _Hit(_DOC, 1000, neighbor)),
+    )
+
+    payload = producer.produce(_conversation("What is the FAKE-SPEC torque?"))
+
+    assert payload["kind"] == "answer"
+    assert [item["page"] for item in payload["citations"]] == [_PAGE]

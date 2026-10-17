@@ -306,9 +306,33 @@ def _require_chunk_texts(cited_chunk_texts: Iterable[str]) -> tuple[str, ...]:
 def _canonical_claims(texts: Iterable[str]) -> set[str]:
     found: set[str] = set()
     for text in texts:
-        for claim in _extract(text):
+        prepared = _prepare(text)
+        for claim in _extract_prepared(prepared, range_endpoints=True):
+            found.add(claim.canonical)
+        for claim in _table_torque_claims(prepared):
             found.add(claim.canonical)
     return found
+
+
+def supporting_page_mask(
+    answer_text: str, page_texts: Sequence[str]
+) -> tuple[bool, ...] | None:
+    """Which pages contain a unit or pin claim the answer states.
+
+    ``None`` when the answer states no such claim, or when no page contains
+    one. The caller keeps every citation in those cases so the guard can
+    still refuse a number that is not on a cited page.
+    """
+
+    wanted = {claim.canonical for claim in _unique_claims(answer_text)}
+    if not wanted:
+        return None
+    flags = tuple(
+        bool(wanted & _canonical_claims((page_text,))) for page_text in page_texts
+    )
+    if not any(flags):
+        return None
+    return flags
 
 
 def _unique_claims(text: str) -> tuple[_Claim, ...]:
@@ -374,7 +398,10 @@ def _advice_measure_separator(match: re.Match[str]) -> bool:
 
 
 def _extract(text: str) -> tuple[_Claim, ...]:
-    prepared = _prepare(text)
+    return _extract_prepared(_prepare(text), range_endpoints=False)
+
+
+def _extract_prepared(prepared: str, *, range_endpoints: bool) -> tuple[_Claim, ...]:
     found: list[_Claim] = []
     for match in _MEASURE_RE.finditer(prepared):
         number = _canonical_number(match.group(1))
@@ -386,6 +413,8 @@ def _extract(text: str) -> tuple[_Claim, ...]:
                 canonical=f"{number} {unit}",
             )
         )
+        if range_endpoints:
+            found.extend(_range_endpoint_claims(match.start(), number, unit))
     for match in _PIN_RE.finditer(prepared):
         kind = _pin_kind(match.group(1))
         for token in _ID_SPLIT_RE.split(match.group(2)):
@@ -435,13 +464,62 @@ def _rewrite_ohm_symbols(text: str) -> str:
     return rewritten.replace("Ω", "ohm")
 
 
+# Column header on a service-spec table, then a row "999 (998, 997)".
+# The same triple without this header is not a torque.
+_TORQUE_HEADER_RE = re.compile(
+    r"n\s*[·⋅•.\-]?\s*m.{0,80}?kgf\s*(?:[·⋅•.\-]\s*)?\s*cm.{0,80}?"
+    r"ft\s*(?:[·⋅•.\-]\s*)?\s*lbf",
+    re.IGNORECASE | re.DOTALL,
+)
+_TORQUE_TRIPLE_RE = re.compile(
+    r"(?<![A-Za-z0-9.])(\d+(?:\.\d+)?)\s*\(\s*(\d+(?:\.\d+)?)\s*,\s*"
+    r"(\d+(?:\.\d+)?)\s*\)"
+)
+_RANGE_ENDS_RE = re.compile(r"(\d+(?:\.\d+)?)-(\d+(?:\.\d+)?)")
+
+
+def _range_endpoint_claims(start: int, number: str, unit: str) -> tuple[_Claim, ...]:
+    """A chunk range supports either endpoint. The answer's own range does not.
+
+    ``999 Nm`` matches a chunk that says ``998-999 Nm``. ``999-1000 Nm`` does
+    not match a chunk that only says ``1000 Nm``. ``999`` does not match
+    ``1999-2000``.
+    """
+
+    ends = _RANGE_ENDS_RE.fullmatch(number)
+    if ends is None:
+        return ()
+    return tuple(
+        _Claim(start=start, surface=end, canonical=f"{end} {unit}")
+        for end in ends.groups()
+    )
+
+
+def _table_torque_claims(prepared: str) -> tuple[_Claim, ...]:
+    if _TORQUE_HEADER_RE.search(prepared) is None:
+        return ()
+    found: list[_Claim] = []
+    for match in _TORQUE_TRIPLE_RE.finditer(prepared):
+        nm, kgfcm, ftlbf = match.group(1), match.group(2), match.group(3)
+        start = match.start()
+        found.append(_Claim(start=start, surface=nm, canonical=f"{nm} nm"))
+        found.append(_Claim(start=start, surface=kgfcm, canonical=f"{kgfcm} kgfcm"))
+        found.append(_Claim(start=start, surface=ftlbf, canonical=f"{ftlbf} ftlbf"))
+    return tuple(found)
+
+
 def _normalize_numeric_spacing(text: str) -> str:
     previous = None
     while previous != text:
         previous = text
         # Grouping commas are spelling ("9,999" == "9999"), not a new value.
-        text = re.sub(r"(?<=\d),\s*(?=\d{3}(?!\d))", "", text)
+        # A space after the comma is a list ("210, 15"), not a thousands group.
+        text = re.sub(r"(?<=\d),(?=\d{3}(?!\d))", "", text)
         text = re.sub(r"(?<=\d)\s+(?=\d)", "", text)
+    # "999. 9" is the same decimal as "999.9". A dot between digits is not a sentence.
+    text = re.sub(r"(?<=\d)\s*\.\s*(?=\d)", ".", text)
+    # "998 - 999" is the same range as "998-999", so both endpoints can be read.
+    text = re.sub(r"(?<=\d)\s*-\s*(?=\d)", "-", text)
     return text
 
 

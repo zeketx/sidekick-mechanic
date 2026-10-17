@@ -65,8 +65,21 @@ def main(argv: list[str] | None = None) -> int:
             "fake model. Example: http://127.0.0.1:8001"
         ),
     )
+    parser.add_argument(
+        "--timeout",
+        type=float,
+        default=120,
+        help="Per-request timeout in seconds for --backend. Default: 120.",
+    )
     args = parser.parse_args(argv)
-    runner = HttpBackendRunner(args.backend) if args.backend else None
+    if args.timeout <= 0:
+        print("eval failed: --timeout must be greater than 0", file=sys.stderr)
+        return 1
+    runner = (
+        HttpBackendRunner(args.backend, timeout_s=args.timeout)
+        if args.backend
+        else None
+    )
     try:
         try:
             payload = run_harness(
