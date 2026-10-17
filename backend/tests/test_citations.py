@@ -1035,6 +1035,78 @@ def test_squeal_cites_the_pad_page_and_not_a_different_job() -> None:
 
     assert payload["kind"] == "answer"
     assert [item["page"] for item in payload["citations"]] == [1000]
+    assert all(
+        "Related page check:" not in turn.content
+        for call in fake.calls
+        for turn in call
+    )
+
+
+def test_a_cause_of_a_different_fault_is_not_the_answer() -> None:
+    fan = "FAKE-HEADING: radiator fan does not spin."
+    aside = (
+        "DTC P9999 FAKE engine overcooling.\n"
+        "Possible cause: abnormal radiator fan operation."
+    )
+    fake = FakeLLMClient()
+    producer = LlmAnswerProducer(
+        fake,
+        retriever=_Retriever((_Hit(_DOC, 299, aside), _Hit(_DOC, 1000, fan))),
+    )
+
+    payload = producer.produce(_conversation("The radiator fan is not spinning"))
+
+    assert payload["kind"] == "answer"
+    assert [item["page"] for item in payload["citations"]] == [1000]
+    assert all(
+        "Related page check:" not in turn.content
+        for call in fake.calls
+        for turn in call
+    )
+
+
+def test_only_a_passing_cause_is_general_advice() -> None:
+    aside = (
+        "DTC P9999 FAKE engine overcooling.\n"
+        "Possible cause: abnormal radiator fan operation."
+    )
+    fake = FakeLLMClient()
+    producer = LlmAnswerProducer(
+        fake, retriever=_Retriever((_Hit(_DOC, 299, aside),))
+    )
+
+    payload = producer.produce(_conversation("The radiator fan is not spinning"))
+
+    assert payload["kind"] == "general_advice"
+    assert payload["related"] == []
+    assert all(
+        "Retrieved pages:" not in turn.content for call in fake.calls for turn in call
+    )
+
+
+def test_undecided_pages_are_judged_together() -> None:
+    first = (
+        "FAKE-HEADING: inspection procedure.\nThe radiator fan relay is open."
+    )
+    second = (
+        "FAKE-HEADING: inspection procedure.\nThe radiator fan relay is closed."
+    )
+    fake = FakeLLMClient()
+    producer = LlmAnswerProducer(
+        fake,
+        retriever=_Retriever((_Hit(_DOC, 1, first), _Hit(_DOC, 2, second))),
+    )
+
+    payload = producer.produce(_conversation("The radiator fan is not spinning"))
+
+    relevance = [
+        call
+        for call in fake.calls
+        if any("Related page check:" in turn.content for turn in call)
+    ]
+    assert len(relevance) == 1
+    assert payload["kind"] == "answer"
+    assert [item["page"] for item in payload["citations"]] == [1, 2]
 
 
 def test_citation_drops_a_page_that_lacks_the_stated_measurement() -> None:

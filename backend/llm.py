@@ -158,7 +158,14 @@ class FakeLLMClient:
         self.script = list(script) if script is not None else None
         self.calls: list[list[ChatTurn]] = []
 
-    def complete(self, messages: list[ChatTurn]) -> LLMResult:
+    def complete(
+        self,
+        messages: list[ChatTurn],
+        *,
+        timeout_s: float | None = None,
+        attempts: int | None = None,
+    ) -> LLMResult:
+        del timeout_s, attempts
         self.calls.append(list(messages))
         if self.error is not None:
             raise self.error
@@ -192,14 +199,22 @@ class OpenAICompatibleClient:
         self._http = http_client or httpx.Client(timeout=settings.timeout_seconds)
         self._sleep = sleep
 
-    def complete(self, messages: list[ChatTurn]) -> LLMResult:
+    def complete(
+        self,
+        messages: list[ChatTurn],
+        *,
+        timeout_s: float | None = None,
+        attempts: int | None = None,
+    ) -> LLMResult:
         last_error: LLMError | None = None
-        attempts = self._settings.max_retries + 1
+        attempt_limit = (
+            self._settings.max_retries + 1 if attempts is None else max(1, attempts)
+        )
         started = time.monotonic()
         secret = self._settings.api_key
-        for attempt in range(attempts):
+        for attempt in range(attempt_limit):
             try:
-                response = self._post(messages)
+                response = self._post(messages, timeout_s=timeout_s)
             except httpx.TimeoutException as exc:
                 last_error = _transport_failure(exc, kind="timeout", secret=secret)
             except httpx.TransportError as exc:
@@ -219,7 +234,7 @@ class OpenAICompatibleClient:
                     else:
                         _log_vision_call(messages, result, started)
                         return result
-            if attempt + 1 < attempts:
+            if attempt + 1 < attempt_limit:
                 self._sleep(0.25 * (2**attempt))
         if last_error is None:
             last_error = LLMError("provider failed after retries", kind="unknown")
@@ -229,7 +244,9 @@ class OpenAICompatibleClient:
             status_code=last_error.status_code,
         ) from last_error
 
-    def _post(self, messages: list[ChatTurn]) -> httpx.Response:
+    def _post(
+        self, messages: list[ChatTurn], *, timeout_s: float | None = None
+    ) -> httpx.Response:
         url = f"{self._settings.base_url.rstrip('/')}/chat/completions"
         headers = {
             "Authorization": f"Bearer {self._settings.api_key}",
@@ -240,7 +257,10 @@ class OpenAICompatibleClient:
             "temperature": 0,
             "messages": [_message_body(turn) for turn in messages],
         }
-        return self._http.post(url, headers=headers, json=body)
+        kwargs: dict[str, Any] = {}
+        if timeout_s is not None:
+            kwargs["timeout"] = timeout_s
+        return self._http.post(url, headers=headers, json=body, **kwargs)
 
 
 def _message_body(turn: ChatTurn) -> dict[str, Any]:
@@ -436,6 +456,29 @@ def _in_process_related_text(messages: list[ChatTurn]) -> str | None:
         if not isinstance(payload, dict):
             return json.dumps({"related": []})
         question = payload.get("question")
+        pages = payload.get("pages")
+        if isinstance(pages, list):
+            if not isinstance(question, str):
+                return json.dumps({"pages": []})
+            snippets: list[str] = []
+            ids: list[int] = []
+            for index, item in enumerate(pages):
+                if not isinstance(item, dict) or not isinstance(
+                    item.get("snippet"), str
+                ):
+                    continue
+                snippets.append(item["snippet"])
+                page_id = item.get("id")
+                ids.append(page_id if isinstance(page_id, int) else index)
+            flags = in_process_related(question, snippets)
+            return json.dumps(
+                {
+                    "pages": [
+                        {"id": page_id, "answer": "yes" if flag else "no"}
+                        for page_id, flag in zip(ids, flags)
+                    ]
+                }
+            )
         snippet = payload.get("snippet")
         if not isinstance(question, str) or not isinstance(snippet, str):
             return "no"

@@ -20,7 +20,7 @@ from typing import Any, Protocol, runtime_checkable
 from chat_models import Conversation, garage_prompt_block
 from contract import load_answer_fixture, validate_answer
 from demo import DEMO_SYSTEM_PROMPT, resolve_demo_answer
-from general_advice import advise_on_miss, answer_page_is_related, related_search_text
+from general_advice import advise_on_miss, judge_pages, related_search_text
 from llm import (
     RETRIEVED_PAGES_HEADER,
     ChatTurn,
@@ -196,8 +196,10 @@ class LlmAnswerProducer:
             if _wiring_not_ingested_miss(query):
                 return dict(WIRING_NOT_INGESTED_REFUSAL)
             return self._advice_or_unavailable(conversation, ())
-        # Same meaning check as a related page. A page that only shares a
-        # word is not support, so the model never cites it.
+        # Same meaning check as a related page. A strong heading is kept
+        # without a model call. A page that only shares a word, or that
+        # mentions the part only as a cause of a different fault, is not
+        # support, so the model never cites it.
         found = hits
         hits = _relevant_hits(self._client, query, hits)
         if not hits:
@@ -590,14 +592,16 @@ def _relevant_hits(
     question: str,
     hits: Sequence[_RetrievedPage],
 ) -> tuple[_RetrievedPage, ...]:
-    kept: list[_RetrievedPage] = []
+    usable: list[_RetrievedPage] = []
+    openings: list[str] = []
     for hit in hits:
         opening = hit.text[:_SUPPORT_CHARS]
         if not opening.strip():
             continue
-        if answer_page_is_related(client, question, opening):
-            kept.append(hit)
-    return tuple(kept)
+        usable.append(hit)
+        openings.append(opening)
+    flags = judge_pages(client, question, openings, keep_on_error=True)
+    return tuple(hit for hit, flag in zip(usable, flags) if flag)
 
 
 def _citations_that_support(

@@ -7,8 +7,11 @@ Python 3.11+ and FastAPI. This is the RAG service for Sidekick Mechanic.
 `LlmAnswerProducer`, which calls an `LLMClient`. On each request, if
 `.ingest/index.sqlite` exists, the producer searches that FTS5 index and then
 calls the model. The model must reply with one JSON object. Each citation has
-`doc_id`, an integer `page`, and a `snippet` copied from that page. Before that call, each hit is judged with the same yes or no as a related
-page. A page that only shares a word is not given to the model. If none
+`doc_id`, an integer `page`, and a `snippet` copied from that page. Before that call, each hit is checked for support. A heading or spec
+block that names the part is kept without a model call. A page that only
+shares a word, or that mentions the part only as a cause of a different
+fault, is dropped without a model call. Pages still undecided go out
+together in one call, with an 8 second timeout and one attempt. If none
 pass, the turn is general advice. A citation
 stays only when that page was in the hits and the snippet is a contiguous span
 of that page. When the answer states a measurement, a cited page that does
@@ -21,7 +24,10 @@ The reply says the manual does not cover the question, then lists one to
 five cheap checks. Related pages are a second search on the fault words,
 with speed and place words left out, over a wider candidate pool than the
 answer. That pool stays in search order. Only the first eight openings are
-judged, one page at a time, yes or no. At most three yes pages are shown,
+judged. A heading that names the fault is kept without a model call, and a
+different fault that only mentions the part as a cause is dropped. The rest
+go out in one call, with an 8 second timeout and one attempt. At most three
+yes pages are shown,
 best first. A page is kept when that check says the opening is the same
 problem. The part
 that has the fault, or a part whose name says it stops that fault, still
@@ -46,7 +52,8 @@ citation is `doc_id`, `page`, and a snippet copied from that page, so the
 provenance check can keep it. The answer text is a local stand-in, not a model
 procedure. An empty search calls the client for general advice. Related
 pages search again on the fault words, ignoring how fast or where. The
-first eight openings are judged one page at a time. At most three yes pages
+first eight openings are judged in one call, after the obvious pages are
+decided locally. At most three yes pages
 are shown, best first. With no API key the stand-in keeps a page that names the fault
 or the part that has it, and it drops a different job that only shares a
 word. It ignores words for how fast or where. A failed check shows no page.
@@ -193,7 +200,8 @@ citations. When the backend sends `X-Sidekick-Retrieval`, recall@5 uses
 those doc id and page pairs. The header is absent on a normal client, and
 the answer body stays the contract. The header value is not written to the
 results file. A user or key in the URL is not sent and is not written to
-the results file. The timeout is 120 seconds. `make eval` does not pass
+the results file. The per-request timeout is 120 seconds. `--timeout`
+changes it, for example `--timeout 180`. `make eval` does not pass
 `--backend`, so CI still uses the fake model.
 
 The sample set is fake (`FAKE-*` document ids, page 999) so the harness and CI
