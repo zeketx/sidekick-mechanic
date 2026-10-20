@@ -189,3 +189,9 @@ The truck delivery date is TBD. M0 through M4 do not need the truck. M5 is the o
 ### M10: Feasibility study
 - Ceiling camera plus projector over the bay. Calibrate projector to camera. Light up one part and one tool.
 - **Exit:** a written go/no-go with measured projection alignment error and a cost estimate.
+
+## Parked: exploded teardown
+
+Not a milestone. [Issue #157](https://github.com/zeketx/sidekick-mechanic/issues/157) stays in the backlog until Phase 1 ships, then gets its own milestone. It is not M7, M8, M9, or M10.
+
+The owner wants the Land Cruiser pulled apart on the phone into pieces they are curious about or that need addressing, with a cited instruction list for the piece they pick. The reference is a shop screen that explodes one engine in removal order and keeps a status ledger. The machining pipeline in that screenshot (CAD kernel, datums, toolpaths) is out of scope. Procedures stay on cited manual pages. The model does not decide what needs work. Truck-specific condition stays TBD until `docs/vehicle/TRUCK.md` says otherwise.
