@@ -10,6 +10,7 @@ Issues for each milestone live on [GitHub Issues](https://github.com/zeketx/side
 
 ```
 Before delivery:  M0 → M1 → M2 → M3 → M4 (M2/M3 can overlap)
+Not built:        embeddings and measured accuracy (pulled out of M2; not in the code)
 Delivery day:     M5
 After delivery:   M6 (Phase 1 release) → Phase 2 (M7–M9) → Phase 3 (M10)
 ```
@@ -25,7 +26,7 @@ The truck delivery date is TBD. M0 through M4 do not need the truck. M5 is the o
 **Goal.** A working repo that cloud agents and the owner can both build in, plus a plan for identifying the ECU on day one.
 
 **Deliverables**
-- Repo layout: `app/`, `backend/`, `ml/`, `docs/`, `docs/build-log/`, `scripts/`.
+- Repo layout: `app/`, `backend/`, `ml/`, `docs/`, `docs/build-log/`. There is no top-level `scripts/` folder.
 - Xcode SwiftUI project in `app/` (created by the owner on the Mac) and a pure-Swift `SidekickCore` package that also builds on Linux.
 - Linux CI running backend tests and `swift test` for `SidekickCore`.
 - PR and issue templates. Labels, milestones, and issues are on [GitHub Issues](https://github.com/zeketx/sidekick-mechanic/issues). Projects board set up per `docs/KANBAN.md`.
@@ -67,20 +68,36 @@ The truck delivery date is TBD. M0 through M4 do not need the truck. M5 is the o
 
 **Deliverables**
 - Ingestion: PDF to page-level chunks, each tagged with document ID and page number.
-- Embedding and retrieval index. Store choice made in an `/architect` session (keep it lightweight).
-- Citation format: every claim from a manual carries `{doc_id, page, snippet}`.
-- Spec guard: a post-generation check that blocks any number-with-unit or pinout not present in the retrieved text.
+- Retrieval: SQLite full-text search (FTS5). The question's words are matched against each page's words. This is keyword search. There is no embedding index in the repo.
+- Citation format: every claim from a manual carries `{doc_id, page, snippet}`. The snippet has to be an exact span of that page's text.
+- Number check: after the model answers, plain code drops any number-with-unit or pin/connector name that is not in the cited page text. The reply says it was not found in that text and names what it blocked.
 - Spike on wiring diagrams: text extraction vs citing the page image.
-- Golden question set (target 50 questions) with expected pages, including unanswerable spec questions.
-- Eval harness producing a metrics JSON file for the build log.
+- Golden question set (50 questions) with expected pages, including unanswerable spec questions.
+- Eval harness that writes a metrics JSON file. The committed run is a fake-model smoke test, not an accuracy result.
 - Citation viewer on iOS: tap a chip, see the page.
+
+**Exit criteria.** Checked items are in the code on `main`. They are not accuracy scores.
+
+- [x] Retrieval is SQLite FTS5 over those page chunks.
+- [x] A number check removes values and pin names that are not in the cited page text.
+- [x] CI runs the eval smoke subset. That run does not publish accuracy numbers.
+
+Embeddings and the old accuracy targets are in [Not built: embeddings and measured accuracy](#not-built-embeddings-and-measured-accuracy).
+
+### Not built: embeddings and measured accuracy
+
+**Not built.** These used to be listed under M2. None of this is in the code. Do not quote these numbers as results. The only committed eval run is a fake-model smoke test.
+
+**Deliverables**
+- An embedding or vector index, only if keyword search is not enough. M2 did not build one.
+- A real-model eval run that can be scored against the targets below.
 
 **Exit criteria**
 - [ ] Retrieval recall@5 ≥ 0.85 on the golden set.
 - [ ] Citation accuracy ≥ 0.95 on the golden set.
 - [ ] Spec refusal correctness = 100% on the unanswerable subset.
 - [ ] Zero uncited numeric specs across the full eval run.
-- [ ] Eval runs in CI on every backend PR and posts the numbers.
+- [ ] Eval on every backend PR posts those numbers. CI today runs the smoke subset only.
 - [ ] p50 < 4 s and p95 < 8 s end to end, or a written plan to get there.
 
 ### M3: Bay map and highlight engine
@@ -164,7 +181,7 @@ The truck delivery date is TBD. M0 through M4 do not need the truck. M5 is the o
 - Demo video and a portfolio write-up linking the build log.
 
 **Exit criteria**
-- [ ] All M2 targets met, and the M3 highlight targets (once Zeke confirms them after #85) met on the acceptance eval.
+- [ ] Accuracy targets in [Not built: embeddings and measured accuracy](#not-built-embeddings-and-measured-accuracy) are met, and the M3 highlight targets (once Zeke confirms them after #85) are met on the acceptance eval.
 - [ ] Used for at least one real diagnostic session, logged in the build log.
 - [ ] Demo video under 2 minutes.
 
