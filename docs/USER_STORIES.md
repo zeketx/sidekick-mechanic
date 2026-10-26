@@ -218,3 +218,22 @@ As a user, I can see a plain error if the phone is offline, the answer takes too
 
 Where: the red bar above the text box.
 Status: Shipped
+
+## The truck is a pile of pieces, and you only care about some of them
+
+You want to pull one thing apart because you are curious, or because it needs work. The book is still a pile of pages, and the bay photo only shows what is on the outside.
+
+As a user, I can open the truck as groups and pull a group apart in the order it actually comes off, so that I can work on one piece without losing the rest.
+
+Where: a teardown screen. Not built.
+Status: Planned — [#157](https://github.com/zeketx/sidekick-mechanic/issues/157). Stays in the backlog until Phase 1 ships.
+
+As a user, I can mark a piece as something I am curious about, or as something that needs addressing, so that the bench shows only those two reasons and the app does not invent a fault.
+
+Where: the piece, on that screen.
+Status: Planned — [#157](https://github.com/zeketx/sidekick-mechanic/issues/157)
+
+As a user, I can read a numbered list of steps to pull that piece off and put it back, each step opening the manual page it came from, so that the procedure is the book and not a guess. A number the page does not contain is left out.
+
+Where: the instruction list on the piece.
+Status: Planned — [#157](https://github.com/zeketx/sidekick-mechanic/issues/157)
