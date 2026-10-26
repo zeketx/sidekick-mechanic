@@ -34,15 +34,13 @@ Connectors look alike until you unplug the wrong one. The user snaps a photo of 
 
 On any cited page, **Ask about this page** offers three starters: "Explain this page simply", "What tools do I need?", and "Which connector is this?". The server uses that one page's text as its only evidence. **Go deeper** adds a short plain-English note: how it works, what to test, how, and with what tools.
 
-<img src="docs/images/ask-page-starters.png" width="250" alt="Ask about this page, with three starters: Explain this page simply, What tools do I need?, and Which connector is this?">
-<img src="docs/images/manual-page.png" width="250" alt="FAKE-DOC page on the phone, a synthetic stand-in, not a factory manual scan.">
+<img src="docs/images/ask-page-starters.png" width="250" alt="Ask about this page, with three starters: Explain this page simply, What tools do I need?, and Which connector is this?"> <img src="docs/images/manual-page.png" width="250" alt="FAKE-DOC page on the phone, a synthetic stand-in, not a factory manual scan.">
 
 ### "I already wrote that down"
 
 The Garage holds truck facts, parts, photos, and to-dos. Facts, parts, and open to-dos ride along with each question, so a reply can say "Garage notes show 0W-20, which does not match." Garage notes are never passed off as a manual citation.
 
-<img src="docs/images/garage-note-saved.png" width="250" alt="Garage fact saved: Oil grade, 0W-20.">
-<img src="docs/images/garage-note-reply.png" width="250" alt="Reply that garage notes show 0W-20, which does not match, with citation chip 2jz-ge-rm · p. 967.">
+<img src="docs/images/garage-note-saved.png" width="250" alt="Garage fact saved: Oil grade, 0W-20."> <img src="docs/images/garage-note-reply.png" width="250" alt="Reply that garage notes show 0W-20, which does not match, with citation chip 2jz-ge-rm · p. 967.">
 
 ### "The manual doesn't cover this"
 
@@ -54,8 +52,7 @@ When the search finds nothing, the reply says so first: "Not in your manual. Her
 
 The app draws a clean outline around the part on an engine-bay photo. To be exact about what this is: 2D outlines on still photos, traced by hand ahead of time on four public demo photos. Nothing is detected live, and it isn't AR. The part comes from the user's question but only from that photo's list of traced parts; otherwise the app says "This part is not mapped yet."
 
-<img src="docs/images/highlight-confident.png" width="250" alt="Confident outline on a still 2JZ-GE bay photo by HRYMX, CC BY 2.0. Not a live camera view.">
-<img src="docs/images/highlight-not-found.png" width="250" alt="Not mapped: the app says this part is not mapped yet. Hilux photo by Miguel Sanchez, CC BY-SA 3.0.">
+<img src="docs/images/highlight-confident.png" width="250" alt="Confident outline on a still 2JZ-GE bay photo by HRYMX, CC BY 2.0. Not a live camera view."> <img src="docs/images/highlight-not-found.png" width="250" alt="Not mapped: the app says this part is not mapped yet. Hilux photo by Miguel Sanchez, CC BY-SA 3.0.">
 
 ### "The repair takes all week"
 
