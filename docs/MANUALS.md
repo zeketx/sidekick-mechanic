@@ -32,7 +32,7 @@ Edition, page count, and SHA-256 for `2jz-ge-rm` and `lj78-wiring` were recorded
 
 `Status` is `ingest` or `blocked`. `python3 manifest.py` requires the file and checks SHA-256 for every `ingest` row. A `blocked` row with no PDF is a warning; if the file is present, SHA-256 is still checked. `python3 ingest.py` extracts only `ingest` rows. `python3 retrieval.py build` indexes those chunks.
 
-`2jz-ge-rm` is a text-layer PDF. Prefer this copy over RM1140U for DI/VVT. Status is `ingest`.
+`2jz-ge-rm` is a text-layer PDF. Prefer this copy over RM1140U for DI/VVT. Status is `ingest`. A checked extraction of the torques and specs in this PDF, and what is still unsafe to trust, is written up in [oxr-manual-extraction.md](oxr-manual-extraction.md). Those values are not in the search index.
 
 `is300-engine-wiring` is the full-vehicle IS300 EWD (EWD451U). It is used for the 2JZ engine harness. The PDF has a vector text layer. Status is `ingest`.
 
