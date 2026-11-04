@@ -10,7 +10,7 @@ from typing import Any
 
 from eval.golden import EVAL_DIR
 from eval.runner import RetrievedHit
-from eval.value_match import guard_decision, is_refusal, value_is_labeled, value_match_for
+from eval.value_match import guard_decision, is_refusal, is_scored_label, value_match_for
 
 TRACE_DIR = EVAL_DIR / "traces"
 _LABEL = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$")
@@ -33,15 +33,19 @@ def question_trace(
     *,
     value: str | None,
     unit: str | None,
+    label_status: str | None = None,
 ) -> dict[str, Any]:
-    labeled = value_is_labeled(value, unit)
+    text = answer.get("text")
     return {
         "id": question_id,
+        "answer_text": text if isinstance(text, str) else "",
         "cited_pages": _cited_pages(answer),
         "top5": None if retrieval is None else _top5(retrieval),
         "guard": guard_decision(answer),
-        "value_labeled": labeled,
-        "value_match": value_match_for(answer, value=value, unit=unit),
+        "value_labeled": is_scored_label(value, label_status),
+        "value_match": value_match_for(
+            answer, value=value, unit=unit, label_status=label_status
+        ),
         "refused": is_refusal(answer),
     }
 

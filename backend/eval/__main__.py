@@ -18,6 +18,7 @@ from eval.harness import (
 from eval.iou import IouError
 from eval.labels import HandLabelError
 from eval.report import render_job_summary, write_metrics_document
+from eval.rescore import rescore
 from eval.runner import HttpBackendRunner, RunnerError
 from eval.trace import TRACE_DIR, TraceError, trace_path
 from spec_guard import SpecGuardUncitedCounter
@@ -82,6 +83,15 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     parser.add_argument(
+        "--rescore",
+        type=Path,
+        default=None,
+        help=(
+            "Recompute value_match from this trace JSON and the current "
+            "golden labels. Does not call the model."
+        ),
+    )
+    parser.add_argument(
         "--trace-label",
         default=None,
         help=(
@@ -91,6 +101,8 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     args = parser.parse_args(argv)
+    if args.rescore is not None:
+        return _run_rescore(args.rescore, args.golden)
     if args.timeout <= 0:
         print("eval failed: --timeout must be greater than 0", file=sys.stderr)
         return 1
@@ -145,6 +157,17 @@ def main(argv: list[str] | None = None) -> int:
     finally:
         if runner is not None:
             runner.close()
+
+
+def _run_rescore(trace_file: Path, golden: Path | None) -> int:
+    try:
+        payload = rescore(trace_file, golden)
+    except (TraceError, GoldenSetError) as exc:
+        print(f"eval failed: {exc}", file=sys.stderr)
+        return 1
+    print(render_job_summary(payload), end="")
+    print(f"Rescored {trace_file}")
+    return 0
 
 
 def _trace_destination(

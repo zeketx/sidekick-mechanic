@@ -5,8 +5,12 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
+from eval.__main__ import main
 from eval.golden import GOLDEN_PATH, load_golden
 from eval.harness import run_harness
+from eval.rescore import rescore
 from eval.runner import RetrievedHit, RunnerOutput
 from eval.trace import question_trace, trace_document, write_trace
 from eval.value_match import answer_contains_spec, canonical_spec, guard_decision, value_match_for
@@ -18,7 +22,10 @@ def test_committed_golden_rows_have_no_labeled_value() -> None:
     questions = load_golden(GOLDEN_PATH)
 
     assert questions
-    assert all(question.value is None and question.unit is None for question in questions)
+    assert all(
+        question.expected_value is None and question.label_status is None
+        for question in questions
+    )
 
 
 def test_normalizer_folds_unit_spelling_and_number_shape() -> None:
@@ -49,7 +56,7 @@ def test_refusal_misses_value_match_even_when_the_text_names_the_value() -> None
         "reason": "not_found_in_manual",
     }
 
-    assert value_match_for(refusal, value="999", unit="Nm") is False
+    assert value_match_for(refusal, value="999", unit="Nm", label_status="ok") is False
     assert guard_decision(refusal) == {"decision": "blocked", "reason": "999 Nm"}
 
 
@@ -83,6 +90,7 @@ def test_trace_file_is_stable_and_records_pages_scores_and_the_guard(
         ),
         value="999",
         unit="Nm",
+        label_status="ok",
     )
     document = trace_document(
         label="before",
@@ -125,8 +133,11 @@ def test_harness_writes_the_trace_and_prints_value_match(tmp_path: Path) -> None
                         "question": "What is FAKE-SPEC?",
                         "answerable": True,
                         "expected": [{"doc_id": "FAKE-DOC", "page": 999}],
-                        "value": "999",
+                        "expected_value": "999",
                         "unit": "Nm",
+                        "label_status": "ok",
+                        "source_page": 999,
+                        "source_quote": "FAKE-SPEC 999 Nm",
                     }
                 ),
                 json.dumps(
@@ -143,8 +154,9 @@ def test_harness_writes_the_trace_and_prints_value_match(tmp_path: Path) -> None
                         "question": "What is the other FAKE-SPEC?",
                         "answerable": True,
                         "expected": [{"doc_id": "FAKE-DOC", "page": 998}],
-                        "value": "998",
+                        "expected_value": "998",
                         "unit": "Nm",
+                        "label_status": "ok",
                     }
                 ),
             ]
@@ -212,4 +224,120 @@ def test_harness_writes_the_trace_and_prints_value_match(tmp_path: Path) -> None
         "decision": "blocked",
         "reason": "998 Nm",
     }
+    assert saved["questions"][0]["answer_text"] == "FAKE-STEP is 999 Nm."
+    assert saved["questions"][0]["refused"] is False
+    assert saved["questions"][2]["answer_text"].startswith(
+        "Not found in the cited manual text:"
+    )
+    assert saved["questions"][2]["refused"] is True
     assert saved["questions"][2]["cited_pages"] == []
+
+
+def test_rescore_uses_stored_answers_and_only_ok_labels(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    golden = tmp_path / "golden.jsonl"
+    golden.write_text(
+        "\n".join(
+            [
+                json.dumps(
+                    {
+                        "id": "fake-hit",
+                        "question": "What is FAKE-SPEC?",
+                        "answerable": True,
+                        "expected": [{"doc_id": "FAKE-DOC", "page": 999}],
+                        "expected_value": "999",
+                        "unit": "Nm",
+                        "label_status": "ok",
+                        "source_page": 999,
+                        "source_quote": "FAKE-SPEC 999 Nm",
+                    }
+                ),
+                json.dumps(
+                    {
+                        "id": "fake-refused",
+                        "question": "What is the other FAKE-SPEC?",
+                        "answerable": True,
+                        "expected": [{"doc_id": "FAKE-DOC", "page": 998}],
+                        "expected_value": "998",
+                        "unit": "Nm",
+                        "label_status": "ok",
+                    }
+                ),
+                json.dumps(
+                    {
+                        "id": "fake-review",
+                        "question": "What is the review FAKE-SPEC?",
+                        "answerable": True,
+                        "expected": [{"doc_id": "FAKE-DOC", "page": 997}],
+                        "expected_value": "997",
+                        "unit": "Nm",
+                        "label_status": "needs_review",
+                    }
+                ),
+                json.dumps(
+                    {
+                        "id": "fake-unlabeled",
+                        "question": "Where else is FAKE-PART?",
+                        "answerable": False,
+                        "expected": [],
+                    }
+                ),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    trace = tmp_path / "before.json"
+    trace.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "label": "before",
+                "golden_path": "eval/golden.jsonl",
+                "runner": "http_backend",
+                "questions": [
+                    {
+                        "id": "fake-hit",
+                        "answer_text": "FAKE-STEP is 999 N·m.",
+                        "refused": False,
+                        "cited_pages": [{"doc_id": "FAKE-DOC", "page": 999}],
+                    },
+                    {
+                        "id": "fake-refused",
+                        "answer_text": "Not found in the cited manual text: 998 Nm.",
+                        "refused": True,
+                    },
+                    {
+                        "id": "fake-review",
+                        "answer_text": "FAKE-STEP is 997 Nm.",
+                        "refused": False,
+                    },
+                    {
+                        "id": "fake-unlabeled",
+                        "answer_text": "See FAKE-PART.",
+                        "refused": False,
+                    },
+                    {
+                        "id": "fake-missing-text",
+                        "refused": False,
+                    },
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    payload = rescore(trace, golden)
+    code = main(["--rescore", str(trace), "--golden", str(golden)])
+    printed = capsys.readouterr().out
+
+    assert payload["metrics"]["value_match"] == 0.5
+    assert payload["metrics"]["value_match_excluded"] == 3
+    assert payload["metrics"]["refused_count"] == 1
+    assert payload["runner"] == "rescore"
+    assert code == 0
+    assert "| value_match | 0.5000 |" in printed
+    assert "value_match excluded 3 questions with no labeled value. refused count 1." in printed
+    assert f"Rescored {trace}" in printed

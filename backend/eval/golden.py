@@ -36,8 +36,11 @@ class GoldenQuestion:
     expected: tuple[ExpectedPage, ...]
     part_id: str | None
     ci: bool
-    value: str | None = None
+    expected_value: str | None = None
     unit: str | None = None
+    source_page: int | None = None
+    source_quote: str | None = None
+    label_status: str | None = None
 
     def expected_pairs(self) -> tuple[tuple[str, int], ...]:
         return tuple((page.doc_id, page.page) for page in self.expected)
@@ -101,8 +104,12 @@ def _question_from_payload(payload: dict[str, Any]) -> GoldenQuestion:
         for item in payload["expected"]
     )
     part_id = payload.get("part_id")
-    value = payload.get("value")
+    expected_value = payload.get("expected_value")
     unit = payload.get("unit")
+    source_page = payload.get("source_page")
+    source_quote = payload.get("source_quote")
+    label_status = payload.get("label_status")
+    page_ok = isinstance(source_page, int) and not isinstance(source_page, bool)
     return GoldenQuestion(
         id=payload["id"],
         question=payload["question"],
@@ -110,6 +117,9 @@ def _question_from_payload(payload: dict[str, Any]) -> GoldenQuestion:
         expected=expected,
         part_id=part_id if isinstance(part_id, str) else None,
         ci=payload.get("ci") is True,
-        value=value if isinstance(value, str) else None,
+        expected_value=expected_value if isinstance(expected_value, str) else None,
         unit=unit if isinstance(unit, str) else None,
+        source_page=source_page if page_ok else None,
+        source_quote=source_quote if isinstance(source_quote, str) else None,
+        label_status=label_status if isinstance(label_status, str) else None,
     )

@@ -163,15 +163,17 @@ def _score_question(
         retrieval=_retrieval_pairs(output.retrieval),
         counter=counter,
         mapped_part_ids=mapped_part_ids,
-        value=question.value,
+        value=question.expected_value,
         unit=question.unit,
+        label_status=question.label_status,
     )
     trace = question_trace(
         question.id,
         output.answer,
         output.retrieval,
-        value=question.value,
+        value=question.expected_value,
         unit=question.unit,
+        label_status=question.label_status,
     )
     return score, trace
 

@@ -146,9 +146,17 @@ In a second shell, from `backend/`:
 python3 -m eval --backend http://127.0.0.1:8001 --timeout 180 --trace-label before
 ```
 
-That writes `backend/eval/traces/before.json`. A later fix run uses `--trace-label after` and the same flag set, so both files come from this harness. `--trace PATH` replaces the default path. With neither flag the file is `backend/eval/traces/<UTC date>.json`.
+That writes `backend/eval/traces/before.json`. Each question stores `answer_text` and `refused`, plus the cited pages, the top 5 with scores, and the guard decision. A later fix run uses `--trace-label after` and the same flag set, so both files come from this harness. `--trace PATH` replaces the default path. With neither flag the file is `backend/eval/traces/<UTC date>.json`.
 
-`value_match` is printed next to citation accuracy, recall@5, and refusal correctness. `golden.jsonl` does not label a `value` and a `unit` on any row, so the rate is not available and every question is excluded. A refusal on a labeled row scores 0 and adds to `refused count`. Do not fill those labels from memory. A real value needs a manual page citation, and a test value stays fake, such as `999` with unit `Nm`.
+After a row gains `label_status`, `expected_value`, and `unit`, recompute `value_match` from the saved answers. This does not call the model.
+
+```bash
+python3 -m eval --rescore eval/traces/before.json
+```
+
+`--golden PATH` selects a different label file. The default is `golden.jsonl` when that file exists. Only rows with `label_status` `ok` and a non-empty `expected_value` are scored. `needs_review`, a missing status, and an empty value stay out. `source_page` and `source_quote` are stored on the row and are not scored. A refusal on a scored row is a miss and adds to `refused count`.
+
+`golden.jsonl` does not label those fields yet, so a rescore of today's trace reports `value_match` as not available and excludes every question. Do not fill a real value from memory. A test value stays fake, such as `999` with unit `Nm`.
 
 ## Bucket (b) split
 

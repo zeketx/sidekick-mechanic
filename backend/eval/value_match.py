@@ -14,8 +14,17 @@ from spec_guard import _extract, _extract_prepared, _prepare
 _GUARD_PREFIX = "Not found in the cited manual text:"
 
 
-def value_is_labeled(value: str | None, unit: str | None) -> bool:
-    return isinstance(value, str) and bool(value) and isinstance(unit, str) and bool(unit)
+def is_scored_label(expected_value: str | None, label_status: str | None) -> bool:
+    """True only for an ok label with a non-empty expected value.
+
+    Missing fields, a needs_review status, and an empty value are excluded.
+    """
+
+    return (
+        label_status == "ok"
+        and isinstance(expected_value, str)
+        and bool(expected_value.strip())
+    )
 
 
 def canonical_spec(value: str, unit: str) -> str | None:
@@ -46,21 +55,24 @@ def value_match_for(
     *,
     value: str | None,
     unit: str | None,
+    label_status: str | None = None,
 ) -> bool | None:
-    """True, false, or None when the question has no labeled value.
+    """True, false, or None when the question is not an ok labeled value.
 
     A refusal is a miss even when the refusal text names the labeled value.
+    A missing unit on an otherwise ok label is a miss. The number alone is
+    not a spec.
     """
 
-    if not value_is_labeled(value, unit):
+    if not is_scored_label(value, label_status):
         return None
     if answer.get("kind") == "refusal":
         return False
     text = answer.get("text")
-    if not isinstance(text, str):
+    if not isinstance(text, str) or not isinstance(unit, str) or not unit.strip():
         return False
-    assert value is not None and unit is not None
-    return answer_contains_spec(text, value, unit)
+    assert value is not None
+    return answer_contains_spec(text, value.strip(), unit)
 
 
 def is_refusal(answer: Mapping[str, Any]) -> bool:

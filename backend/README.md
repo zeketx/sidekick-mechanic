@@ -191,7 +191,7 @@ To score the same file against a backend that is already running:
 cd backend && python3 -m eval --backend http://127.0.0.1:8001
 ```
 
-That command also writes `eval/traces/<UTC date>.json`. `--trace-label before` writes `eval/traces/before.json` instead, and `--trace PATH` sets the file directly. The trace lists cited pages, the lexical top 5 with the search score, and the spec-guard decision. `value_match` is printed with citation accuracy. It scores only rows that label both `value` and `unit`. A row without those fields is excluded.
+That command also writes `eval/traces/<UTC date>.json`. `--trace-label before` writes `eval/traces/before.json` instead, and `--trace PATH` sets the file directly. The trace stores the answer text, the refusal flag, cited pages, the lexical top 5 with the search score, and the spec-guard decision. `value_match` is printed with citation accuracy. It scores a row only when `label_status` is `ok` and `expected_value` is non-empty. After labels land, recompute from the saved trace with `python3 -m eval --rescore eval/traces/before.json`.
 
 That posts each question to `{backend}/chat` with the request header
 `X-Sidekick-Eval: retrieval`. Citation accuracy comes from the answer.

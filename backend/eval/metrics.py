@@ -34,18 +34,18 @@ METRIC_DEFINITIONS: dict[str, str] = {
         "A refusal or an empty citation list scores 0 for that question."
     ),
     "value_match": (
-        "Fraction of golden questions that have a labeled value and unit "
-        "whose answer text contains that value after unit and number "
-        "normalization. A refusal scores 0. Questions with no labeled value "
-        "are excluded. Null when none are labeled."
+        "Fraction of golden questions with label_status ok and a non-empty "
+        "expected_value whose answer text contains that value and unit after "
+        "normalization. A refusal scores 0. Other questions are excluded. "
+        "Null when none are scored."
     ),
     "refused count": (
-        "Number of labeled questions whose answer kind is refusal. "
+        "Number of scored questions whose answer kind is refusal. "
         "Each one is also a value_match miss."
     ),
     "value_match excluded": (
-        "Number of questions with no labeled value and unit. "
-        "They are left out of value_match."
+        "Number of questions left out of value_match. A row is left out "
+        "when label_status is not ok or expected_value is empty or absent."
     ),
     "refusal correctness": (
         "Fraction of unanswerable questions returned as a contract refusal "
@@ -319,6 +319,7 @@ def score_case(
     mapped_part_ids: Collection[str] = (),
     value: str | None = None,
     unit: str | None = None,
+    label_status: str | None = None,
 ) -> CaseScore:
     if latency_ms < 0:
         raise ValueError(f"{question_id} latency is negative")
@@ -326,7 +327,9 @@ def score_case(
     if not isinstance(kind, str):
         raise ValueError(f"{question_id} answer is missing kind")  # noqa: TRY004
     recall = recall_at_5(expected, retrieval) if answerable else None
-    matched = value_match_for(answer, value=value, unit=unit)
+    matched = value_match_for(
+        answer, value=value, unit=unit, label_status=label_status
+    )
     return CaseScore(
         id=question_id,
         answerable=answerable,
