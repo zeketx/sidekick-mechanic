@@ -255,8 +255,12 @@ class LlmAnswerProducer:
 
     def searched_pages(
         self, conversation: Conversation
-    ) -> tuple[tuple[str, int], ...] | None:
-        """Pages this turn searched, best first. None when this producer has no index."""
+    ) -> tuple[tuple[str, int, float], ...] | None:
+        """Pages this turn searched, best first, with the rank score.
+
+        None when this producer has no index. The score is the one search
+        already computed. This does not change the ranking.
+        """
 
         retriever = self._retriever
         if retriever is None:
@@ -268,7 +272,7 @@ class LlmAnswerProducer:
             hits = _search_hits(retriever, query)
         except (_IndexMissing, RetrievalError, sqlite3.Error):
             return ()
-        return tuple((hit.doc_id, hit.page) for hit in hits)
+        return tuple((hit.doc_id, hit.page, hit.score) for hit in hits)
 
     def _ungrounded(self, conversation: Conversation) -> dict[str, Any]:
         system = _with_garage(
@@ -398,24 +402,49 @@ def _with_garage(system: str, conversation: Conversation) -> str:
     return f"{system}\n\n{block}"
 
 
-def format_searched_pages(pages: tuple[tuple[str, int], ...]) -> str:
+def format_searched_pages(
+    pages: tuple[tuple[str, int, float] | tuple[str, int], ...],
+) -> str:
     if not pages:
         return "-"
-    return ",".join(f"{doc_id}:{page}" for doc_id, page in pages)
+    parts: list[str] = []
+    for item in pages:
+        doc_id, page = item[0], item[1]
+        piece = f"{doc_id}:{page}"
+        if len(item) > 2 and item[2] is not None:
+            piece += f"@{float(item[2]):.6f}"
+        parts.append(piece)
+    return ",".join(parts)
 
 
 def parse_searched_pages(value: str) -> tuple[tuple[str, int], ...]:
+    return tuple((doc_id, page) for doc_id, page, _score in parse_searched_hits(value))
+
+
+def parse_searched_hits(value: str) -> tuple[tuple[str, int, float | None], ...]:
     if value == "-":
         return ()
-    hits: list[tuple[str, int]] = []
+    hits: list[tuple[str, int, float | None]] = []
     for item in value.split(","):
-        doc_id, separator, page_text = item.rpartition(":")
+        page_part, marker, score_text = item.rpartition("@")
+        score: float | None
+        if marker != "@":
+            page_part = item
+            score = None
+        else:
+            try:
+                score = float(score_text)
+            except ValueError as exc:
+                raise ValueError("retrieval header is not pages") from exc
+            if score != score or score in {float("inf"), float("-inf")}:
+                raise ValueError("retrieval header is not pages")
+        doc_id, separator, page_text = page_part.rpartition(":")
         if separator != ":" or not doc_id or not page_text.isdigit():
             raise ValueError("retrieval header is not pages")
         page = int(page_text)
         if page < 1:
             raise ValueError("retrieval header is not pages")
-        hits.append((doc_id, page))
+        hits.append((doc_id, page, score))
     return tuple(hits)
 
 

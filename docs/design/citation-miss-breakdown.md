@@ -58,7 +58,7 @@ The uncited-number count of 59 is `SpecGuardUncitedCounter`. The harness calls `
 
 ## How a miss is scored
 
-`make eval` does not store the cited pages or the top 5. `_case_dict` in `backend/eval/harness.py` stores a boolean and a recall fraction. The live client reads the top 5 from the `X-Sidekick-Retrieval` header, which `searched_pages` fills from the lexical search, before `judge_pages` drops anything. Issue #155 is a summary of that header and of the answer kind. It does not list the other hits, and it does not list the cited page except where it says a question was refused.
+The results row in `backend/eval/harness.py` still stores a boolean and a recall fraction. The trace file stores the cited pages, the lexical top 5 with scores, and the spec-guard decision. The live client reads that top 5 from the `X-Sidekick-Retrieval` header. `searched_pages` fills the header from the lexical search, before `judge_pages` drops anything, and appends the score search already computed. Issue #155 is a summary of an earlier run of that header. It does not list the other hits, and it does not list the cited page except where it says a question was refused.
 
 A row in the table below is one bucket.
 
@@ -118,10 +118,54 @@ That is the right patch if the trace shows `guard_answer` blocking a number beca
 
 A further ranking change for the three bucket (a) pages has a lower ceiling. Three more hits is 17 of 23, and `round(17 / 23, 6)` is 0.739130, under 0.85. #153 already added phrase and anchor fetches aimed at those queries, and issue #155 says pages 152 and 153 are still outside the top 5. The earlier ranking loosen also cited an off-topic page for an unanswerable question and dropped refusal correctness from 0.926 to 0.889 until it was tightened. Ranking is the second fix, after the six selection misses are split by the trace.
 
+## Run the traced eval on the Mac
+
+The index and the model key stay on the Mac. This checkout has neither. Build them, start the server from this branch, then run the harness against it. The same command is the before run and the after run. Only the trace label changes.
+
+From `backend/`, with `manuals/` holding the PDFs named in `docs/MANUALS.md`:
+
+```bash
+python3 ingest.py
+python3 retrieval.py build
+```
+
+`ingest.py` writes `backend/.ingest/chunks.jsonl`. `retrieval.py build` writes `backend/.ingest/index.sqlite`. Both paths are gitignored.
+
+Put the key in `backend/.env` (gitignored). Load it into the server process by name. Do not print the value.
+
+```bash
+set -a && source .env && set +a
+uvicorn app:app --host 127.0.0.1 --port 8001
+```
+
+The names the server reads are `SIDEKICK_LLM_API_KEY`, and optionally `SIDEKICK_LLM_BASE_URL`, `SIDEKICK_LLM_MODEL`, `SIDEKICK_LLM_TIMEOUT_SECONDS`, and `SIDEKICK_LLM_MAX_RETRIES`.
+
+In a second shell, from `backend/`:
+
+```bash
+python3 -m eval --backend http://127.0.0.1:8001 --timeout 180 --trace-label before
+```
+
+That writes `backend/eval/traces/before.json`. A later fix run uses `--trace-label after` and the same flag set, so both files come from this harness. `--trace PATH` replaces the default path. With neither flag the file is `backend/eval/traces/<UTC date>.json`.
+
+`value_match` is printed next to citation accuracy, recall@5, and refusal correctness. `golden.jsonl` does not label a `value` and a `unit` on any row, so the rate is not available and every question is excluded. A refusal on a labeled row scores 0 and adds to `refused count`. Do not fill those labels from memory. A real value needs a manual page citation, and a test value stays fake, such as `999` with unit `Nm`.
+
+## Bucket (b) split
+
+This table is empty until `backend/eval/traces/before.json` exists. One row per bucket (b) question from the miss table above. The split is one of three values.
+
+- `neighbor` when an expected page is in `top5`, `guard.decision` is `allowed`, and `cited_pages` also contains a page outside the expected set.
+- `guard` when `guard.decision` is `blocked`.
+- `other` for every remaining shape, including a refusal that is not a spec-guard block.
+
+| Question | Split | Evidence from the trace |
+| --- | --- | --- |
+| | | |
+
 ## Where this lives
 
 - Questions and expected pages: `backend/eval/golden.jsonl`, described in `backend/eval/GOLDEN.md`.
-- Score: `citation_is_accurate` and `recall_at_5` in `backend/eval/metrics.py`. The results row omits pages in `backend/eval/harness.py`.
+- Score: `citation_is_accurate`, `recall_at_5`, and `value_match` in `backend/eval/metrics.py` and `backend/eval/value_match.py`. The trace writer is `backend/eval/trace.py`.
 - Lexical top 5: `Fts5Index.search` in `backend/retrieval.py`, exposed on the eval header by `searched_pages`.
 - Selection and the guard: `judge_pages` in `backend/general_advice.py`, `_citations_that_support` and `produce` in `backend/producer.py`, `guard_answer` in `backend/spec_guard.py`.
 

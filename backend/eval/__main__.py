@@ -19,6 +19,7 @@ from eval.iou import IouError
 from eval.labels import HandLabelError
 from eval.report import render_job_summary, write_metrics_document
 from eval.runner import HttpBackendRunner, RunnerError
+from eval.trace import TRACE_DIR, TraceError, trace_path
 from spec_guard import SpecGuardUncitedCounter
 
 
@@ -71,9 +72,32 @@ def main(argv: list[str] | None = None) -> int:
         default=120,
         help="Per-request timeout in seconds for --backend. Default: 120.",
     )
+    parser.add_argument(
+        "--trace",
+        type=Path,
+        default=None,
+        help=(
+            "Write the per-question trace JSON to this path. "
+            "Default is eval/traces/<label>.json."
+        ),
+    )
+    parser.add_argument(
+        "--trace-label",
+        default=None,
+        help=(
+            "File stem under eval/traces when --trace is omitted. "
+            "Default is the results date. Use the same stem for a before "
+            "and after run of one fix."
+        ),
+    )
     args = parser.parse_args(argv)
     if args.timeout <= 0:
         print("eval failed: --timeout must be greater than 0", file=sys.stderr)
+        return 1
+    try:
+        label, chosen_trace = _trace_destination(args.trace, args.trace_label, args.date)
+    except TraceError as exc:
+        print(f"eval failed: {exc}", file=sys.stderr)
         return 1
     runner = (
         HttpBackendRunner(args.backend, timeout_s=args.timeout)
@@ -89,6 +113,8 @@ def main(argv: list[str] | None = None) -> int:
                 ci_only=args.ci,
                 date=args.date,
                 uncited_counter=SpecGuardUncitedCounter(),
+                trace_path=chosen_trace,
+                trace_label=label,
             )
         except (
             GoldenSetError,
@@ -103,6 +129,7 @@ def main(argv: list[str] | None = None) -> int:
         summary = render_job_summary(payload)
         print(summary, end="")
         print(f"Wrote {results_path}")
+        print(f"Wrote {chosen_trace}")
         if args.summary_file is not None:
             _append_summary(args.summary_file, summary)
         if args.metrics:
@@ -118,6 +145,20 @@ def main(argv: list[str] | None = None) -> int:
     finally:
         if runner is not None:
             runner.close()
+
+
+def _trace_destination(
+    explicit: Path | None,
+    label: str | None,
+    date: str | None,
+) -> tuple[str, Path]:
+    from datetime import datetime, timezone
+
+    stem = label or date or datetime.now(timezone.utc).date().isoformat()
+    checked = trace_path(stem, TRACE_DIR)
+    if explicit is not None:
+        return stem, explicit
+    return stem, checked
 
 
 def _append_summary(path: Path, summary: str) -> None:

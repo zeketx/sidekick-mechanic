@@ -69,6 +69,9 @@ backend/eval/bay_map.json
 # Regenerated ingestion output (see backend/ingest.py)
 backend/.ingest/
 
+# Live and smoke eval traces. The harness writes them. Do not commit a run.
+backend/eval/traces/
+
 .audit/
 
 # Verification process lock. Proof files under .cursor/skills/verify-*/evidence stay.

@@ -36,6 +36,8 @@ class GoldenQuestion:
     expected: tuple[ExpectedPage, ...]
     part_id: str | None
     ci: bool
+    value: str | None = None
+    unit: str | None = None
 
     def expected_pairs(self) -> tuple[tuple[str, int], ...]:
         return tuple((page.doc_id, page.page) for page in self.expected)
@@ -99,6 +101,8 @@ def _question_from_payload(payload: dict[str, Any]) -> GoldenQuestion:
         for item in payload["expected"]
     )
     part_id = payload.get("part_id")
+    value = payload.get("value")
+    unit = payload.get("unit")
     return GoldenQuestion(
         id=payload["id"],
         question=payload["question"],
@@ -106,4 +110,6 @@ def _question_from_payload(payload: dict[str, Any]) -> GoldenQuestion:
         expected=expected,
         part_id=part_id if isinstance(part_id, str) else None,
         ci=payload.get("ci") is True,
+        value=value if isinstance(value, str) else None,
+        unit=unit if isinstance(unit, str) else None,
     )

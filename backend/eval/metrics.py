@@ -12,6 +12,8 @@ from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from eval.value_match import is_refusal, value_match_for
+
 from general_advice import ADVICE_HONESTY
 
 Page = tuple[str, int]
@@ -30,6 +32,20 @@ METRIC_DEFINITIONS: dict[str, str] = {
         "Fraction of answerable questions whose answer cites at least one "
         "page and every cited (doc_id, page) is in the expected set. "
         "A refusal or an empty citation list scores 0 for that question."
+    ),
+    "value_match": (
+        "Fraction of golden questions that have a labeled value and unit "
+        "whose answer text contains that value after unit and number "
+        "normalization. A refusal scores 0. Questions with no labeled value "
+        "are excluded. Null when none are labeled."
+    ),
+    "refused count": (
+        "Number of labeled questions whose answer kind is refusal. "
+        "Each one is also a value_match miss."
+    ),
+    "value_match excluded": (
+        "Number of questions with no labeled value and unit. "
+        "They are left out of value_match."
     ),
     "refusal correctness": (
         "Fraction of unanswerable questions returned as a contract refusal "
@@ -100,6 +116,8 @@ class CaseScore:
     retrieval_available: bool
     recall_at_5: float | None
     citation_accurate: bool | None
+    value_match: bool | None
+    refused: bool
     refusal_correct: bool | None
     gap_covered: bool | None
     uncited_number_count: int
@@ -111,6 +129,9 @@ class CaseScore:
 class Metrics:
     recall_at_5: float | None
     citation_accuracy: float | None
+    value_match: float | None
+    value_match_excluded: int
+    refused_count: int
     refusal_correctness: float | None
     gap_coverage: float | None
     uncited_number_count: int
@@ -296,6 +317,8 @@ def score_case(
     retrieval: Sequence[Page] | None,
     counter: UncitedNumberCounter | None = None,
     mapped_part_ids: Collection[str] = (),
+    value: str | None = None,
+    unit: str | None = None,
 ) -> CaseScore:
     if latency_ms < 0:
         raise ValueError(f"{question_id} latency is negative")
@@ -303,6 +326,7 @@ def score_case(
     if not isinstance(kind, str):
         raise ValueError(f"{question_id} answer is missing kind")  # noqa: TRY004
     recall = recall_at_5(expected, retrieval) if answerable else None
+    matched = value_match_for(answer, value=value, unit=unit)
     return CaseScore(
         id=question_id,
         answerable=answerable,
@@ -314,6 +338,8 @@ def score_case(
         citation_accurate=citation_is_accurate(expected, answer)
         if answerable
         else None,
+        value_match=matched,
+        refused=is_refusal(answer) and matched is not None,
         refusal_correct=is_correct_refusal(answer) if not answerable else None,
         gap_covered=gap_path_ok(answer) if not answerable else None,
         uncited_number_count=count_uncited_numbers(answer, counter),
@@ -327,6 +353,7 @@ def aggregate_metrics(cases: Sequence[CaseScore]) -> Metrics:
     citations = [
         case.citation_accurate for case in cases if case.citation_accurate is not None
     ]
+    matches = [case.value_match for case in cases if case.value_match is not None]
     refusals = [
         case.refusal_correct for case in cases if case.refusal_correct is not None
     ]
@@ -338,6 +365,9 @@ def aggregate_metrics(cases: Sequence[CaseScore]) -> Metrics:
     return Metrics(
         recall_at_5=_mean(recalls),
         citation_accuracy=_mean([1.0 if hit else 0.0 for hit in citations]),
+        value_match=_mean([1.0 if hit else 0.0 for hit in matches]),
+        value_match_excluded=sum(1 for case in cases if case.value_match is None),
+        refused_count=sum(1 for case in cases if case.refused),
         refusal_correctness=_mean([1.0 if hit else 0.0 for hit in refusals]),
         gap_coverage=_mean([1.0 if hit else 0.0 for hit in gaps]),
         uncited_number_count=sum(case.uncited_number_count for case in cases),

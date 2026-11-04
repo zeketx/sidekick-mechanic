@@ -46,6 +46,16 @@
     "ci": {
       "type": "boolean",
       "description": "True includes the row in the fast CI subset. Omit or false for the full run only."
+    },
+    "value": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Optional labeled spec number. Omit when the row has no expected value. Tests use a fake number such as 999."
+    },
+    "unit": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Optional unit for value. Required when value is set, and forbidden when value is omitted."
     }
   },
   "allOf": [
@@ -61,6 +71,14 @@
           "expected": { "minItems": 1 }
         }
       }
+    },
+    {
+      "if": { "required": ["value"] },
+      "then": { "required": ["unit"] }
+    },
+    {
+      "if": { "required": ["unit"] },
+      "then": { "required": ["value"] }
     }
   ]
 }

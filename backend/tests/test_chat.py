@@ -130,7 +130,7 @@ def test_eval_header_returns_searched_pages_outside_the_body() -> None:
     assert debug.status_code == 200
     validate_answer(debug.json())
     assert "retrieval" not in debug.json()
-    assert debug.headers["x-sidekick-retrieval"] == "FAKE-DOC:999"
+    assert debug.headers["x-sidekick-retrieval"] == "FAKE-DOC:999@1.000000"
 
 
 def test_chat_timeout_logs_the_provider_kind_and_hides_the_key(
