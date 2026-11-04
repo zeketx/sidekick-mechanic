@@ -6,7 +6,7 @@ import json
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from jsonschema.exceptions import ValidationError
 from jsonschema.validators import Draft202012Validator
@@ -28,6 +28,25 @@ class ExpectedPage:
     page: int
 
 
+LabelStatus = Literal["ok", "needs_review"]
+
+
+@dataclass(frozen=True)
+class SpecLabel:
+    """Owner-reviewed expected value for one spec question.
+
+    `needs_review` keeps `expected_value` empty. `ok` means the value and
+    unit are in `source_quote`, aside from comma and trailing-zero formatting.
+    """
+
+    expected_value: str
+    unit: str
+    source_quote: str
+    label_status: LabelStatus
+    source_page: int | None = None
+    label_note: str | None = None
+
+
 @dataclass(frozen=True)
 class GoldenQuestion:
     id: str
@@ -36,6 +55,7 @@ class GoldenQuestion:
     expected: tuple[ExpectedPage, ...]
     part_id: str | None
     ci: bool
+    spec_label: SpecLabel | None = None
 
     def expected_pairs(self) -> tuple[tuple[str, int], ...]:
         return tuple((page.doc_id, page.page) for page in self.expected)
@@ -106,4 +126,23 @@ def _question_from_payload(payload: dict[str, Any]) -> GoldenQuestion:
         expected=expected,
         part_id=part_id if isinstance(part_id, str) else None,
         ci=payload.get("ci") is True,
+        spec_label=_spec_label_from_payload(payload),
+    )
+
+
+def _spec_label_from_payload(payload: dict[str, Any]) -> SpecLabel | None:
+    if "label_status" not in payload:
+        return None
+    status = payload["label_status"]
+    if status not in ("ok", "needs_review"):
+        raise GoldenSetError(f"unknown label_status {status!r}")
+    source_page = payload.get("source_page")
+    note = payload.get("label_note")
+    return SpecLabel(
+        expected_value=payload["expected_value"],
+        unit=payload["unit"],
+        source_quote=payload["source_quote"],
+        label_status=status,
+        source_page=source_page if isinstance(source_page, int) else None,
+        label_note=note if isinstance(note, str) else None,
     )
