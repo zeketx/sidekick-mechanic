@@ -1,3 +1,13 @@
+## Now / Next / Later (Nov 4, 2026)
+**Now — M6: trustworthy answers, anywhere**
+- Citation accuracy #155: 0.609 → ≥0.85 on the golden set.
+- Answer latency #154: p95 ≤30s, never near the 120s timeout; error kinds #156.
+- Hosted backend #169 so the phone works off the Mac's Wi-Fi.
+- TestFlight #41.
+**Next — M5: truck day one** (blocked on delivery): real garage photos #39, bay map #40. Job steps #139/#129 wait on Zeke's design call.
+**Later:** EWD wiring via a vision approach (docs/oxr-manual-extraction.md); index the OXR-verified values; Phase 2 epics #157–#162.
+**Non-goals for M6:** new features, the teardown epic, LiDAR.
+
 # Roadmap
 
 Phase 1 is detailed. Phases 2 and 3 are lighter and will be re-planned when Phase 1 ships.
