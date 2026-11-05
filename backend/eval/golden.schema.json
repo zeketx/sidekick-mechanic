@@ -46,6 +46,31 @@
     "ci": {
       "type": "boolean",
       "description": "True includes the row in the fast CI subset. Omit or false for the full run only."
+    },
+    "expected_value": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Optional labeled spec number. Omit when the row has no expected value. Tests use a fake number such as 999."
+    },
+    "unit": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Optional unit for expected_value. Used when label_status is ok."
+    },
+    "source_page": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Optional PDF page that the label was read from. Not a scored field."
+    },
+    "source_quote": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Optional quote that supports the label. Not a scored field. Do not invent one."
+    },
+    "label_status": {
+      "type": "string",
+      "enum": ["ok", "needs_review"],
+      "description": "ok rows with a non-empty expected_value are scored. needs_review rows are excluded. Omit when the row has no label."
     }
   },
   "allOf": [

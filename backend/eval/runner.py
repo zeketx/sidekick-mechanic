@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 
 from app import create_app
 from llm import FakeLLMClient
-from producer import AnswerProducer, LlmAnswerProducer, parse_searched_pages
+from producer import AnswerProducer, LlmAnswerProducer, parse_searched_hits
 
 _HTTP_TIMEOUT_S = 120.0
 
@@ -25,6 +25,7 @@ class RunnerError(RuntimeError):
 class RetrievedHit:
     doc_id: str
     page: int
+    score: float | None = None
 
 
 @dataclass(frozen=True)
@@ -132,10 +133,12 @@ def _retrieval_header(value: str | None) -> tuple[RetrievedHit, ...] | None:
     if value is None:
         return None
     try:
-        pages = parse_searched_pages(value)
+        hits = parse_searched_hits(value)
     except ValueError:
         raise RunnerError("retrieval header is not pages") from None
-    return tuple(RetrievedHit(doc_id, page) for doc_id, page in pages)
+    return tuple(
+        RetrievedHit(doc_id, page, score) for doc_id, page, score in hits
+    )
 
 
 def _chat_url(base_url: str) -> str:
