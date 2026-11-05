@@ -160,7 +160,7 @@ python3 -m eval --rescore eval/traces/before.json
 
 ## Bucket (b) split
 
-This table is empty until `backend/eval/traces/before.json` exists. One row per bucket (b) question from the miss table above. The split is one of three values.
+Filled from the Mac live run on Nov 4, 2026 (`--trace-label before`). That run scored citation accuracy 0.565 (13/23), recall@5 0.717, refusal correctness 0.852. Bucket (b) had 7 misses on this run (the recorded issue baseline had 6; this run also missed `spark-plug-type-gap`).
 
 - `neighbor` when an expected page is in `top5`, `guard.decision` is `allowed`, and `cited_pages` also contains a page outside the expected set.
 - `guard` when `guard.decision` is `blocked`.
@@ -168,7 +168,15 @@ This table is empty until `backend/eval/traces/before.json` exists. One row per 
 
 | Question | Split | Evidence from the trace |
 | --- | --- | --- |
-| | | |
+| `cam-pulley-bolt-torque` | neighbor | Expected 149, 766. Top5 includes 766. Guard allowed. Cited 766 and neighbor 795. |
+| `valve-clearance-cold` | neighbor | Expected 146. Top5 includes 146. Guard allowed. Cited 146 and neighbor 746. |
+| `oil-drain-plug-torque` | neighbor | Expected 157. Top5 includes 157. Guard allowed. Cited only neighbor 968. |
+| `throttle-body-bracket-torque` | neighbor | Expected 159. Top5 includes 159. Guard allowed. Cited only neighbor 892. |
+| `cam-sensor-resistance` | neighbor | Expected 158. Top5 includes 158. Guard allowed. Cited 986, 158, and 382. |
+| `spark-plug-type-gap` | guard | Expected 158, 985. Top5 includes both. Guard blocked on `1.1 mm`. Cited none. |
+| `spark-plug-torque` | guard | Expected 159, 985. Top5 includes 159. Guard blocked on `18 N·m, 180 kgf·cm, 13 ft·lbf`. Cited none. |
+
+**Split counts:** neighbor 5, guard 2, other 0. Neighbor dominates, so the first fix is citation selection.
 
 ## Where this lives
 
