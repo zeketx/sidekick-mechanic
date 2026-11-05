@@ -10,7 +10,6 @@ from fastapi.testclient import TestClient
 
 from app import create_app
 from chat_models import Conversation, GarageContext, GarageNoteContext, Message
-from spec_guard import guard_answer
 from general_advice import ADVICE_HONESTY, ADVICE_STEPS_HEADER
 from llm import FAKE_GROUNDED_TEXT, ChatTurn, FakeLLMClient, LLMError
 from part_resolver import BayMapView, BayPartView
@@ -21,6 +20,7 @@ from producer import (
 )
 from retrieval import Chunk, build_index, snippet_matches_page
 from safety import SAFETY_NOTE
+from spec_guard import guard_answer
 
 _DOC = "FAKE-DOC-2JZ"
 _PAGE = 999
@@ -566,12 +566,19 @@ def test_guard_checks_only_pages_that_survived_as_citations() -> None:
         json={"messages": [{"role": "user", "text": "What is the FAKE-SPEC torque?"}]},
     )
 
-    assert payload["citations"] == [cited_other]
-    assert producer.cited_chunk_texts(conversation, payload) == (other_page,)
+    assert payload["citations"] == [_cited(spec_page)]
+    assert producer.cited_chunk_texts(conversation, payload) == (spec_page,)
+    refused = guard_answer(
+        {"kind": "answer", "text": "Torque is 999 Nm.", "citations": [cited_other]},
+        (other_page,),
+    )
+    assert refused.answer["kind"] == "refusal"
+    assert "999 Nm" in refused.answer["text"]
     assert response.status_code == 200
     body = response.json()
-    assert body["kind"] == "refusal"
-    assert "999 Nm" in body["text"]
+    assert body["kind"] == "answer"
+    assert body["text"] == "Torque is 999 Nm."
+    assert body["citations"] == [_cited(spec_page)]
 
     spec_page_with_tail = "FAKE-HEAD. FAKE-SPEC torque is 999 N·m."
     short_snippet = "FAKE-HEAD."

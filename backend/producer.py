@@ -20,7 +20,13 @@ from typing import Any, Protocol, runtime_checkable
 from chat_models import Conversation, garage_prompt_block
 from contract import load_answer_fixture, validate_answer
 from demo import DEMO_SYSTEM_PROMPT, resolve_demo_answer
-from general_advice import advise_on_miss, judge_pages, related_search_text
+from general_advice import (
+    advise_on_miss,
+    judge_pages,
+    page_names_part,
+    question_part_terms,
+    related_search_text,
+)
 from llm import (
     RETRIEVED_PAGES_HEADER,
     ChatTurn,
@@ -217,7 +223,9 @@ class LlmAnswerProducer:
         if parsed.citation_count == 0:
             return self._advice_or_unavailable(conversation, hits)
         citations = _filter_citations(parsed.citations, hits)
-        citations = _citations_that_support(parsed.text, citations, hits)
+        citations = _citations_that_support(
+            parsed.text, citations, found, question=query
+        )
         if not citations:
             log_answer_rejection("citation_mismatch")
             return dict(UNAVAILABLE_ANSWER)
@@ -608,17 +616,45 @@ def _citations_that_support(
     answer_text: str,
     citations: Sequence[Mapping[str, Any]],
     hits: Sequence[_RetrievedPage],
+    *,
+    question: str,
 ) -> list[dict[str, Any]]:
-    """Drop a cited page that contains none of the stated measurements.
+    """Cite the retrieved page that names the part and contains the measurement.
 
-    When the answer states no measurement, or no cited page contains one,
-    every citation stays. The spec guard still refuses a number that is
-    not on a cited page.
+    A neighbor can repeat that number for a different part, and the spec
+    guard allows any cited page that contains it. Citing the part page
+    keeps the number when that page has it. When only the neighbor has the
+    number, the part page is still the citation so the guard refuses.
     """
 
-    pages: dict[tuple[str, int], str] = {}
-    for hit in hits:
-        pages.setdefault((hit.doc_id, hit.page), hit.text)
+    if not question_part_terms(question):
+        return _drop_cited_pages_without_the_measurement(answer_text, citations, hits)
+
+    stored, order = _hit_pages(hits)
+    mask = supporting_page_mask(answer_text, [stored[key] for key in order])
+    if mask is None:
+        return list(citations)
+
+    named_carriers = [
+        key
+        for key, flag in zip(order, mask)
+        if flag and page_names_part(question, stored[key])
+    ]
+    if named_carriers:
+        return _citations_for_pages(named_carriers, stored, citations, hits)
+
+    named = [key for key in order if page_names_part(question, stored[key])]
+    if not named:
+        return _drop_cited_pages_without_the_measurement(answer_text, citations, hits)
+    return _citations_for_pages(named, stored, citations, hits)
+
+
+def _drop_cited_pages_without_the_measurement(
+    answer_text: str,
+    citations: Sequence[Mapping[str, Any]],
+    hits: Sequence[_RetrievedPage],
+) -> list[dict[str, Any]]:
+    pages, _order = _hit_pages(hits)
     texts = [
         pages.get((citation["doc_id"], citation["page"]), "") for citation in citations
     ]
@@ -626,6 +662,38 @@ def _citations_that_support(
     if mask is None:
         return list(citations)
     return [citation for citation, keep in zip(citations, mask) if keep]
+
+
+def _hit_pages(
+    hits: Sequence[_RetrievedPage],
+) -> tuple[dict[tuple[str, int], str], list[tuple[str, int]]]:
+    stored: dict[tuple[str, int], str] = {}
+    order: list[tuple[str, int]] = []
+    for hit in hits:
+        key = (hit.doc_id, hit.page)
+        if key in stored:
+            continue
+        stored[key] = hit.text
+        order.append(key)
+    return stored, order
+
+
+def _citations_for_pages(
+    keys: Sequence[tuple[str, int]],
+    stored: Mapping[tuple[str, int], str],
+    citations: Sequence[Mapping[str, Any]],
+    hits: Sequence[_RetrievedPage],
+) -> list[dict[str, Any]]:
+    cited = {(citation["doc_id"], citation["page"]): citation for citation in citations}
+    synthesized: list[dict[str, Any]] = []
+    for key in keys:
+        existing = cited.get(key)
+        if existing is not None:
+            synthesized.append(dict(existing))
+            continue
+        doc_id, page = key
+        synthesized.append({"doc_id": doc_id, "page": page, "snippet": stored[key]})
+    return _filter_citations(synthesized, hits)
 
 
 def _filter_citations(
