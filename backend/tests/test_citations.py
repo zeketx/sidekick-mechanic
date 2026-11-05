@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 
 from app import create_app
 from chat_models import Conversation, GarageContext, GarageNoteContext, Message
+from spec_guard import guard_answer
 from general_advice import ADVICE_HONESTY, ADVICE_STEPS_HEADER
 from llm import FAKE_GROUNDED_TEXT, ChatTurn, FakeLLMClient, LLMError
 from part_resolver import BayMapView, BayPartView
@@ -1124,3 +1125,135 @@ def test_citation_drops_a_page_that_lacks_the_stated_measurement() -> None:
 
     assert payload["kind"] == "answer"
     assert [item["page"] for item in payload["citations"]] == [_PAGE]
+
+
+# Fake pages. The extra page repeats 999 so the spec guard would allow it.
+_NEIGHBORS: dict[str, dict[str, Any]] = {
+    "cam-pulley-bolt-torque": {
+        "question": "What do the camshaft timing pulley bolts torque to?",
+        "answer": "Torque is 999 Nm.",
+        "part_page": 9101,
+        "part_text": "FAKE-HEADING: camshaft timing pulley.\nTorque: 999 N·m.",
+        "extras": ((9102, "TORQUE SPECIFICATION\nFAKE idler fastener 999 N·m."),),
+        "cited": (9101, 9102),
+    },
+    "valve-clearance-cold": {
+        "question": "What's the cold valve clearance spec for intake and exhaust?",
+        "answer": "Intake is 999 mm and exhaust is 998 mm.",
+        "part_page": 9101,
+        "part_text": "FAKE-HEADING: valve clearance.\nIntake 999 mm. Exhaust 998 mm.",
+        "extras": ((9102, "SERVICE SPECIFICATIONS\nCold start 999 mm."),),
+        "cited": (9101, 9102),
+    },
+    "oil-drain-plug-torque": {
+        "question": "What's the oil drain plug torque?",
+        "answer": "Torque is 999 Nm.",
+        "part_page": 9101,
+        "part_text": "FAKE-HEADING: oil drain plug.\nTorque: 999 N·m.",
+        "extras": ((9102, "TORQUE SPECIFICATION\nFAKE cover fastener 999 N·m."),),
+        "cited": (9102,),
+    },
+    "throttle-body-bracket-torque": {
+        "question": "What do the throttle body bracket bolts torque to?",
+        "answer": "Torque is 999 Nm.",
+        "part_page": 9101,
+        "part_text": "FAKE-HEADING: throttle body bracket.\nTorque: 999 N·m.",
+        "extras": ((9102, "TORQUE SPECIFICATION\nFAKE stay fastener 999 N·m."),),
+        "cited": (9102,),
+    },
+    "cam-sensor-resistance": {
+        "question": "What resistance should the camshaft position sensor have cold?",
+        "answer": "FAKE-SPEC resistance is 999 ohms.",
+        "part_page": 9101,
+        "part_text": "FAKE-HEADING: camshaft position sensor.\nResistance 999 ohms.",
+        "extras": (
+            (9102, "SERVICE DATA\nCold resistance 999 ohms."),
+            (9103, "SERVICE SPECIFICATIONS\nCold 999 ohms at the FAKE sender."),
+        ),
+        "cited": (9102, 9101, 9103),
+    },
+}
+
+
+def _neighbor_turn(case: dict[str, Any]) -> tuple[LlmAnswerProducer, dict[str, Any]]:
+    by_page = {page: text for page, text in case["extras"]}
+    by_page[case["part_page"]] = case["part_text"]
+    hits = tuple(
+        _Hit(_DOC, page, text)
+        for page, text in (*case["extras"], (case["part_page"], case["part_text"]))
+    )
+    producer, _, _ = _producer(
+        _completion(
+            case["answer"],
+            [_cited(by_page[page], page=page) for page in case["cited"]],
+        ),
+        hits,
+    )
+    conversation = _conversation(case["question"])
+    return producer, producer.produce(conversation)
+
+
+@pytest.mark.parametrize("question_id", list(_NEIGHBORS))
+def test_neighbor_chip_drops_when_the_part_page_states_the_claim(
+    question_id: str,
+) -> None:
+    case = _NEIGHBORS[question_id]
+    producer, payload = _neighbor_turn(case)
+
+    assert payload == {
+        "kind": "answer",
+        "text": case["answer"],
+        "citations": [_cited(case["part_text"], page=case["part_page"])],
+    }
+    guarded = guard_answer(
+        payload,
+        producer.cited_chunk_texts(_conversation(case["question"]), payload),
+    )
+    assert guarded.uncited == ()
+    assert guarded.answer["kind"] == "answer"
+
+
+def test_chat_cites_the_oil_drain_page_and_not_the_neighbor() -> None:
+    case = _NEIGHBORS["oil-drain-plug-torque"]
+    producer, _ = _neighbor_turn(case)
+
+    response = TestClient(create_app(producer=producer)).post(
+        "/chat",
+        json={"messages": [{"role": "user", "text": case["question"]}]},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "kind": "answer",
+        "text": case["answer"],
+        "citations": [_cited(case["part_text"], page=case["part_page"])],
+    }
+
+
+def test_neighbor_only_number_is_a_guard_refusal() -> None:
+    question = "What's the oil drain plug torque?"
+    part = "FAKE-HEADING: oil drain plug.\nProcedure only. No measurement here."
+    neighbor = "TORQUE SPECIFICATION\nFAKE cover fastener 999 N·m."
+    answer = "Torque is 999 Nm."
+    producer, _, _ = _producer(
+        _completion(answer, [_cited(neighbor, page=9102)]),
+        (_Hit(_DOC, 9102, neighbor), _Hit(_DOC, 9101, part)),
+    )
+    conversation = _conversation(question)
+
+    payload = producer.produce(conversation)
+
+    assert payload["kind"] == "answer"
+    assert [item["page"] for item in payload["citations"]] == [9101]
+    assert "999" not in payload["citations"][0]["snippet"]
+    guarded = guard_answer(payload, producer.cited_chunk_texts(conversation, payload))
+    assert guarded.answer["kind"] == "refusal"
+    assert guarded.answer["reason"] == "not_found_in_manual"
+    assert "999" in guarded.answer["text"]
+    response = TestClient(create_app(producer=producer)).post(
+        "/chat",
+        json={"messages": [{"role": "user", "text": question}]},
+    )
+    assert response.status_code == 200
+    assert response.json()["kind"] == "refusal"
+    assert response.json()["reason"] == "not_found_in_manual"
