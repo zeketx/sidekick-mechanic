@@ -588,6 +588,56 @@ def truck_prompt_line(conversation: Conversation) -> str:
     return f"The garage summary names this vehicle: {named}."
 
 
+# Measurement words and conditions. A service-data page that only says
+# "torque" or "cold" is not the part the question named.
+_PART_TERM_SKIP = frozenset(
+    {
+        "capacity",
+        "clearance",
+        "cold",
+        "gap",
+        "hot",
+        "ohm",
+        "ohms",
+        "pressure",
+        "resistance",
+        "spec",
+        "specification",
+        "specifications",
+        "specs",
+        "temperature",
+        "torque",
+        "warm",
+        "bolt",
+        "bolts",
+        "nut",
+        "nuts",
+        "screw",
+        "screws",
+    }
+)
+
+
+def question_part_terms(question: str) -> tuple[str, ...]:
+    """Words that name the part, not the kind of measurement."""
+
+    return tuple(
+        term
+        for term in _focus_terms(question)
+        if term.casefold() not in _CONDITION_TERMS
+        and term.casefold() not in _PART_TERM_SKIP
+    )
+
+
+def page_names_part(question: str, text: str) -> bool:
+    """True when the page contains every part word from the question."""
+
+    terms = question_part_terms(question)
+    if not terms:
+        return False
+    return all(_term_in_snippet(term, text) for term in terms)
+
+
 def _focus_terms(question: str) -> tuple[str, ...]:
     return tuple(
         term
