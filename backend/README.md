@@ -212,7 +212,10 @@ See [`eval/GOLDEN.md`](eval/GOLDEN.md) for the fields and the note that the manu
 Each JSONL row matches [`eval/golden.schema.json`](eval/golden.schema.json):
 `id`, `question`, `answerable`, `expected` (`doc_id` and `page`), optional
 bay-map `part_id`, and optional `ci`. Answerable rows need at least one
-expected page. `ci: true` marks the fast subset.
+expected page. `ci: true` marks the fast subset. Spec-value rows may also
+carry `expected_value`, `unit`, `source_page`, `source_quote`,
+`label_status`, and `label_note`. Those fields are a draft for owner review.
+See [`eval/GOLDEN.md`](eval/GOLDEN.md). Scoring does not read them.
 
 CI runs that subset and writes the table to the Actions job summary. The
 workflow token stays `contents: read`, so the check does not post a PR comment.

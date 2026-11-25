@@ -6,7 +6,7 @@ A separate, smaller retrieval-only set lives in [`fixtures/retrieval-real.jsonl`
 
 ## Row format
 
-One JSON object per line, validated by [`golden.schema.json`](golden.schema.json) (unchanged).
+One JSON object per line, validated by [`golden.schema.json`](golden.schema.json).
 
 | Field | Meaning |
 | --- | --- |
@@ -16,8 +16,14 @@ One JSON object per line, validated by [`golden.schema.json`](golden.schema.json
 | `expected` | `{doc_id, page}` pairs that hold the answer. Empty when `answerable` is `false`. |
 | `part_id` | Optional bay-map part the answer is about (feeds M3 / #40). |
 | `ci` | `true` puts the row in the `--ci` subset. |
+| `expected_value` | Draft spec value for a value question. Empty when `label_status` is `needs_review`. Omitted on rows that do not ask for a measurable value. |
+| `unit` | Unit text copied from `source_quote`. Empty when no value is labeled. |
+| `source_page` | The expected manual page the quote came from. Omitted when the row has no single expected page. |
+| `source_quote` | Verbatim ingested page text. Empty when that text is not in the checkout. |
+| `label_status` | `ok` or `needs_review`. `ok` means the value and unit occur in the quote. Commas and trailing decimal zeros are the only number-format differences that still match. |
+| `label_note` | Why a `needs_review` row has no value. |
 
-No answer values are stored here. The answer is whatever is printed on the cited page. That keeps manual text and specs out of git.
+Pinouts, connector ids, and wire colors are not value rows. They stay unlabeled. Zeke reviews every labeled row before a `value_match` score counts. `test_ok_rows_quote_the_value_and_unit` fails when an `ok` row's quote does not contain the value and the unit.
 
 ## Pages
 
@@ -38,6 +44,8 @@ No real bay map exists yet (#40). `part_id` values are `PROVISIONAL_PART_IDS` in
 ## Counts
 
 50 questions, 23 answerable, 27 unanswerable, 17 with a `part_id`, 10 with `ci` true.
+
+35 value rows are `needs_review` with an empty `expected_value`. 0 are `ok`. 15 rows stay unlabeled. This checkout has no `backend/.ingest/chunks.jsonl` and no `manuals/2jz-ge-rm.pdf`, so the notes do not quote a page.
 
 A Mac run of `python3 -m eval.golden_gate` against the ingested chunks rejected six rows. The fixes use that result and the ingest read of `manuals/2jz-ge-rm.pdf`.
 

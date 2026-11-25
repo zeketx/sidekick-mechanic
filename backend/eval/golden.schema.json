@@ -46,6 +46,33 @@
     "ci": {
       "type": "boolean",
       "description": "True includes the row in the fast CI subset. Omit or false for the full run only."
+    },
+    "expected_value": {
+      "type": "string",
+      "description": "Spec value copied from source_quote. Empty when label_status is needs_review."
+    },
+    "unit": {
+      "type": "string",
+      "description": "Unit copied character for character from source_quote. Empty when no value is labeled."
+    },
+    "source_page": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The expected manual page the quote was copied from. Omit when the row has no single expected page."
+    },
+    "source_quote": {
+      "type": "string",
+      "description": "Verbatim ingested page text that contains the value and unit. Empty when the text is not available."
+    },
+    "label_status": {
+      "type": "string",
+      "enum": ["ok", "needs_review"],
+      "description": "ok means the value and unit are in the quote. needs_review means the owner has not accepted a value."
+    },
+    "label_note": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Why a needs_review row has no value."
     }
   },
   "allOf": [
@@ -59,6 +86,45 @@
       "then": {
         "properties": {
           "expected": { "minItems": 1 }
+        }
+      }
+    },
+    {
+      "if": {
+        "anyOf": [
+          { "required": ["expected_value"] },
+          { "required": ["unit"] },
+          { "required": ["source_page"] },
+          { "required": ["source_quote"] },
+          { "required": ["label_status"] },
+          { "required": ["label_note"] }
+        ]
+      },
+      "then": {
+        "required": ["expected_value", "unit", "source_quote", "label_status"]
+      }
+    },
+    {
+      "if": {
+        "properties": { "label_status": { "const": "needs_review" } },
+        "required": ["label_status"]
+      },
+      "then": {
+        "required": ["label_note"],
+        "properties": { "expected_value": { "const": "" } }
+      }
+    },
+    {
+      "if": {
+        "properties": { "label_status": { "const": "ok" } },
+        "required": ["label_status"]
+      },
+      "then": {
+        "required": ["source_page"],
+        "properties": {
+          "expected_value": { "minLength": 1 },
+          "unit": { "minLength": 1 },
+          "source_quote": { "minLength": 1 }
         }
       }
     }

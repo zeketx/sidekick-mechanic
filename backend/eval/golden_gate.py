@@ -434,6 +434,16 @@ def render_golden(questions: Sequence[GoldenQuestion]) -> str:
             payload["part_id"] = question.part_id
         if question.ci:
             payload["ci"] = True
+        label = question.spec_label
+        if label is not None:
+            payload["expected_value"] = label.expected_value
+            payload["unit"] = label.unit
+            if label.source_page is not None:
+                payload["source_page"] = label.source_page
+            payload["source_quote"] = label.source_quote
+            payload["label_status"] = label.label_status
+            if label.label_note is not None:
+                payload["label_note"] = label.label_note
         lines.append(json.dumps(payload, ensure_ascii=True))
     return "\n".join(lines) + "\n"
 
