@@ -41,12 +41,18 @@ Every issue gets exactly one `phase`, one `type`, one `size`, and one or more `a
 | Size | `size:S` | Under a day |
 | | `size:M` | One to three days |
 | | `size:L` | More than three days. Split it before moving to Ready. |
+| Status (optional) | `status:next` | Next after M6. Start when M6 ships. |
+| | `status:parked` | Parked. Not scheduled. |
+| | `status:not-planned` | Explicitly dropped, not planned. |
+| | `later` | Later backlog, after the next slot. Not scheduled. |
 
 Epics for Phases 2 and 3 are `size:L` issues with titles starting `Epic:`. Split them when their phase starts.
 
+`status:next`, `status:parked`, `status:not-planned`, and `later` are optional extras. They do not replace phase, type, size, or area. The next slot after M6 (maintenance schedule and code lookup) uses `status:next` and is described in [ROADMAP.md](../ROADMAP.md). It is not a new M7–M10 milestone.
+
 ## Milestones
 
-Milestones match [ROADMAP.md](../ROADMAP.md): M0 to M6 for Phase 1, M7 to M9 for Phase 2, M10 for Phase 3. Definitions live on [GitHub milestones](https://github.com/zeketx/sidekick-mechanic/milestones). Issues live on [GitHub Issues](https://github.com/zeketx/sidekick-mechanic/issues).
+Milestones match [ROADMAP.md](../ROADMAP.md): M0 to M6 for Phase 1, then a next slot (maintenance schedule and code lookup, labeled `status:next`, not a new numbered milestone), M7 to M9 for Phase 2, M10 for Phase 3. Definitions live on [GitHub milestones](https://github.com/zeketx/sidekick-mechanic/milestones). Issues live on [GitHub Issues](https://github.com/zeketx/sidekick-mechanic/issues).
 
 ## Setup (owner, once GitHub access is set up)
 
