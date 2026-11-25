@@ -12,7 +12,7 @@ Issues for each milestone live on [GitHub Issues](https://github.com/zeketx/side
 Before delivery:  M0 → M1 → M2 → M3 → M4 (M2/M3 can overlap)
 Not built:        embeddings and measured accuracy (pulled out of M2; not in the code)
 Delivery day:     M5
-After delivery:   M6 (Phase 1 release) → Phase 2 (M7–M9) → Phase 3 (M10)
+After delivery:   M6 (Phase 1 release) → NEXT (maintenance schedule + code lookup) → Phase 2 (M7–M9) → Phase 3 (M10)
 ```
 
 The truck delivery date is TBD. M0 through M4 do not need the truck. M5 is the only milestone that is blocked on it.
@@ -187,6 +187,24 @@ Embeddings and the old accuracy targets are in [Not built: embeddings and measur
 
 ---
 
+## Next after M6: Maintenance schedule and code lookup
+
+**Decision.** Zeke, 2026-11-25, relayed by Chief of Staff. The next slot after M6 is an FSM-cited maintenance schedule plus a type-in trouble code lookup. These are not a new numbered milestone in the M7–M10 sequence. M7–M10 stay part detection, telemetry, live overlay, and the projector study.
+
+**Deliverables**
+- FSM-cited maintenance schedule. Every interval cites the manual page it came from. [Issue #172](https://github.com/zeketx/sidekick-mechanic/issues/172).
+- Type-in trouble code lookup. Type a code, get the meaning, the cited page, and the next diagnostic step. Honest miss when the loaded manuals do not cover it. [Issue #173](https://github.com/zeketx/sidekick-mechanic/issues/173).
+
+**Exit criteria**
+- [ ] Every schedule row that shows an interval has a document ID and page from `docs/MANUALS.md`.
+- [ ] A code in the ingested manuals returns a cited meaning and next step. A code that is not in those manuals is an honest miss.
+- [ ] Specs are never invented. The existing spec guard still applies.
+
+**Notes**
+- Labeled `status:next`. Do not start until M6 ships.
+- Today `2jz-ge-rm` (RM1054U) is ingested. `lj78-wiring` (EWD117F) is blocked (encrypted, image-only). There is no LJ78 FSM in `docs/MANUALS.md`. Chassis intervals and codes that need those books stay unavailable until the sources are loaded.
+
+
 ## Phase 2: Live AR and telemetry (lighter)
 
 ### M7: On-device part detection
@@ -206,6 +224,25 @@ Embeddings and the old accuracy targets are in [Not built: embeddings and measur
 ### M10: Feasibility study
 - Ceiling camera plus projector over the bay. Calibrate projector to camera. Light up one part and one tool.
 - **Exit:** a written go/no-go with measured projection alignment error and a cost estimate.
+
+
+## Later backlog (after NEXT)
+
+Not scheduled, and not M7–M10. Labeled `later`.
+
+- Combined swap manual, with source labels and conflict flags: [issue #174](https://github.com/zeketx/sidekick-mechanic/issues/174). Depends on an LJ78 FSM that is not in `docs/MANUALS.md` yet, and on unblocking `lj78-wiring` for wiring passages.
+- Pre-job dry run: [issue #175](https://github.com/zeketx/sidekick-mechanic/issues/175).
+- Off-road pre-trip checklist: [issue #176](https://github.com/zeketx/sidekick-mechanic/issues/176).
+- Printable trim library for NLA LJ78 parts (idea from CAD Shop, no OEM logos): [issue #177](https://github.com/zeketx/sidekick-mechanic/issues/177).
+- Clickable 3D system view: [issue #178](https://github.com/zeketx/sidekick-mechanic/issues/178). Depends on the same missing LJ78 FSM and blocked `lj78-wiring` for chassis and electrical systems. Related to, but not the same as, [#157](https://github.com/zeketx/sidekick-mechanic/issues/157) and [#160](https://github.com/zeketx/sidekick-mechanic/issues/160).
+
+## Parked: mileage and MPG
+
+Not a milestone and not in the next slot. Mileage and MPG tracking stay parked (Zeke, 2026-11-25). No existing issue was found to label. Do not start odometer logging or fuel-economy work until this is un-parked.
+
+## Dropped: smog and emissions readiness
+
+Not planned. The truck has no emissions testing (Zeke, 2026-11-25). A smog or OBD readiness pre-check should not be filed or built. No existing issue was found to close. Labeled `status:not-planned` is available if one appears later.
 
 ## Parked: exploded teardown
 
