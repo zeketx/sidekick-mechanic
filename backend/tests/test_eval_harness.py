@@ -346,7 +346,10 @@ def test_metrics_markdown_uses_results_and_tbd_targets(tmp_path: Path) -> None:
     assert "| Metric | Target | Current value | Date |" in text
     assert "| recall@5 | TBD | not available | 2026-10-01 |" in text
     assert "| citation accuracy | TBD | 0.0000 | 2026-10-01 |" in text
+    assert "| value_match | TBD | not available | 2026-10-01 |" in text
     assert "| refusal correctness | TBD | 1.0000 | 2026-10-01 |" in text
+    assert "| refused count | TBD | 0 | 2026-10-01 |" in text
+    assert "| value_match excluded | TBD | 0 | 2026-10-01 |" in text
     assert "| gap coverage | TBD | not available | 2026-10-01 |" in text
     assert "| uncited-number count | TBD | 3 | 2026-10-01 |" in text
     assert "| latency p50 (ms) | TBD | 1.500 | 2026-10-01 |" in text
@@ -366,6 +369,10 @@ def test_job_summary_shows_not_available_for_null_recall(tmp_path: Path) -> None
     summary = render_job_summary(payload)
 
     assert "| recall@5 | not available |" in summary
+    assert "| value_match | not available |" in summary
+    assert "| citation accuracy |" in summary
+    assert "| refusal correctness |" in summary
+    assert "value_match excluded 3 questions with no labeled value. refused count 0." in summary
     assert "| region IoU | 0.5000 |" in summary
     assert "| unmapped-highlight count | 0 |" in summary
     assert "ci subset" in summary

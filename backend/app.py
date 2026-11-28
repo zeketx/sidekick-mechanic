@@ -210,7 +210,7 @@ def _debug_searched_pages(
     producer: AnswerProducer,
     conversation: Conversation,
     page: PageRef | None,
-) -> tuple[tuple[str, int], ...] | None:
+) -> tuple[tuple[str, int, float], ...] | None:
     if page is not None or not isinstance(producer, LlmAnswerProducer):
         return None
     return producer.searched_pages(conversation)

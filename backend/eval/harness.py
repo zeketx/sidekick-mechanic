@@ -34,6 +34,7 @@ from eval.metrics import (
     score_case,
 )
 from eval.runner import EvalRunner, InProcessChatRunner, RetrievedHit, RunnerError
+from eval.trace import question_trace, trace_document, write_trace
 
 SCHEMA_VERSION = 2
 
@@ -60,6 +61,8 @@ def run_harness(
     uncited_counter: UncitedNumberCounter | None = None,
     bay_map_path: Path | None = None,
     hand_labels_path: Path | None = None,
+    trace_path: Path | None = None,
+    trace_label: str | None = None,
 ) -> dict[str, Any]:
     path = resolve_golden_path(golden_path)
     questions = load_golden(path, ci_only=ci_only)
@@ -69,10 +72,12 @@ def run_harness(
     bay_map = load_bay_map(map_path.read_bytes())
     labels = load_hand_labels(labels_path)
     mapped = frozenset(choice.part_id for choice in bay_map.highlight_choices)
-    scores = [
+    scored = [
         _score_question(question, chosen, uncited_counter, mapped)
         for question in questions
     ]
+    scores = [score for score, _trace in scored]
+    traces = [trace for _score, trace in scored]
     metrics = aggregate_metrics(scores)
     payload = _payload(
         golden_path=path,
@@ -87,6 +92,17 @@ def run_harness(
         region_iou=mean_rendered_iou(bay_map, labels),
     )
     _write_results(output_dir, payload)
+    if trace_path is not None:
+        label = trace_label or trace_path.stem
+        write_trace(
+            trace_path,
+            trace_document(
+                label=label,
+                golden_path=payload["golden_path"],
+                runner=payload["runner"],
+                questions=traces,
+            ),
+        )
     return payload
 
 
@@ -129,7 +145,7 @@ def _score_question(
     runner: EvalRunner,
     counter: UncitedNumberCounter | None,
     mapped_part_ids: Collection[str],
-) -> CaseScore:
+) -> tuple[CaseScore, dict[str, Any]]:
     output = runner.run(question.question)
     try:
         validate_answer(output.answer)
@@ -137,7 +153,7 @@ def _score_question(
         raise RunnerError(
             f"{question.id} answer failed the contract: {exc.message}"
         ) from exc
-    return score_case(
+    score = score_case(
         question_id=question.id,
         answerable=question.answerable,
         expected=question.expected_pairs(),
@@ -147,7 +163,19 @@ def _score_question(
         retrieval=_retrieval_pairs(output.retrieval),
         counter=counter,
         mapped_part_ids=mapped_part_ids,
+        value=question.expected_value,
+        unit=question.unit,
+        label_status=question.label_status,
     )
+    trace = question_trace(
+        question.id,
+        output.answer,
+        output.retrieval,
+        value=question.expected_value,
+        unit=question.unit,
+        label_status=question.label_status,
+    )
+    return score, trace
 
 
 def _retrieval_pairs(
@@ -194,6 +222,9 @@ def _payload(
         "metrics": {
             "recall_at_5": _round_rate(metrics.recall_at_5),
             "citation_accuracy": _round_rate(metrics.citation_accuracy),
+            "value_match": _round_rate(metrics.value_match),
+            "value_match_excluded": metrics.value_match_excluded,
+            "refused_count": metrics.refused_count,
             "refusal_correctness": _round_rate(metrics.refusal_correctness),
             "gap_coverage": _round_rate(metrics.gap_coverage),
             "uncited_number_count": metrics.uncited_number_count,
@@ -216,6 +247,8 @@ def _case_dict(score: CaseScore) -> dict[str, Any]:
         "retrieval_available": score.retrieval_available,
         "recall_at_5": _round_rate(score.recall_at_5),
         "citation_accurate": score.citation_accurate,
+        "value_match": score.value_match,
+        "refused": score.refused,
         "refusal_correct": score.refusal_correct,
         "gap_covered": score.gap_covered,
         "uncited_number_count": score.uncited_number_count,

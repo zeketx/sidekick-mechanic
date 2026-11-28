@@ -18,6 +18,9 @@ METRICS_PATH = REPO_ROOT / "docs" / "METRICS.md"
 TARGETS: dict[str, str] = {
     "recall_at_5": "TBD",
     "citation_accuracy": "TBD",
+    "value_match": "TBD",
+    "refused_count": "TBD",
+    "value_match_excluded": "TBD",
     "refusal_correctness": "TBD",
     "gap_coverage": "TBD",
     "uncited_number_count": "TBD",
@@ -31,7 +34,10 @@ TARGETS: dict[str, str] = {
 METRIC_ROWS: tuple[tuple[str, str, str], ...] = (
     ("recall_at_5", "recall@5", "rate"),
     ("citation_accuracy", "citation accuracy", "rate"),
+    ("value_match", "value_match", "rate"),
     ("refusal_correctness", "refusal correctness", "rate"),
+    ("refused_count", "refused count", "count"),
+    ("value_match_excluded", "value_match excluded", "count"),
     ("gap_coverage", "gap coverage", "rate"),
     ("uncited_number_count", "uncited-number count", "count"),
     ("latency_p50_ms", "latency p50 (ms)", "latency"),
@@ -73,8 +79,12 @@ def load_results(path: Path) -> dict[str, Any]:
     if not isinstance(metrics, dict):
         raise ResultsError(f"{path} is missing metrics")
     missing = [key for key, _, _ in METRIC_ROWS if key not in metrics]
-    if missing:
-        raise ResultsError(f"{path} is missing {', '.join(missing)}")
+    optional = {"value_match", "refused_count", "value_match_excluded"}
+    required = [key for key in missing if key not in optional]
+    if required:
+        raise ResultsError(f"{path} is missing {', '.join(required)}")
+    for key in missing:
+        metrics[key] = 0 if key in {"refused_count", "value_match_excluded"} else None
     return payload
 
 
@@ -159,7 +169,21 @@ def render_job_summary(payload: dict[str, Any]) -> str:
         ]
     )
     for key, label, kind in METRIC_ROWS:
-        lines.append(f"| {label} | {_format_value(metrics[key], kind)} |")
+        value = _format_value(_metric_or_default(metrics, key), kind)
+        lines.append(f"| {label} | {value} |")
+    excluded = metrics.get("value_match_excluded")
+    refused = metrics.get("refused_count")
+    if "value_match_excluded" in metrics and isinstance(excluded, int) and not isinstance(excluded, bool):
+        refused_text = refused if isinstance(refused, int) else 0
+        lines.extend(
+            [
+                "",
+                (
+                    f"value_match excluded {excluded} questions with no labeled "
+                    f"value. refused count {refused_text}."
+                ),
+            ]
+        )
     lines.extend(
         [
             "",
@@ -203,6 +227,14 @@ def _subset_label(payload: dict[str, Any]) -> str:
     if subset == "full":
         return "full set"
     return "unknown subset"
+
+
+def _metric_or_default(metrics: dict[str, Any], key: str) -> Any:
+    if key in metrics:
+        return metrics[key]
+    if key in {"refused_count", "value_match_excluded"}:
+        return 0
+    return None
 
 
 def _format_value(value: Any, kind: str) -> str:
